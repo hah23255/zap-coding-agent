@@ -7,6 +7,9 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Fix Cerebras model names (v0.15.24)
+Cerebras retired the Llama model IDs (`llama3.3-70b`, `llama3.1-70b`, `llama3.1-8b`, `qwen-3-32b`). Updated all three pickers to the current live models returned by `/v1/models`: `gpt-oss-120b` and `zai-glm-4.7`. Both verified working via live API call.
+
 ### Zhipu AI and Qwen (DashScope) providers (v0.15.23)
 Adds two Chinese AI providers. Provider count grows from 19 to 21.
 
