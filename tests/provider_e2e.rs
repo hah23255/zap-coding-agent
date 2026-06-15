@@ -62,6 +62,277 @@ fn check_codex_auth_present_returns_some() {
     assert_eq!(result, Some("ready".into()), "check_codex() should return Some when auth.json present");
 }
 
+// ── OpenRouter helpers ────────────────────────────────────────────────────────
+
+fn openrouter_key() -> String {
+    if let Ok(key) = std::env::var("OPENROUTER_API_KEY") {
+        return key;
+    }
+    let toml_path = dirs::home_dir().expect("no home").join(".agent.toml");
+    let raw = std::fs::read_to_string(&toml_path)
+        .expect("~/.agent.toml missing; set OPENROUTER_API_KEY env var to run these tests");
+    let mut in_section = false;
+    for line in raw.lines() {
+        let t = line.trim();
+        if t == "[providers.openrouter]" { in_section = true; continue; }
+        if in_section && t.starts_with('[') { break; }
+        if in_section && t.starts_with("api_key") {
+            if let Some(val) = t.split('"').nth(1) {
+                return val.to_owned();
+            }
+        }
+    }
+    panic!("openrouter api_key not found in ~/.agent.toml; set OPENROUTER_API_KEY env var");
+}
+
+fn openrouter_post(model: &str) -> (u16, String) {
+    let key = openrouter_key();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let client = reqwest::Client::new();
+        let payload = serde_json::json!({
+            "model": model,
+            "messages": [{"role": "user", "content": "Reply with the single word: pong"}],
+        });
+        let resp = client
+            .post("https://openrouter.ai/api/v1/chat/completions")
+            .header("Authorization", format!("Bearer {key}"))
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .send()
+            .await
+            .expect("HTTP request failed");
+        let status = resp.status().as_u16();
+        let body = resp.text().await.unwrap_or_default();
+        (status, body)
+    })
+}
+
+fn assert_openrouter_ok(model: &str) {
+    let (status, body) = openrouter_post(model);
+    println!("{model} → HTTP {status}");
+    println!("{}", &body[..body.len().min(500)]);
+    assert!((200..300).contains(&status), "{model} returned {status}: {body}");
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .unwrap_or_else(|_| panic!("{model}: response is not JSON: {body}"));
+    let msg = &json["choices"][0]["message"];
+    // reasoning models may return content=null with reasoning_content populated
+    assert!(
+        msg["content"].is_string() || msg["reasoning_content"].is_string(),
+        "{model}: no content or reasoning_content in response: {body}"
+    );
+}
+
+// ── OpenRouter: free models ($0) ──────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter free ($0): meta-llama/llama-3.3-70b-instruct:free"]
+fn openrouter_free_llama_3_3_70b() {
+    assert_openrouter_ok("meta-llama/llama-3.3-70b-instruct:free");
+}
+
+#[test]
+#[ignore = "live — OpenRouter free ($0): google/gemma-4-26b-a4b-it:free"]
+fn openrouter_free_gemma_4_26b() {
+    assert_openrouter_ok("google/gemma-4-26b-a4b-it:free");
+}
+
+#[test]
+#[ignore = "live — OpenRouter free ($0): qwen/qwen3-coder:free"]
+fn openrouter_free_qwen3_coder() {
+    assert_openrouter_ok("qwen/qwen3-coder:free");
+}
+
+#[test]
+#[ignore = "live — OpenRouter free ($0): nvidia/nemotron-3-super-120b-a12b:free"]
+fn openrouter_free_nemotron_super_120b() {
+    assert_openrouter_ok("nvidia/nemotron-3-super-120b-a12b:free");
+}
+
+#[test]
+#[ignore = "live — OpenRouter free ($0): openai/gpt-oss-120b:free"]
+fn openrouter_free_gpt_oss_120b() {
+    assert_openrouter_ok("openai/gpt-oss-120b:free");
+}
+
+// ── OpenRouter: Anthropic Claude ──────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($1/$5 per M): anthropic/claude-haiku-4.5"]
+fn openrouter_anthropic_claude_haiku_4_5() {
+    assert_openrouter_ok("anthropic/claude-haiku-4.5");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($3/$15 per M): anthropic/claude-sonnet-4.6"]
+fn openrouter_anthropic_claude_sonnet_4_6() {
+    assert_openrouter_ok("anthropic/claude-sonnet-4.6");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($5/$25 per M): anthropic/claude-opus-4.8"]
+fn openrouter_anthropic_claude_opus_4_8() {
+    assert_openrouter_ok("anthropic/claude-opus-4.8");
+}
+
+// ── OpenRouter: OpenAI ────────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.10/$0.40 per M): openai/gpt-4.1-nano"]
+fn openrouter_openai_gpt41_nano() {
+    assert_openrouter_ok("openai/gpt-4.1-nano");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.40/$1.60 per M): openai/gpt-4.1-mini"]
+fn openrouter_openai_gpt41_mini() {
+    assert_openrouter_ok("openai/gpt-4.1-mini");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.15/$0.60 per M): openai/gpt-4o-mini"]
+fn openrouter_openai_gpt4o_mini() {
+    assert_openrouter_ok("openai/gpt-4o-mini");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($2.00/$8.00 per M): openai/gpt-4.1"]
+fn openrouter_openai_gpt41() {
+    assert_openrouter_ok("openai/gpt-4.1");
+}
+
+// ── OpenRouter: Meta Llama ────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.10/$0.32 per M): meta-llama/llama-3.3-70b-instruct"]
+fn openrouter_llama_3_3_70b() {
+    assert_openrouter_ok("meta-llama/llama-3.3-70b-instruct");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.15/$0.60 per M): meta-llama/llama-4-maverick"]
+fn openrouter_llama_4_maverick() {
+    assert_openrouter_ok("meta-llama/llama-4-maverick");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.10/$0.30 per M): meta-llama/llama-4-scout"]
+fn openrouter_llama_4_scout() {
+    assert_openrouter_ok("meta-llama/llama-4-scout");
+}
+
+// ── OpenRouter: Google Gemini ─────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.10/$0.40 per M): google/gemini-2.5-flash-lite"]
+fn openrouter_google_gemini_25_flash_lite() {
+    assert_openrouter_ok("google/gemini-2.5-flash-lite");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.30/$2.50 per M): google/gemini-2.5-flash"]
+fn openrouter_google_gemini_25_flash() {
+    assert_openrouter_ok("google/gemini-2.5-flash");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($1.25/$10.00 per M): google/gemini-2.5-pro"]
+fn openrouter_google_gemini_25_pro() {
+    assert_openrouter_ok("google/gemini-2.5-pro");
+}
+
+// ── OpenRouter: DeepSeek ──────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.20/$0.80 per M): deepseek/deepseek-chat"]
+fn openrouter_deepseek_chat() {
+    assert_openrouter_ok("deepseek/deepseek-chat");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.70/$2.50 per M): deepseek/deepseek-r1 (reasoning)"]
+fn openrouter_deepseek_r1() {
+    assert_openrouter_ok("deepseek/deepseek-r1");
+}
+
+// ── OpenRouter: Qwen ──────────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.05/$0.40 per M): qwen/qwen3-8b"]
+fn openrouter_qwen3_8b() {
+    assert_openrouter_ok("qwen/qwen3-8b");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.08/$0.28 per M): qwen/qwen3-32b"]
+fn openrouter_qwen3_32b() {
+    assert_openrouter_ok("qwen/qwen3-32b");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.45/$1.82 per M): qwen/qwen3-235b-a22b"]
+fn openrouter_qwen3_235b() {
+    assert_openrouter_ok("qwen/qwen3-235b-a22b");
+}
+
+// ── OpenRouter: Mistral ───────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.02/$0.03 per M): mistralai/mistral-nemo (cheapest Mistral)"]
+fn openrouter_mistral_nemo() {
+    assert_openrouter_ok("mistralai/mistral-nemo");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.07/$0.20 per M): mistralai/mistral-small-3.2-24b-instruct"]
+fn openrouter_mistral_small_3_2() {
+    assert_openrouter_ok("mistralai/mistral-small-3.2-24b-instruct");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.50/$1.50 per M): mistralai/mistral-large-2512"]
+fn openrouter_mistral_large_2512() {
+    assert_openrouter_ok("mistralai/mistral-large-2512");
+}
+
+// ── OpenRouter: xAI Grok ──────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($1.25/$2.50 per M): x-ai/grok-4.20"]
+fn openrouter_xai_grok_4_20() {
+    assert_openrouter_ok("x-ai/grok-4.20");
+}
+
+// ── OpenRouter: Amazon Nova ───────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.06/$0.24 per M): amazon/nova-lite-v1"]
+fn openrouter_amazon_nova_lite() {
+    assert_openrouter_ok("amazon/nova-lite-v1");
+}
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.80/$3.20 per M): amazon/nova-pro-v1"]
+fn openrouter_amazon_nova_pro() {
+    assert_openrouter_ok("amazon/nova-pro-v1");
+}
+
+// ── OpenRouter: Cohere ────────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($0.04/$0.15 per M): cohere/command-r7b-12-2024"]
+fn openrouter_cohere_command_r7b() {
+    assert_openrouter_ok("cohere/command-r7b-12-2024");
+}
+
+// ── OpenRouter: Perplexity ────────────────────────────────────────────────────
+
+#[test]
+#[ignore = "live — OpenRouter paid ($1.00/$1.00 per M): perplexity/sonar"]
+fn openrouter_perplexity_sonar() {
+    assert_openrouter_ok("perplexity/sonar");
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 fn codex_creds() -> (String, String) {

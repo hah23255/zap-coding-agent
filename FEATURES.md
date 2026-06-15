@@ -7,6 +7,30 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### OpenRouter expanded model list + e2e test suite (v0.15.22)
+Expanded the OpenRouter model picker from 4 models to 13 covering all major provider families, plus a comprehensive e2e test suite with 34 live tests (all `#[ignore]`; run with `cargo test --test provider_e2e -- --ignored`).
+
+**New model list in picker:** `anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`, `openai/gpt-4.1`, `openai/gpt-4.1-mini`, `meta-llama/llama-4-maverick`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemini-2.5-pro`, `google/gemini-2.5-flash`, `deepseek/deepseek-r1`, `deepseek/deepseek-chat`, `qwen/qwen3-235b-a22b`, `mistralai/mistral-large-2512`, `x-ai/grok-4.20`, `Other…`
+
+**e2e test groups** (in `tests/provider_e2e.rs`):
+
+| Group | Models tested |
+|---|---|
+| Free ($0) | llama-3.3-70b:free, gemma-4-26b:free, qwen3-coder:free, nemotron-super-120b:free, gpt-oss-120b:free |
+| Anthropic | claude-haiku-4.5, claude-sonnet-4.6, claude-opus-4.8 |
+| OpenAI | gpt-4.1-nano, gpt-4.1-mini, gpt-4o-mini, gpt-4.1 |
+| Meta Llama | llama-3.3-70b, llama-4-maverick, llama-4-scout |
+| Google | gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro |
+| DeepSeek | deepseek-chat, deepseek-r1 (reasoning model) |
+| Qwen | qwen3-8b, qwen3-32b, qwen3-235b-a22b |
+| Mistral | mistral-nemo, mistral-small-3.2, mistral-large-2512 |
+| xAI | grok-4.20 |
+| Amazon | nova-lite-v1, nova-pro-v1 |
+| Cohere | command-r7b-12-2024 |
+| Perplexity | sonar |
+
+Reasoning models (DeepSeek R1, Qwen3 thinking variants) handled: `assert_openrouter_ok` accepts either `content` or `reasoning_content` being populated.
+
 ### 4 new cloud providers: OpenRouter, Kimi, Fireworks, Cerebras (v0.15.21)
 Adds four OpenAI-compatible providers to all three picker surfaces (CLI `/provider`, TUI overlay, onboarding). Provider count grows from 15 to 19.
 
