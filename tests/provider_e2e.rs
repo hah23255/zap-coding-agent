@@ -28,10 +28,11 @@ fn all_expected_providers_present() {
     let slugs = provider_slugs();
     for expected in &["lm_studio", "ollama", "anthropic", "claude_code", "codex",
                       "openai", "gemini", "deepseek", "groq", "mistral",
-                      "xai", "together", "perplexity", "cohere", "custom"] {
+                      "xai", "together", "perplexity", "cohere",
+                      "openrouter", "kimi", "fireworks", "cerebras", "custom"] {
         assert!(slugs.contains(expected), "provider '{}' missing from list", expected);
     }
-    assert_eq!(slugs.len(), 15, "expected 15 providers, got {}", slugs.len());
+    assert_eq!(slugs.len(), 19, "expected 19 providers, got {}", slugs.len());
 }
 
 #[test]

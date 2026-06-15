@@ -7,6 +7,39 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### 4 new cloud providers: OpenRouter, Kimi, Fireworks, Cerebras (v0.15.21)
+Adds four OpenAI-compatible providers to all three picker surfaces (CLI `/provider`, TUI overlay, onboarding). Provider count grows from 15 to 19.
+
+| Provider | Base URL | Notable models |
+|---|---|---|
+| OpenRouter | `https://openrouter.ai/api/v1/chat/completions` | 200+ models (Claude, GPT, Gemini, Llama) via single key |
+| Kimi (Moonshot AI) | `https://api.moonshot.cn/v1/chat/completions` | `moonshot-v1-8k/32k/128k` — long-context |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1/chat/completions` | Fast open-model inference (Llama, DeepSeek, Qwen) |
+| Cerebras | `https://api.cerebras.ai/v1/chat/completions` | Wafer-scale fastest inference (llama3.3-70b, qwen-3-32b) |
+
+| Feature | File | Notes |
+|---|---|---|
+| CLI provider picker | `src/session/commands/provider.rs` | 4 entries added before `custom`; all use `OpenAiCompatible` wire format |
+| TUI `/provider` overlay | `src/tui/turn_handler.rs` | Same 4 entries |
+| TUI onboarding | `src/tui/startup.rs` | Same 4 entries |
+| e2e provider count | `tests/provider_e2e.rs` | `all_expected_providers_present` asserts 19 slugs |
+
+### Cohere model update (v0.15.21)
+`command-r-plus` and `command-r` were retired by Cohere on September 15 2025 and now return 404. Updated all three pickers to current models.
+
+| Old | New |
+|---|---|
+| `command-r-plus`, `command-r` | `command-a-03-2025`, `command-r7b-12-2024`, `command-r-08-2024` |
+
+### Code index query visibility in tool output (v0.15.21)
+`find_definition`, `find_references`, `who_calls`, and `code_map` now append the exact `sqlite3 .zap/code.db "..."` query that was fired to their output. Both the user and the LLM can see what was queried and re-run it manually without guessing the SQL.
+
+| Feature | File | Notes |
+|---|---|---|
+| `find_definition` hint | `src/tools/search/search_impl.rs` | Appended on index hit: `# sqlite3 .zap/code.db "SELECT path, line, kind, signature FROM symbols WHERE name LIKE '%…%' COLLATE NOCASE LIMIT 20;"` |
+| `code_map` hint | `src/tools/search/search_impl.rs` | Appended on index hit: `# sqlite3 .zap/code.db "SELECT name, kind, line, signature FROM symbols WHERE path LIKE '…%' ORDER BY path, line LIMIT 2000;"` |
+| `find_references` / `who_calls` hint | `src/tools/search/mod.rs` | `format_call_sites` header includes `# sqlite3 .zap/code.db "SELECT … FROM call_sites …"` with actual limit |
+
 ### OpenAI Codex provider via ChatGPT subscription (v0.15.20)
 Adds a Codex provider backed by the ChatGPT internal Responses API (`https://chatgpt.com/backend-api/codex/responses`). Only `gpt-5.5` is currently supported by the endpoint. Free-plan accounts are automatically detected via JWT `chatgpt_plan_type` claim and shown as unavailable in the picker.
 

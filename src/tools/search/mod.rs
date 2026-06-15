@@ -121,7 +121,7 @@ impl Tool for FindReferencesTool {
         // Prefer the indexed call graph when available.
         let hits = crate::code_index::global_find_references(symbol, max_n);
         if !hits.is_empty() {
-            return Ok(format_call_sites(symbol, &hits));
+            return Ok(format_call_sites(symbol, max_n, &hits));
         }
 
         // Fall back to text search.
@@ -132,8 +132,11 @@ impl Tool for FindReferencesTool {
     }
 }
 
-fn format_call_sites(symbol: &str, hits: &[crate::code_index::CallSite]) -> String {
-    let mut out = format!("Found {} call site(s) for `{}` (from code index):\n\n", hits.len(), symbol);
+fn format_call_sites(symbol: &str, limit: usize, hits: &[crate::code_index::CallSite]) -> String {
+    let mut out = format!(
+        "Found {} call site(s) for `{}` (from code index):\n# sqlite3 .zap/code.db \"SELECT path, line, name, caller_scope FROM call_sites WHERE name = '{}' COLLATE NOCASE ORDER BY path, line LIMIT {};\"\n\n",
+        hits.len(), symbol, symbol, limit
+    );
     for h in hits {
         out.push_str(&h.display());
         out.push('\n');
@@ -187,7 +190,7 @@ impl Tool for WhoCallsTool {
             };
             return Ok(format!("{}\n(Tip: the index covers Rust, Python, JS/TS. Run `--index-only` to rebuild.)", header));
         }
-        Ok(format_call_sites(name, &hits))
+        Ok(format_call_sites(name, max_n, &hits))
     }
 }
 
