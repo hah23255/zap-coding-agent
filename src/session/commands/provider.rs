@@ -3,6 +3,16 @@ use inquire::{Select, Text};
 use crate::config::{Config, Provider};
 use super::super::Session;
 
+/// Returns the ordered list of provider slugs shown in /provider.
+/// Used by tests to assert all expected providers are registered.
+pub fn provider_slugs() -> Vec<&'static str> {
+    vec![
+        "lm_studio", "ollama", "anthropic", "claude_code", "codex",
+        "openai", "gemini", "deepseek", "groq", "mistral",
+        "xai", "together", "perplexity", "cohere", "custom",
+    ]
+}
+
 impl Session {
     pub fn cmd_provider(&mut self, config: &Config) {
         #[derive(Clone)]
@@ -22,11 +32,12 @@ impl Session {
             ready:       bool,
         }
         #[derive(Clone)]
-        enum ProviderKind { Anthropic, OpenAi }
+        enum ProviderKind { Anthropic, OpenAi, Codex }
 
         let gemini_ready = crate::llm_client::auth::check_gcloud_adc().is_some()
             || crate::llm_client::auth::check_google_api_key_env().is_some();
         let claude_code_ready = crate::llm_client::auth::check_claude_code().is_some();
+        let codex_ready = crate::llm_client::auth::check_codex().is_some();
         let ollama_ready = crate::llm_client::auth::check_ollama().is_some();
         let lm_studio_ready = crate::llm_client::auth::check_lm_studio().is_some();
 
@@ -44,6 +55,7 @@ impl Session {
             ProviderDef { slug: "ollama",     name: "Ollama",                     hint: "local · OpenAI-compatible",                    kind: ProviderKind::OpenAi,    models: vec!["llama3.2".into(), "llama3.1:70b".into(), "codellama".into(), "qwen2.5-coder".into(), "Other…".into()],        base_url: Some("http://localhost:11434/v1/chat/completions"),                                   needs_key: false, coming_soon: false, auth_header: None,       ready: ollama_ready },
             ProviderDef { slug: "anthropic",  name: "Anthropic",                  hint: "claude-sonnet-4-6 / claude-opus-4-7",          kind: ProviderKind::Anthropic, models: vec!["claude-sonnet-4-6".into(), "claude-opus-4-7".into(), "claude-haiku-4-5".into(), "Other…".into()],      base_url: None,                                                                                needs_key: true,  coming_soon: false, auth_header: None,       ready: false },
             ProviderDef { slug: "claude_code",name: "Claude Code (Pro/Max API)",  hint: if claude_code_ready { "claude-sonnet-4-6 / claude-opus-4-7 · via claude CLI" } else { "requires claude CLI · Pro/Max plan" }, kind: ProviderKind::Anthropic, models: vec!["claude-sonnet-4-6".into(), "claude-opus-4-7".into()],                    base_url: None,                                                                                needs_key: false, coming_soon: !claude_code_ready, auth_header: None, ready: claude_code_ready },
+            ProviderDef { slug: "codex",      name: "OpenAI Codex (ChatGPT plan)", hint: if codex_ready { "gpt-5.5 · via ChatGPT subscription" } else { "requires codex login · ChatGPT Plus/Pro plan" }, kind: ProviderKind::Codex, models: vec!["gpt-5.5".into(), "Other…".into()], base_url: None,                                                                                needs_key: false, coming_soon: false, auth_header: None, ready: codex_ready },
             ProviderDef { slug: "openai",     name: "OpenAI",                     hint: "gpt-4o / gpt-4o-mini / o3",                    kind: ProviderKind::OpenAi,    models: vec!["gpt-4o".into(), "gpt-4o-mini".into(), "o3".into(), "o4-mini".into(), "Other…".into()],             base_url: None,                                                                                needs_key: true,  coming_soon: false, auth_header: None,       ready: false },
             ProviderDef { slug: "gemini",     name: "Google Gemini",              hint: "gemini-2.5-pro / gemini-2.0-flash",            kind: ProviderKind::OpenAi,    models: vec!["gemini-2.0-flash".into(), "gemini-2.5-pro".into(), "gemini-2.5-flash".into(), "Other…".into()],      base_url: Some("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),    needs_key: true,  coming_soon: false, auth_header: Some("x-goog-api-key"), ready: gemini_ready },
             ProviderDef { slug: "deepseek",   name: "DeepSeek",                   hint: "deepseek-v4-pro / deepseek-v4-flash",         kind: ProviderKind::OpenAi,    models: vec!["deepseek-v4-pro".into(), "deepseek-v4-flash".into(), "deepseek-chat".into(), "deepseek-reasoner".into(), "Other…".into()], base_url: Some("https://api.deepseek.com/v1/chat/completions"),                           needs_key: true,  coming_soon: false, auth_header: None,       ready: false },
@@ -160,10 +172,15 @@ impl Session {
         let kind_str = match def.kind {
             ProviderKind::Anthropic => "anthropic",
             ProviderKind::OpenAi    => "openai",
+            ProviderKind::Codex     => "codex",
         };
 
         let mut new_config      = config.clone();
-        new_config.provider     = match def.kind { ProviderKind::Anthropic => Provider::Anthropic, ProviderKind::OpenAi => Provider::OpenAi };
+        new_config.provider     = match def.kind {
+            ProviderKind::Anthropic => Provider::Anthropic,
+            ProviderKind::OpenAi    => Provider::OpenAi,
+            ProviderKind::Codex     => Provider::OpenAi, // routed by slug, not provider enum
+        };
         new_config.provider_slug = def.slug.to_string();
         new_config.model        = model_input.clone();
         new_config.base_url     = base_url.clone();

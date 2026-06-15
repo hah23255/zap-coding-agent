@@ -2,7 +2,7 @@
 /// All `impl Session` blocks work across files since Session fields are `pub`.
 mod info;
 mod session_mgmt;
-mod provider;
+pub mod provider;
 mod memory;
 mod media;
 mod code;

@@ -176,6 +176,47 @@ pub fn check_lm_studio() -> Option<String> {
     if installed { Some("ready".into()) } else { None }
 }
 
+/// Decode the plan type from a ChatGPT JWT without verifying the signature.
+/// Returns e.g. "free", "plus", "pro", or None if not present.
+fn jwt_plan(token: &str) -> Option<String> {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let b64 = token.split('.').nth(1)?;
+    // JWT payloads may have padding stripped; add it back if needed.
+    let padded = match b64.len() % 4 {
+        2 => format!("{b64}=="),
+        3 => format!("{b64}="),
+        _ => b64.to_owned(),
+    };
+    let bytes = URL_SAFE_NO_PAD.decode(padded).ok()?;
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    payload["https://api.openai.com/auth"]["chatgpt_plan_type"]
+        .as_str()
+        .map(str::to_owned)
+}
+
+/// Returns `Some` if the Codex auth file exists with `auth_mode = "chatgpt"`
+/// AND the account is on a paid plan (Plus or Pro).
+/// Free-plan accounts are rejected by the Codex Responses API.
+/// Respects `CODEX_HOME` env var (defaults to `~/.codex`).
+pub fn check_codex() -> Option<String> {
+    let codex_home = std::env::var("CODEX_HOME").ok().unwrap_or_else(|| {
+        dirs::home_dir()
+            .map(|h| h.join(".codex").to_string_lossy().into_owned())
+            .unwrap_or_default()
+    });
+    let path = std::path::PathBuf::from(codex_home).join("auth.json");
+    if !path.exists() { return None; }
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let data: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    if data["auth_mode"].as_str() != Some("chatgpt") { return None; }
+    // Reject free-plan accounts — the Codex API is Plus/Pro only.
+    let token = data["tokens"]["access_token"].as_str().unwrap_or("");
+    if let Some(plan) = jwt_plan(token) {
+        if plan == "free" { return None; }
+    }
+    Some("ready".into())
+}
+
 /// Invalidate the gcloud ADC cache so the next `check_gcloud_adc()` call
 /// re-probes the filesystem and subprocess (used after launching auth).
 pub fn invalidate_gcloud_cache() {

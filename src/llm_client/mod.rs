@@ -1,10 +1,12 @@
 pub mod anthropic;
 pub mod auth;
 pub mod claude_code;
+pub mod codex;
 pub mod credentials;
 #[cfg(test)]
 pub mod mock;
 pub mod openai;
+pub mod tool_parsing;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -103,6 +105,8 @@ fn check_text_mode_tool_call(text: &str, tools_were_sent: bool) {
     }
 }
 
+pub use tool_parsing::parse_mistral_tool_calls;
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,6 +178,11 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
     // Claude Code: route through the local `claude` CLI subprocess.
     if config.provider_slug == "claude_code" {
         return Box::new(ClaudeCodeClient::new(config.model.clone(), suppress));
+    }
+
+    // Codex: uses OpenAI Responses API with ChatGPT OAuth credentials.
+    if config.provider_slug == "codex" {
+        return Box::new(codex::CodexClient::new(config.model.clone(), suppress));
     }
 
     // Look up the active provider entry for credential_method and auth_header.

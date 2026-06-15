@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### OpenAI Codex provider via ChatGPT subscription (v0.15.20)
+Adds a Codex provider backed by the ChatGPT internal Responses API (`https://chatgpt.com/backend-api/codex/responses`). Only `gpt-5.5` is currently supported by the endpoint. Free-plan accounts are automatically detected via JWT `chatgpt_plan_type` claim and shown as unavailable in the picker.
+
+| Feature | File | Notes |
+|---|---|---|
+| `CodexClient` | `src/llm_client/codex.rs` | SSE streaming, JWT expiry check + token refresh, `encode_input`/`encode_tools` for Responses API wire format |
+| `check_codex()` | `src/llm_client/auth.rs` | Reads `~/.codex/auth.json`; decodes JWT to block free-plan accounts; respects `CODEX_HOME` env var |
+| Provider routing | `src/llm_client/mod.rs` | `create_client` routes `provider_slug == "codex"` to `CodexClient` before standard OpenAI path |
+| CLI/TUI provider pickers | `src/session/commands/provider.rs`, `src/tui/turn_handler.rs`, `src/tui/startup.rs` | Codex entry with `gpt-5.5` model list; shows ready/not-ready badge based on auth |
+| Mistral parser extracted | `src/llm_client/tool_parsing.rs` | Moved `parse_mistral_tool_calls` out of `mod.rs` to stay under 600-line limit |
+| Live e2e tests | `tests/provider_e2e.rs` | `cargo test -- --ignored` hits real Codex API; asserts `gpt-5.5` → 200, `gpt-5.4`/`gpt-5.3-codex` → 400 "not supported" |
+
 ### Dynamic LM Studio model list (v0.15.19)
 LM Studio's model list was hardcoded — new models downloaded in LM Studio never appeared in zap's provider/model pickers. Now zap queries LM Studio's `/v1/models` endpoint at provider-selection time to show the actual available models. Falls back to a sensible default list if LM Studio isn't running.
 
