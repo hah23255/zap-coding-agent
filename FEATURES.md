@@ -7,6 +7,16 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Zhipu AI and Qwen (DashScope) providers (v0.15.23)
+Adds two Chinese AI providers. Provider count grows from 19 to 21.
+
+| Provider | Slug | Base URL | Notable models |
+|---|---|---|---|
+| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | `glm-4-flash` (free!), `glm-4-air`, `glm-4-plus`, `glm-z1-flash` (thinking) |
+| Qwen (DashScope) | `qwen` | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` | `qwen-turbo`, `qwen-plus`, `qwen-max`, `qwen-long`, `qwen2.5-72b-instruct` |
+
+Note: Kimi (Moonshot AI) was already added in v0.15.21. Get keys at open.bigmodel.cn and dashscope.aliyun.com.
+
 ### OpenRouter expanded model list + e2e test suite (v0.15.22)
 Expanded the OpenRouter model picker from 4 models to 13 covering all major provider families, plus a comprehensive e2e test suite with 34 live tests (all `#[ignore]`; run with `cargo test --test provider_e2e -- --ignored`).
 
