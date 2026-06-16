@@ -45,7 +45,8 @@ impl Store {
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 goal       TEXT    NOT NULL,
                 model      TEXT    NOT NULL,
-                created_at TEXT    NOT NULL
+                created_at TEXT    NOT NULL,
+                cwd        TEXT
             );
             CREATE TABLE IF NOT EXISTS session_messages (
                 session_id INTEGER PRIMARY KEY,
@@ -70,16 +71,29 @@ impl Store {
         )
         .context("failed to initialise schema")?;
 
+        // Migration: older databases were created before the `cwd` column existed.
+        // Sessions written before this column existed have cwd = NULL and are simply
+        // invisible to the project-scoped queries below — they're not deleted.
+        let has_cwd = conn
+            .prepare("PRAGMA table_info(sessions)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(|r| r.ok())
+            .any(|name| name == "cwd");
+        if !has_cwd {
+            conn.execute("ALTER TABLE sessions ADD COLUMN cwd TEXT", [])
+                .context("failed to add cwd column to sessions")?;
+        }
+
         Ok(())
     }
 
     // ── Sessions ──────────────────────────────────────────────────────────────
 
-    pub fn save_session(&self, goal: &str, model: &str) -> Result<i64> {
+    pub fn save_session(&self, goal: &str, model: &str, cwd: &str) -> Result<i64> {
         self.conn
             .execute(
-                "INSERT INTO sessions (goal, model, created_at) VALUES (?1, ?2, ?3)",
-                params![goal, model, Utc::now().to_rfc3339()],
+                "INSERT INTO sessions (goal, model, created_at, cwd) VALUES (?1, ?2, ?3, ?4)",
+                params![goal, model, Utc::now().to_rfc3339(), cwd],
             )
             .context("failed to save session")?;
         Ok(self.conn.last_insert_rowid())
@@ -99,17 +113,25 @@ impl Store {
             .ok()
     }
 
-    pub fn recent_sessions(&self, limit: usize) -> Result<Vec<(i64, String, String, String)>> {
+    /// Sessions for the given project directory, newest first. Only sessions
+    /// with at least one saved message are included — this hides trivial
+    /// launches (no goal entered, subagent runs) that never became a real
+    /// conversation. Sessions from other projects (different `cwd`), and
+    /// sessions saved before the `cwd` column existed (NULL), are excluded.
+    pub fn recent_sessions_for_cwd(&self, cwd: &str, limit: usize) -> Result<Vec<(i64, String, String, String)>> {
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT id, goal, model, created_at
-                 FROM sessions ORDER BY id DESC LIMIT ?1",
+                 FROM sessions s
+                 WHERE cwd = ?1
+                   AND EXISTS (SELECT 1 FROM session_messages m WHERE m.session_id = s.id)
+                 ORDER BY id DESC LIMIT ?2",
             )
             .context("failed to prepare sessions query")?;
 
         let rows = stmt
-            .query_map(params![limit as i64], |row| {
+            .query_map(params![cwd, limit as i64], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })
             .context("failed to query sessions")?;
@@ -143,12 +165,11 @@ impl Store {
         }
     }
 
-    /// Load messages from the most recent session *before* `current_session_id`.
-    /// Returns None if there is no prior session or it has no saved messages.
-    pub fn load_previous_messages(&self, current_session_id: i64) -> Result<Option<String>> {
-        // Get the 2 most recent sessions. The one with id < current_session_id
-        // and the highest id is the previous session.
-        let sessions = self.recent_sessions(2)?;
+    /// Load messages from the most recent session *before* `current_session_id`
+    /// in the same project directory. Returns None if there is no prior session
+    /// in this project, or it has no saved messages.
+    pub fn load_previous_messages(&self, current_session_id: i64, cwd: &str) -> Result<Option<String>> {
+        let sessions = self.recent_sessions_for_cwd(cwd, 2)?;
         for (id, _, _, _) in &sessions {
             if *id < current_session_id {
                 return self.load_messages(*id);
@@ -258,4 +279,77 @@ impl Store {
 
 pub fn init() -> Result<Store> {
     Store::open()
+}
+
+/// Current working directory as a string, used to scope session history to
+/// the project zap is running in. Sessions are global in `~/.zap/agent.db`
+/// but each row records the cwd it was created in, so `/sessions` and
+/// auto-resume only ever surface history from the current project.
+pub fn current_project_cwd() -> String {
+    std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| ".".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_set_get_delete_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(store.get_memory("k").unwrap(), None);
+
+        store.set_memory("k", "v1").unwrap();
+        assert_eq!(store.get_memory("k").unwrap(), Some("v1".to_string()));
+
+        // set on an existing key overwrites rather than duplicating.
+        store.set_memory("k", "v2").unwrap();
+        assert_eq!(store.get_memory("k").unwrap(), Some("v2".to_string()));
+        assert_eq!(store.all_memory().unwrap(), vec![("k".to_string(), "v2".to_string())]);
+
+        store.delete_memory("k").unwrap();
+        assert_eq!(store.get_memory("k").unwrap(), None);
+        assert!(store.all_memory().unwrap().is_empty());
+    }
+
+    #[test]
+    fn recent_sessions_for_cwd_excludes_other_projects() {
+        let store = Store::open_in_memory().unwrap();
+        let a = store.save_session("(repl)", "model", "/project/a").unwrap();
+        let _b = store.save_session("(repl)", "model", "/project/b").unwrap();
+        store.save_messages(a, "[]").unwrap();
+        store.save_messages(_b, "[]").unwrap();
+
+        let a_sessions = store.recent_sessions_for_cwd("/project/a", 10).unwrap();
+        assert_eq!(a_sessions.len(), 1);
+        assert_eq!(a_sessions[0].0, a);
+    }
+
+    #[test]
+    fn recent_sessions_for_cwd_hides_sessions_with_no_messages() {
+        let store = Store::open_in_memory().unwrap();
+        let with_msgs = store.save_session("(repl)", "model", "/project/a").unwrap();
+        let _empty = store.save_session("(repl)", "model", "/project/a").unwrap();
+        store.save_messages(with_msgs, "[]").unwrap();
+
+        let sessions = store.recent_sessions_for_cwd("/project/a", 10).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].0, with_msgs);
+    }
+
+    #[test]
+    fn load_previous_messages_scoped_to_cwd() {
+        let store = Store::open_in_memory().unwrap();
+        let prev_other_project = store.save_session("(repl)", "model", "/project/b").unwrap();
+        store.save_messages(prev_other_project, "[\"from other project\"]").unwrap();
+
+        let prev_same_project = store.save_session("(repl)", "model", "/project/a").unwrap();
+        store.save_messages(prev_same_project, "[\"from project a\"]").unwrap();
+
+        let current = store.save_session("(repl)", "model", "/project/a").unwrap();
+
+        let loaded = store.load_previous_messages(current, "/project/a").unwrap();
+        assert_eq!(loaded, Some("[\"from project a\"]".to_string()));
+    }
 }

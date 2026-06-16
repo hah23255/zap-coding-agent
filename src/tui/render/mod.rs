@@ -114,24 +114,66 @@ pub const SIDEBAR_W: u16 = 22;
 /// Max rows the command picker occupies (excluding its own border).
 const PICKER_MAX_ROWS: usize = 8;
 
-/// Count the actual visual lines the input text occupies, accounting for
-/// both explicit newlines and word-wrap at content_w columns.
-pub(crate) fn visual_line_count(text: &str, content_w: usize) -> usize {
-    if content_w == 0 { return 1; }
-    if text.is_empty() { return 1; }
-    text.split('\n')
-        .map(|seg| {
-            let chars = seg.chars().count();
-            if chars == 0 { 1 } else { chars.div_ceil(content_w) }
-        })
-        .sum()
+/// Hard-wrap `text` into display rows at exactly `content_w` columns, and
+/// locate the cursor's (row, col) within that same layout. Row 0 starts at
+/// column `prefix_chars` (reserved for the "❯ " prompt); every other row
+/// starts at column 0.
+///
+/// Building the rows and the cursor position in one pass is what keeps them
+/// from disagreeing. The input box used to compute the cursor's screen
+/// position with this hard-wrap math while handing the *text* to ratatui's
+/// `Paragraph::wrap()`, which word-wraps — so whenever a wrap landed mid-word
+/// the two disagreed on where the line broke, and the blinking cursor
+/// visibly drifted away from the character you'd just typed. Now both the
+/// rendered rows and the cursor position come from this single function.
+pub(crate) fn wrap_input(
+    text: &str,
+    cursor_char: usize,
+    prefix_chars: usize,
+    content_w: usize,
+) -> (Vec<String>, usize, usize) {
+    if content_w == 0 {
+        return (vec![String::new()], 0, 0);
+    }
+    let mut rows: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut col = prefix_chars;
+    let mut cursor_row = 0usize;
+    let mut cursor_col = prefix_chars;
+    let mut cursor_set = false;
+
+    for (i, ch) in text.chars().enumerate() {
+        if i == cursor_char {
+            cursor_row = rows.len();
+            cursor_col = col;
+            cursor_set = true;
+        }
+        if ch == '\n' {
+            rows.push(std::mem::take(&mut current));
+            col = 0;
+            continue;
+        }
+        current.push(ch);
+        col += 1;
+        if col >= content_w {
+            rows.push(std::mem::take(&mut current));
+            col = 0;
+        }
+    }
+    if !cursor_set {
+        cursor_row = rows.len();
+        cursor_col = col;
+    }
+    rows.push(current);
+    (rows, cursor_row, cursor_col)
 }
 
 fn input_height(app: &App, available_width: u16) -> Constraint {
     let prefix_len = 2usize;
     let border_w  = 2usize;
     let content_w = (available_width as usize).saturating_sub(prefix_len + border_w).max(1);
-    let lines = visual_line_count(&app.input, content_w).clamp(1, 3);
+    let (rows, _, _) = wrap_input(&app.input, app.cursor, prefix_len, content_w);
+    let lines = rows.len().clamp(1, 3);
     Constraint::Length(lines as u16 + 2)
 }
 
@@ -246,5 +288,53 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     if app.context_viewer.is_some() {
         context_viewer::draw_context_viewer(frame, app, size);
+    }
+}
+
+#[cfg(test)]
+mod wrap_input_tests {
+    use super::wrap_input;
+
+    #[test]
+    fn short_text_single_row() {
+        let (rows, row, col) = wrap_input("hi", 2, 2, 20);
+        assert_eq!(rows, vec!["hi".to_string()]);
+        assert_eq!((row, col), (0, 4)); // prefix(2) + "hi"
+    }
+
+    #[test]
+    fn wraps_mid_word_not_at_space() {
+        // content_w=10, prefix=2 → row 0 holds 8 chars before wrapping,
+        // even though that lands in the middle of "abcdefghij".
+        let (rows, _, _) = wrap_input("abcdefghij", 10, 2, 10);
+        assert_eq!(rows, vec!["abcdefgh".to_string(), "ij".to_string()]);
+    }
+
+    #[test]
+    fn cursor_after_wrap_point_lands_on_row_1() {
+        let (rows, row, col) = wrap_input("abcdefghij", 9, 2, 10);
+        assert_eq!(rows, vec!["abcdefgh".to_string(), "ij".to_string()]);
+        assert_eq!((row, col), (1, 1)); // 'j' is the 2nd char of row 1, col index 1
+    }
+
+    #[test]
+    fn explicit_newline_resets_column_to_zero() {
+        let (rows, row, col) = wrap_input("ab\ncd", 5, 2, 10);
+        assert_eq!(rows, vec!["ab".to_string(), "cd".to_string()]);
+        assert_eq!((row, col), (1, 2)); // cursor at end of "cd"
+    }
+
+    #[test]
+    fn empty_text_is_one_empty_row() {
+        let (rows, row, col) = wrap_input("", 0, 2, 10);
+        assert_eq!(rows, vec![String::new()]);
+        assert_eq!((row, col), (0, 2));
+    }
+
+    #[test]
+    fn zero_width_does_not_panic() {
+        let (rows, row, col) = wrap_input("anything", 3, 2, 0);
+        assert_eq!(rows, vec![String::new()]);
+        assert_eq!((row, col), (0, 0));
     }
 }

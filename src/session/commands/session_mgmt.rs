@@ -220,8 +220,9 @@ impl Session {
     }
 
     pub fn cmd_sessions(&mut self, _arg: &str) {
-        let rows = match self.store.recent_sessions(20) {
-            Ok(r) if r.is_empty() => { println!("  No sessions found."); return; }
+        let cwd = crate::persistence::current_project_cwd();
+        let rows = match self.store.recent_sessions_for_cwd(&cwd, 20) {
+            Ok(r) if r.is_empty() => { println!("  No sessions found for this project."); return; }
             Ok(r) => r,
             Err(e) => { println!("  {} {}", "✗".red(), e); return; }
         };

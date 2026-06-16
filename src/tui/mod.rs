@@ -23,7 +23,7 @@ use std::io::Stdout;
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{Event, EventStream, MouseEventKind};
+use crossterm::event::{Event, EventStream};
 use futures_util::StreamExt as _;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
@@ -53,11 +53,13 @@ pub async fn run_tui(config: &Config) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
+    // No EnableMouseCapture: it would steal click-drag from the terminal
+    // emulator, breaking native text selection/copy. PageUp/PageDown still
+    // scroll without it.
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
-        crossterm::event::EnableMouseCapture,
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -92,7 +94,6 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     let _ = crossterm::execute!(
         terminal.backend_mut(),
-        crossterm::event::DisableMouseCapture,
         crossterm::terminal::LeaveAlternateScreen
     );
     let _ = terminal.show_cursor();
@@ -190,16 +191,6 @@ async fn tui_loop(
                     if key.kind != crossterm::event::KeyEventKind::Release =>
                 {
                     let action = handle_key(app, key);
-                    if actions::handle_action(action, app, session, terminal, config).await? {
-                        break;
-                    }
-                }
-                Event::Mouse(mouse) => {
-                    let action = match mouse.kind {
-                        MouseEventKind::ScrollUp   => input::InputAction::ScrollUp(3),
-                        MouseEventKind::ScrollDown => input::InputAction::ScrollDown(3),
-                        _ => input::InputAction::None,
-                    };
                     if actions::handle_action(action, app, session, terminal, config).await? {
                         break;
                     }

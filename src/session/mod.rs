@@ -40,9 +40,10 @@ pub const MAX_TURNS: usize = 50;
 fn load_and_guard_previous_messages(
     store: &crate::persistence::Store,
     current_session_id: i64,
+    cwd: &str,
     model: &str,
 ) -> Vec<Message> {
-    let Some(json) = store.load_previous_messages(current_session_id).ok().flatten() else {
+    let Some(json) = store.load_previous_messages(current_session_id, cwd).ok().flatten() else {
         return Vec::new();
     };
     let prev: Vec<Message> = match serde_json::from_str(&json) {
@@ -173,7 +174,16 @@ impl Session {
         crate::tools::file::init_allowed_write_roots(&config.allowed_paths);
         crate::tools::clear_todos();
         let store = persistence::init()?;
-        let session_id = store.save_session("(repl)", &config.model)?;
+        let cwd_str = persistence::current_project_cwd();
+        // Subagents are internal helpers, not real top-level sessions — don't
+        // persist a row for them (they were previously bloating ~/.zap/agent.db
+        // with empty "(repl)" entries on every spawn_agent call). session_id=0
+        // is a sentinel meaning "not persisted"; callers guard writes on it.
+        let session_id = if config.is_subagent {
+            0
+        } else {
+            store.save_session("(repl)", &config.model, &cwd_str)?
+        };
 
         let mut system = context_manager::build_system_prompt(config)?;
         let mut tools = ToolRegistry::new(config.sandbox.clone());
@@ -308,7 +318,7 @@ impl Session {
                         system.push_str(&ctx);
                     }
                     // Restore full conversation history from the previous session.
-                    messages = load_and_guard_previous_messages(&store, session_id, &config.model);
+                    messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, &config.model);
                 } else {
                     println!("  {} Last: {}", "◌".dimmed(), summary.truecolor(180, 175, 210));
                     if !files_part.is_empty() {
@@ -329,7 +339,7 @@ impl Session {
                             system.push_str(&ctx);
                         }
                         // Restore full conversation history from the previous session.
-                        messages = load_and_guard_previous_messages(&store, session_id, &config.model);
+                        messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, &config.model);
                     }
                 }
             }

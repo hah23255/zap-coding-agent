@@ -7,8 +7,12 @@ pub(super) fn replay_last_session_into_app(app: &mut App, session: &crate::sessi
     let has_last_banner = session.startup_notices.iter().any(|n| n.starts_with("↩ Last:"));
     if !has_last_banner { return; }
 
-    if let Ok(sessions) = session.store.recent_sessions(2) {
-        if let Some((prev_id, _goal, _model, _created)) = sessions.get(1) {
+    let cwd = crate::persistence::current_project_cwd();
+    if let Ok(sessions) = session.store.recent_sessions_for_cwd(&cwd, 1) {
+        // The just-created current session has no saved messages yet, so it's
+        // excluded by recent_sessions_for_cwd — the first (and only) entry here
+        // is already the previous real session for this project.
+        if let Some((prev_id, _goal, _model, _created)) = sessions.first() {
             let prev_id = *prev_id;
             if let Ok(Some(json)) = session.store.load_messages(prev_id) {
                 if let Ok(msgs) = serde_json::from_str::<Vec<crate::llm_client::Message>>(&json) {

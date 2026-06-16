@@ -37,7 +37,7 @@ impl Session {
         cfg.permission_mode = PermissionMode::Auto;
 
         let store = persistence::Store::open_in_memory()?;
-        let session_id = store.save_session("(test)", &cfg.model)?;
+        let session_id = store.save_session("(test)", &cfg.model, "test")?;
 
         let tools = ToolRegistry::new(crate::config::SandboxMode::Off);
         let tool_defs = tools.tool_definitions();

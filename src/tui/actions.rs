@@ -155,7 +155,8 @@ pub(super) async fn handle_action(
             if let Ok(json) = serde_json::to_string(&session.messages) {
                 let _ = session.store.save_messages(session.session_id, &json);
             }
-            match session.store.save_session("(new session)", &session.model) {
+            let cwd = crate::persistence::current_project_cwd();
+            match session.store.save_session("(new session)", &session.model, &cwd) {
                 Ok(new_id) => {
                     app.messages.clear();
                     app.streaming_blocks.clear();

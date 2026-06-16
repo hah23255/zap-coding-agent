@@ -7,6 +7,34 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### TUI input box: fix cursor drift on line wrap (v0.15.25)
+The text input box computed where to draw the blinking cursor using hard-wrap math (wrap at exactly column N), but handed the actual text to ratatui's `Paragraph::wrap()`, which word-wraps (breaks at the nearest space). The two disagreed whenever a wrap landed mid-word, so the cursor visibly drifted away from the character you'd just typed — the "not smooth" jump the user hit while typing past the line edge.
+
+Fixed by replacing both the old `cursor_visual_pos` (layout.rs) and `visual_line_count` (render/mod.rs) — two separate hard-wrap estimators that also disagreed with *each other* on how much width row 0 got — with one `wrap_input()` function that hard-wraps the text into rows and locates the cursor in the same pass. `draw_input` now renders those exact pre-wrapped rows directly (no `.wrap()` call), so the screen and the cursor math can never diverge. 6 new unit tests cover mid-word wraps, newlines, and zero-width edges.
+
+### TUI: stop capturing the mouse, restore native copy/select (v0.15.25)
+`EnableMouseCapture` was on for scroll-wheel support, which (as in any terminal app with mouse reporting on) blocks the terminal emulator's native click-drag text selection — copying anything out of the zap TUI required holding a modifier key most users don't know about. Removed `EnableMouseCapture`/`DisableMouseCapture` from `tui/mod.rs` and `tui/lifecycle.rs` (`suspend_tui`/`resume_tui`) and the now-dead `Event::Mouse` handler. PageUp/PageDown still scroll via the keyboard; copy/select now works exactly like a normal terminal.
+
+### Stop leaking raw sqlite queries into chat (v0.15.25)
+`find_definition`, `find_references`, `who_calls`, and `code_map` (v0.15.21) appended the literal `# sqlite3 .zap/code.db "SELECT ..."` query into the tool's returned text — which is also what's sent back to the LLM. Small/local models tend to parrot the most "command-shaped" line in a tool result back into their reply, so users saw raw SQL dumped into the conversation — not how Claude Code surfaces tool internals (params live in the UI's tool-call display, never narrated by the model). Moved the query string out of the LLM-bound text and into the existing `crate::log::write("INDEX", ...)` diagnostic line for that lookup (`.zap/zap.log`), where it's still available to inspect but can no longer end up in the chat.
+
+### Project-scoped sessions + subagent session-bloat fix (v0.15.25)
+Root-caused two long-standing complaints: resume sometimes showed only the `context.md` files-changed banner with no conversation, and `~/.zap/agent.db` had accumulated 381 session rows (137 with zero messages).
+
+Root cause: `sessions` was a single global table shared by every project zap runs in, with no project column. "Resume last session" grabbed whichever row was most recently inserted *anywhere* — which could be a different project's session, or an empty one — while the project-local `.zap/context.md` banner (correctly scoped per-project) kept showing the right goal/files. Separately, every `spawn_agent` subagent call also inserted a top-level session row with no way to tell it apart from a real interactive session.
+
+| Change | Where | Detail |
+|---|---|---|
+| `sessions.cwd` column | `src/persistence.rs` | Added via idempotent migration (`PRAGMA table_info` check + `ALTER TABLE`). Historical rows have `cwd = NULL` and are simply invisible to the new scoped queries — not deleted. |
+| `recent_sessions_for_cwd` | `src/persistence.rs` | Replaces `recent_sessions`. Filters by `cwd = ?` AND `EXISTS` a `session_messages` row — hides both other-project sessions and empty/trivial ones from `/sessions` and resume. |
+| `load_previous_messages(id, cwd)` | `src/persistence.rs` | Same scoping applied to the "previous session" lookup used by auto-resume. |
+| Subagents don't persist a session row | `src/session/mod.rs`, `src/session/turn.rs` | `session_id = 0` sentinel when `config.is_subagent`; `save_messages`/`update_session_goal` calls are guarded on `session_id != 0`. Stops `spawn_agent` from writing `(repl)` rows. |
+| `/sessions`, auto-resume-on-startup | `src/session/commands/session_mgmt.rs`, `src/tui/turn_handler.rs`, `src/tui/startup.rs` | All three call sites switched to the cwd-scoped query. |
+
+Verified live: ran a real single-shot turn against a local LM Studio model, confirmed the new session row got the correct `cwd`, and confirmed the cwd-scoped query excludes the pre-migration rows while surfacing only this project's history.
+
+Also verified (no code change needed): the durable cross-session memory system (`memory_set`/`memory_delete` tools, `/memory` command, `## Agent Memory` system-prompt injection in `src/tools/memory.rs` / `src/persistence.rs` / `src/session/memory_refresh.rs`) was already fully wired but had zero saved facts — added round-trip unit tests and confirmed a live `memory_set` call persists and round-trips correctly.
+
 ### Fix Cerebras model names (v0.15.24)
 Cerebras retired the Llama model IDs (`llama3.3-70b`, `llama3.1-70b`, `llama3.1-8b`, `qwen-3-32b`). Updated all three pickers to the current live models returned by `/v1/models`: `gpt-oss-120b` and `zai-glm-4.7`. Both verified working via live API call.
 

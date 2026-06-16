@@ -323,29 +323,6 @@ pub(super) fn draw_dir_panel(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(rows), area);
 }
 
-/// Map a char-index into the input text to a (row, col) visual position,
-/// accounting for both explicit newlines and word-wrap at content_w columns.
-/// The prefix occupies the first `prefix_chars` columns on row 0.
-fn cursor_visual_pos(text: &str, cursor_char: usize, prefix_chars: usize, content_w: usize) -> (usize, usize) {
-    if content_w == 0 { return (0, 0); }
-    let mut row = 0usize;
-    let mut col = prefix_chars;
-    for (i, ch) in text.chars().enumerate() {
-        if i == cursor_char { break; }
-        if ch == '\n' {
-            row += 1;
-            col = 0;
-        } else {
-            col += 1;
-            if col >= content_w {
-                row += 1;
-                col = 0;
-            }
-        }
-    }
-    (row, col)
-}
-
 /// Render the input box; returns the screen position for the native cursor.
 pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u16, u16)> {
     let prefix = "❯ ";
@@ -373,12 +350,14 @@ pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u1
         }
     }
 
-    let total_lines = super::visual_line_count(&app.input, content_w.saturating_sub(prefix_chars));
+    // Hard-wrap once and reuse the exact same rows for both the cursor
+    // position and what's drawn — see `wrap_input` for why these must never
+    // be computed independently.
+    let (rows, cursor_row, cursor_col) = super::wrap_input(&app.input, app.cursor, prefix_chars, content_w);
+    let total_lines = rows.len();
+    let visible_rows = area.height.saturating_sub(2) as usize;
 
     let (scroll, cursor_screen) = if content_w > 0 {
-        let (cursor_row, cursor_col) =
-            cursor_visual_pos(&app.input, app.cursor, prefix_chars, content_w);
-        let visible_rows = area.height.saturating_sub(2) as usize;
         let scroll = if cursor_row >= visible_rows {
             (cursor_row - visible_rows + 1) as u16
         } else {
@@ -391,12 +370,17 @@ pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u1
         (0u16, None)
     };
 
-    let spans: Vec<Span<'static>> = vec![
-        Span::styled(prefix.to_string(), Style::default().fg(Color::Rgb(255, 200, 50)).bold()),
-        Span::raw(app.input.clone()),
-    ];
+    let lines: Vec<Line<'static>> = rows.into_iter().enumerate().map(|(i, row)| {
+        if i == 0 {
+            Line::from(vec![
+                Span::styled(prefix.to_string(), Style::default().fg(Color::Rgb(255, 200, 50)).bold()),
+                Span::raw(row),
+            ])
+        } else {
+            Line::from(Span::raw(row))
+        }
+    }).collect();
 
-    let visible_rows = area.height.saturating_sub(2) as usize;
     let block = if total_lines > visible_rows {
         Block::default()
             .borders(Borders::ALL)
@@ -412,9 +396,8 @@ pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u1
     };
 
     frame.render_widget(
-        Paragraph::new(Line::from(spans))
+        Paragraph::new(lines)
             .block(block)
-            .wrap(ratatui::widgets::Wrap { trim: false })
             .scroll((scroll, 0)),
         area,
     );

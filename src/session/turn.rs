@@ -242,7 +242,7 @@ impl Session {
         self.verify_escalated = false;
         audit::record(&format!("user_turn: {}", input))?;
 
-        if self.turn_count == 1 {
+        if self.turn_count == 1 && self.session_id != 0 {
             let short = if input.len() > 80 { &input[..80] } else { input };
             let _ = self.store.update_session_goal(self.session_id, short);
         }
@@ -494,8 +494,10 @@ impl Session {
             );
         }
 
-        if let Ok(json) = serde_json::to_string(&self.messages) {
-            let _ = self.store.save_messages(self.session_id, &json);
+        if self.session_id != 0 {
+            if let Ok(json) = serde_json::to_string(&self.messages) {
+                let _ = self.store.save_messages(self.session_id, &json);
+            }
         }
 
         crate::remote_channel::send_done();

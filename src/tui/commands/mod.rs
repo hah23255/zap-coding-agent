@@ -145,7 +145,8 @@ pub fn handle_inline(
         "/new" => {
             session.messages.clear();
             session.turn_count = 0;
-            if let Ok(id) = session.store.save_session("(new session)", &session.config.model) {
+            let cwd = crate::persistence::current_project_cwd();
+            if let Ok(id) = session.store.save_session("(new session)", &session.config.model, &cwd) {
                 session.session_id = id;
             }
             Some("New session started. History cleared.".to_string())

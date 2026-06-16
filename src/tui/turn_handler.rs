@@ -26,7 +26,8 @@ pub(super) async fn handle_tui_slash(
     let cmd = input.trim();
 
     if cmd == "/sessions" || cmd.starts_with("/sessions ") {
-        match session.store.recent_sessions(30) {
+        let cwd = crate::persistence::current_project_cwd();
+        match session.store.recent_sessions_for_cwd(&cwd, 30) {
             Ok(rows) => {
                 let mut entries: Vec<super::app::SessionEntry> = rows.iter().map(|(id, goal, model, ts)| super::app::SessionEntry {
                     id:    *id,

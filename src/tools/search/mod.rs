@@ -133,10 +133,11 @@ impl Tool for FindReferencesTool {
 }
 
 fn format_call_sites(symbol: &str, limit: usize, hits: &[crate::code_index::CallSite]) -> String {
-    let mut out = format!(
-        "Found {} call site(s) for `{}` (from code index):\n# sqlite3 .zap/code.db \"SELECT path, line, name, caller_scope FROM call_sites WHERE name = '{}' COLLATE NOCASE ORDER BY path, line LIMIT {};\"\n\n",
-        hits.len(), symbol, symbol, limit
-    );
+    crate::log::write("INDEX", &format!(
+        "hit · call_sites · '{}' · {} result(s) · sqlite3 .zap/code.db \"SELECT path, line, name, caller_scope FROM call_sites WHERE name = '{}' COLLATE NOCASE ORDER BY path, line LIMIT {};\"",
+        symbol, hits.len(), symbol, limit
+    ));
+    let mut out = format!("Found {} call site(s) for `{}` (from code index):\n\n", hits.len(), symbol);
     for h in hits {
         out.push_str(&h.display());
         out.push('\n');

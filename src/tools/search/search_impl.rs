@@ -271,12 +271,12 @@ fn search_rust_native(
 pub(super) async fn find_symbol_definition(symbol: &str, path: &str, lang_hint: &str) -> Result<String> {
     let index_hits = crate::code_index::global_find_definition(symbol);
     if !index_hits.is_empty() {
-        crate::log::write("INDEX", &format!("hit · find_definition · '{}' · {} result(s)", symbol, index_hits.len()));
+        crate::log::write("INDEX", &format!(
+            "hit · find_definition · '{}' · {} result(s) · sqlite3 .zap/code.db \"SELECT path, line, kind, signature FROM symbols WHERE name LIKE '%{}%' COLLATE NOCASE LIMIT 20;\"",
+            symbol, index_hits.len(), symbol
+        ));
         let _ = crate::audit::record(&format!("index_hit op=find_definition symbol={} results={}", symbol, index_hits.len()));
-        let mut lines = vec![
-            format!("Definition(s) of '{}' [AST index]:", symbol),
-            format!("# sqlite3 .zap/code.db \"SELECT path, line, kind, signature FROM symbols WHERE name LIKE '%{}%' COLLATE NOCASE LIMIT 20;\"", symbol),
-        ];
+        let mut lines = vec![format!("Definition(s) of '{}' [AST index]:", symbol)];
         for sym in &index_hits {
             let ctx = if sym.context.is_empty() { String::new() } else { format!(" [{}]", sym.context) };
             lines.push(format!("  {}:{} {} {}{}", sym.path, sym.line, sym.kind, sym.name, ctx));
@@ -361,7 +361,10 @@ pub(super) async fn build_code_map(path: &str, max_depth: usize, file_type: Opti
         .unwrap_or(false);
 
     if !index_syms.is_empty() {
-        crate::log::write("INDEX", &format!("hit · code_map · '{}' · {} symbol(s)", path, index_syms.len()));
+        crate::log::write("INDEX", &format!(
+            "hit · code_map · '{}' · {} symbol(s) · sqlite3 .zap/code.db \"SELECT name, kind, line, signature FROM symbols WHERE path LIKE '{}%' ORDER BY path, line LIMIT 2000;\"",
+            path, index_syms.len(), canonical.to_string_lossy()
+        ));
         let _ = crate::audit::record(&format!("index_hit op=code_map path={} symbols={}", path, index_syms.len()));
         let filtered: Vec<_> = index_syms.iter().filter(|s| {
             if let Some(ft) = file_type {
@@ -382,7 +385,6 @@ pub(super) async fn build_code_map(path: &str, max_depth: usize, file_type: Opti
         if !filtered.is_empty() {
             let mut output = vec![
                 format!("## Code map: {} [AST index, {} symbol(s)]", path, filtered.len()),
-                format!("# sqlite3 .zap/code.db \"SELECT name, kind, line, signature FROM symbols WHERE path LIKE '{}%' ORDER BY path, line LIMIT 2000;\"", canonical.to_string_lossy()),
             ];
             let mut last_file = String::new();
             for sym in &filtered {
