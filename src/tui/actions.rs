@@ -13,6 +13,40 @@ use super::{file_browser, git_info, goal, lifecycle, render, startup, turn_handl
 use crate::config::Config;
 use crate::session::Session;
 
+/// Run a full code-index scan with a live animated status, instead of freezing
+/// the TUI for the duration. Indexing is a full directory walk + tree-sitter
+/// parse — slow enough on a large repo that running it inline (e.g. via
+/// `tokio::task::block_in_place`) blocks the calling task, so the whole event
+/// loop (redraws included) froze with no feedback until it finished. Spawning
+/// it on a blocking task and ticking a redraw loop around it (same pattern
+/// `run_normal_turn` uses for LLM calls) keeps the spinner animating instead.
+/// Used by both `/init`'s wizard and the plain `/index` slash command.
+pub(super) async fn run_indexing_with_spinner(
+    app: &mut App,
+    session: &Session,
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+) -> Result<String> {
+    app.state = AppState::ToolRunning { name: "index".to_string(), label: "codebase".to_string() };
+    app.auto_scroll = true;
+    terminal.draw(|frame| render::draw(frame, app))?;
+
+    let code_index = session.code_index.clone();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let mut handle = tokio::task::spawn_blocking(move || {
+        crate::session::commands::run_init_indexing(&code_index, &cwd)
+    });
+    let result = loop {
+        tokio::select! {
+            r = &mut handle => break r.unwrap_or_else(|e| format!("Index error: {}", e)),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
+                app.tick_spinner();
+                terminal.draw(|frame| render::draw(frame, app))?;
+            }
+        }
+    };
+    Ok(result)
+}
+
 pub(super) async fn handle_action(
     action: InputAction,
     app: &mut App,
@@ -301,30 +335,8 @@ pub(super) async fn handle_action(
                 .map(str::to_lowercase)
                 .collect();
 
-            // Indexing is a full directory walk + tree-sitter parse — slow enough
-            // on a large repo that running it via block_in_place froze the TUI with
-            // no feedback for the whole duration. Run it on a blocking task instead
-            // and keep redrawing (animated "Indexing…" spinner) while we wait.
             let index_section = if do_index {
-                app.state = AppState::ToolRunning { name: "index".to_string(), label: "codebase".to_string() };
-                app.auto_scroll = true;
-                terminal.draw(|frame| render::draw(frame, app))?;
-
-                let code_index = session.code_index.clone();
-                let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-                let mut handle = tokio::task::spawn_blocking(move || {
-                    crate::session::commands::run_init_indexing(&code_index, &cwd)
-                });
-                let result = loop {
-                    tokio::select! {
-                        r = &mut handle => break r.unwrap_or_else(|e| format!("Index error: {}", e)),
-                        _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
-                            app.tick_spinner();
-                            terminal.draw(|frame| render::draw(frame, app))?;
-                        }
-                    }
-                };
-                Some(result)
+                Some(run_indexing_with_spinner(app, session, terminal).await?)
             } else {
                 None
             };

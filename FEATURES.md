@@ -7,6 +7,22 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Collapse dead-end tool exploration by default (v0.15.27)
+During `/init`'s navigation-map turn (and any agentic exploration), the model often tries a path that turns out empty — `code_map` on a directory with no source files, `code_map` on a file with no recognised symbols, `search_code`/`find_definition`/`who_calls` with nothing to show. None of these are errors, but every tool result was auto-expanded by default (`src/tui/app.rs`, "Auto-expand every tool result"), so a normal multi-step exploration showed as a wall of "No source files found in 'Lib'…", "(no recognised symbols)", "no matches found" — confirmed as the literal complaint from a user screenshot.
+
+- [src/session/preview.rs](src/session/preview.rs): `smart_tool_preview` now recognises `code_map`'s two "nothing found" shapes (empty dir, file with no symbols) and condenses both to `📚 no symbols found`; added a `find_references`/`who_calls` branch (`🔗 N call site(s)` / `🔗 no callers found`) that didn't have one before. New `preview_found_nothing()` classifies the four canned "nothing found" previews (`⚠ not in index`, `🔍 no matches found`, `📚 no symbols found`, `🔗 no callers found`).
+- [src/tui/app.rs](src/tui/app.rs): `ToolDone` only auto-expands when the result is an error or actually found something — dead-end results stay collapsed to a single dim line, still reachable via `Ctrl+O`. 7 new unit tests for the preview changes.
+
+Verified live: the same `code_map 'Lib'` / `code_map 'server.mjs'` calls that previously showed full raw sentences now collapse to one line each ("📚 no symbols found"), no expand hint, while a `search_code` call that found something stays expanded as before.
+
+### Fix slash-command picker submitting bracket placeholder text; /index now inline (v0.15.27)
+Selecting `/index` from the command picker (Enter or Tab) submitted the literal label text `/index [quality]` — the `[quality]` was meant as a display-only hint ("you can optionally pass 'quality' here"), not real input. That sent `arg = "[quality]"` (brackets included) to `cmd_index`, which didn't match the `"quality"`/`"health"` special cases, fell through to the generic path, and treated the literal string `"[quality]"` as a target *directory* — hence "tree-sitter scanning [quality]…" and "0 file(s) indexed" reported by the user. Same bug affected `/remote [port]`, the only other bracketed entry in `SLASH_COMMANDS`.
+
+- [src/tui/input.rs](src/tui/input.rs): added `command_text()`, which strips a trailing `[placeholder]` hint from a picker label before it's used as real input/submitted text. Applied at both accept points (Enter-to-submit, Tab-to-complete). Literal subcommands with no brackets (`/remote stop`, `/help`, skill names) are left untouched. 3 new unit tests.
+- Separately, plain `/index` (no args) was *also* still dropping out of the TUI into the old "suspend terminal, print, press any key to return" fallback — jarring even with the bracket bug fixed. Extracted the `/init`-progress-spinner logic (added in v0.15.26) into a shared `run_indexing_with_spinner()` in [src/tui/actions.rs](src/tui/actions.rs) and wired plain `/index` to use it directly in [src/tui/turn_handler.rs](src/tui/turn_handler.rs) — it now renders inline with the same animated "Indexing…" status as `/init`, no terminal suspend at all.
+
+Verified live via tmux: before the fix, `/index` printed "tree-sitter scanning [quality]…" / "0 file(s) indexed"; after, it shows the correct cwd path inline with no suspend screen.
+
 ### /init: show real progress, stop leaking index warnings into chat (v0.15.26)
 Two complaints, one root cause area (`/init`'s TUI wizard): the wizard froze with zero visual feedback while indexing, and unrelated per-file skip warnings showed up as confusing inline chat messages.
 

@@ -4,6 +4,20 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::app::{App, AppState, DiffPanel, InitWizardStep};
 use super::commands::filter_commands;
 
+/// Strip a trailing `[placeholder]` hint from a command-picker label before
+/// treating it as real input — e.g. "/index [quality]" → "/index", but
+/// "/remote stop" (a real literal subcommand, no brackets) is left alone.
+/// Without this, accepting the picker's `/index [quality]` entry submitted
+/// the literal text `/index [quality]`, which `arg == "[quality]"` doesn't
+/// match the `"quality"` check, so it fell through to /index's directory-walk
+/// path treating "[quality]" as a (nonexistent) target directory.
+fn command_text(label: &str) -> String {
+    match label.rfind(" [") {
+        Some(idx) if label.ends_with(']') => label[..idx].to_string(),
+        _ => label.to_string(),
+    }
+}
+
 pub enum InputAction {
     None,
     Submit(String),
@@ -352,7 +366,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
                     let items = filter_commands(&app.input, &app.skill_names);
                     let sel = app.picker_sel.min(items.len().saturating_sub(1));
                     if let Some((cmd, _)) = items.get(sel) {
-                        let text = cmd.to_string();
+                        let text = command_text(cmd);
                         app.input.clear();
                         app.cursor = 0;
                         app.picker_sel = 0;
@@ -452,7 +466,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
                 let items = filter_commands(&app.input, &app.skill_names);
                 let sel = app.picker_sel.min(items.len().saturating_sub(1));
                 if let Some((cmd, _)) = items.get(sel) {
-                    app.input = cmd.to_string();
+                    app.input = command_text(cmd);
                     app.cursor = app.input.chars().count();
                     app.picker_sel = 0;
                 }
@@ -956,5 +970,27 @@ fn handle_context_viewer_key(app: &mut App, key: KeyEvent) -> InputAction {
             }
             _ => InputAction::None,
         }
+    }
+}
+
+#[cfg(test)]
+mod command_text_tests {
+    use super::command_text;
+
+    #[test]
+    fn strips_bracket_placeholder_hint() {
+        assert_eq!(command_text("/index [quality]"), "/index");
+        assert_eq!(command_text("/remote [port]"), "/remote");
+    }
+
+    #[test]
+    fn leaves_literal_subcommands_alone() {
+        assert_eq!(command_text("/remote stop"), "/remote stop");
+        assert_eq!(command_text("/help"), "/help");
+    }
+
+    #[test]
+    fn leaves_skill_names_alone() {
+        assert_eq!(command_text("/my-skill"), "/my-skill");
     }
 }

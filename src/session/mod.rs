@@ -15,6 +15,7 @@ mod test_factory;
 
 pub use history::model_context_limit;
 pub use casual::is_topic_shift;
+pub use preview::preview_found_nothing;
 
 use anyhow::Result;
 use colored::Colorize;

@@ -482,6 +482,9 @@ impl App {
                 }));
             }
             TuiEvent::ToolDone { id, elapsed_ms, success, preview } => {
+                // Dead-end exploration (no matches found, no symbols, etc.) starts
+                // collapsed instead of auto-expanding; Ctrl+O still reveals it.
+                let should_expand = !(success && crate::session::preview_found_nothing(&preview));
                 // Find the matching pending tool call and fill in its result.
                 for sb in self.streaming_blocks.iter_mut().rev() {
                     if let StreamingBlock::Tool(ref mut tc) = sb {
@@ -490,8 +493,9 @@ impl App {
                                 self.files_changed_this_turn += 1;
                             }
                             tc.result = Some(ToolDone { elapsed_ms, success, preview });
-                            // Auto-expand every tool result — users can Ctrl+O to collapse.
-                            self.expanded_tools.insert(id.clone());
+                            if should_expand {
+                                self.expanded_tools.insert(id.clone());
+                            }
                             break;
                         }
                     }

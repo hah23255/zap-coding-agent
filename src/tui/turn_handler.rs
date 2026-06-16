@@ -25,6 +25,17 @@ pub(super) async fn handle_tui_slash(
 ) -> Result<bool> {
     let cmd = input.trim();
 
+    if cmd == "/index" {
+        let result = super::actions::run_indexing_with_spinner(app, session, terminal).await?;
+        app.state = AppState::Idle;
+        app.messages.push(UiMessage {
+            role: MsgRole::Assistant,
+            blocks: vec![UiBlock::Text(result)],
+        });
+        app.auto_scroll = true;
+        return Ok(false);
+    }
+
     if cmd == "/sessions" || cmd.starts_with("/sessions ") {
         let cwd = crate::persistence::current_project_cwd();
         match session.store.recent_sessions_for_cwd(&cwd, 30) {
