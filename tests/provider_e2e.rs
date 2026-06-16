@@ -35,30 +35,29 @@ fn all_expected_providers_present() {
     assert_eq!(slugs.len(), 21, "expected 21 providers, got {}", slugs.len());
 }
 
+// Both scenarios live in one test (rather than two `#[test]` fns) because
+// they mutate the process-wide CODEX_HOME env var — split across two tests,
+// cargo's parallel test runner raced them and flaked the push hook
+// (whichever test's remove_var() landed between the other's set_var() and
+// its check_codex() call would see the wrong state).
 #[test]
-fn check_codex_auth_absent_returns_none() {
-    // When ~/.codex/auth.json doesn't exist, check_codex() must return None.
-    // (Overriding CODEX_HOME to a temp dir guarantees no auth file exists.)
-    let tmp = std::env::temp_dir().join("zap_codex_test_no_auth");
-    let _ = std::fs::create_dir_all(&tmp);
-    std::env::set_var("CODEX_HOME", &tmp);
+fn check_codex_auth_presence() {
+    let absent_dir = std::env::temp_dir().join("zap_codex_test_no_auth");
+    let _ = std::fs::create_dir_all(&absent_dir);
+    std::env::set_var("CODEX_HOME", &absent_dir);
     let result = zap_coding_agent::llm_client::auth::check_codex();
-    std::env::remove_var("CODEX_HOME");
     assert!(result.is_none(), "check_codex() should return None when auth.json absent");
-}
 
-#[test]
-fn check_codex_auth_present_returns_some() {
-    let tmp = std::env::temp_dir().join("zap_codex_test_with_auth");
-    let _ = std::fs::create_dir_all(&tmp);
+    let present_dir = std::env::temp_dir().join("zap_codex_test_with_auth");
+    let _ = std::fs::create_dir_all(&present_dir);
     std::fs::write(
-        tmp.join("auth.json"),
+        present_dir.join("auth.json"),
         r#"{"auth_mode":"chatgpt","tokens":{"access_token":"tok","account_id":"acc"}}"#,
     ).unwrap();
-    std::env::set_var("CODEX_HOME", &tmp);
+    std::env::set_var("CODEX_HOME", &present_dir);
     let result = zap_coding_agent::llm_client::auth::check_codex();
     std::env::remove_var("CODEX_HOME");
-    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_dir_all(&present_dir);
     assert_eq!(result, Some("ready".into()), "check_codex() should return Some when auth.json present");
 }
 
