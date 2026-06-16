@@ -313,6 +313,23 @@ pub fn global_list_indexed_files(limit: usize) -> Vec<(String, usize)> {
         .unwrap_or_default()
 }
 
+/// Peek row counts on `.zap/code.db` while a scan is in progress on another
+/// connection. The indexer holds `GLOBAL_INDEX`'s mutex for the whole scan, so
+/// this opens its own short-lived read-only connection instead of locking
+/// that one — WAL mode lets it see rows from each file's commit as they land,
+/// without waiting for the scan to finish.
+pub fn peek_scan_progress(cwd: &Path) -> Option<(usize, usize, usize)> {
+    let db_path = cwd.join(".zap").join("code.db");
+    let conn = rusqlite::Connection::open_with_flags(
+        &db_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ).ok()?;
+    let files: i64 = conn.query_row("SELECT COUNT(*) FROM indexed_files", [], |r| r.get(0)).ok()?;
+    let symbols: i64 = conn.query_row("SELECT COUNT(*) FROM symbols", [], |r| r.get(0)).ok()?;
+    let calls: i64 = conn.query_row("SELECT COUNT(*) FROM call_sites", [], |r| r.get(0)).ok()?;
+    Some((files as usize, symbols as usize, calls as usize))
+}
+
 pub fn global_stats() -> (usize, usize) {
     GLOBAL_INDEX
         .get()

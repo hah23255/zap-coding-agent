@@ -5,7 +5,10 @@ use super::Tool;
 
 mod symbols;
 mod search_impl;
-use search_impl::{build_code_map, find_symbol_definition, search_with_rg_or_grep};
+use search_impl::{
+    build_code_map, call_sites_query_sql, code_map_query_sql, definition_query_sql,
+    find_symbol_definition, search_with_rg_or_grep,
+};
 
 // ── search_code ───────────────────────────────────────────────────────────────
 
@@ -74,7 +77,8 @@ impl Tool for FindDefinitionTool {
         })
     }
     fn permission_context(&self, input: &serde_json::Value) -> String {
-        format!("find definition of '{}'", input["symbol"].as_str().unwrap_or("?"))
+        let symbol = input["symbol"].as_str().unwrap_or("?");
+        format!("sql› {}", definition_query_sql(symbol))
     }
     async fn execute(&self, input: serde_json::Value) -> Result<String> {
         let symbol = input["symbol"].as_str().context("find_definition: 'symbol' required")?;
@@ -112,7 +116,9 @@ impl Tool for FindReferencesTool {
         })
     }
     fn permission_context(&self, input: &serde_json::Value) -> String {
-        format!("find references to '{}'", input["symbol"].as_str().unwrap_or("?"))
+        let symbol = input["symbol"].as_str().unwrap_or("?");
+        let max_n  = input["max_results"].as_u64().unwrap_or(100) as usize;
+        format!("sql› {}", call_sites_query_sql(symbol, None, max_n))
     }
     async fn execute(&self, input: serde_json::Value) -> Result<String> {
         let symbol    = input["symbol"].as_str().context("find_references: 'symbol' required")?;
@@ -121,7 +127,7 @@ impl Tool for FindReferencesTool {
         // Prefer the indexed call graph when available.
         let hits = crate::code_index::global_find_references(symbol, max_n);
         if !hits.is_empty() {
-            return Ok(format_call_sites(symbol, max_n, &hits));
+            return Ok(format_call_sites(symbol, None, max_n, &hits));
         }
 
         // Fall back to text search.
@@ -132,10 +138,10 @@ impl Tool for FindReferencesTool {
     }
 }
 
-fn format_call_sites(symbol: &str, limit: usize, hits: &[crate::code_index::CallSite]) -> String {
+fn format_call_sites(symbol: &str, qualifier: Option<&str>, limit: usize, hits: &[crate::code_index::CallSite]) -> String {
     crate::log::write("INDEX", &format!(
-        "hit · call_sites · '{}' · {} result(s) · sqlite3 .zap/code.db \"SELECT path, line, name, caller_scope FROM call_sites WHERE name = '{}' COLLATE NOCASE ORDER BY path, line LIMIT {};\"",
-        symbol, hits.len(), symbol, limit
+        "hit · call_sites · '{}' · {} result(s) · sqlite3 .zap/code.db \"{};\"",
+        symbol, hits.len(), call_sites_query_sql(symbol, qualifier, limit)
     ));
     let mut out = format!("Found {} call site(s) for `{}` (from code index):\n\n", hits.len(), symbol);
     for h in hits {
@@ -171,11 +177,9 @@ impl Tool for WhoCallsTool {
     }
     fn permission_context(&self, input: &serde_json::Value) -> String {
         let name = input["name"].as_str().unwrap_or("?");
-        match input.get("qualifier").and_then(|v| v.as_str()) {
-            Some(q) if !q.is_empty() => format!("who calls {}::{}", q, name),
-            Some(_)                  => format!("who calls bare `{}`", name),
-            None                     => format!("who calls {}", name),
-        }
+        let qualifier = input.get("qualifier").and_then(|v| v.as_str());
+        let max_n = input["max_results"].as_u64().unwrap_or(100) as usize;
+        format!("sql› {}", call_sites_query_sql(name, qualifier, max_n))
     }
     async fn execute(&self, input: serde_json::Value) -> Result<String> {
         let name = input["name"].as_str().context("who_calls: 'name' required")?;
@@ -191,7 +195,7 @@ impl Tool for WhoCallsTool {
             };
             return Ok(format!("{}\n(Tip: the index covers Rust, Python, JS/TS. Run `--index-only` to rebuild.)", header));
         }
-        Ok(format_call_sites(name, max_n, &hits))
+        Ok(format_call_sites(name, qualifier, max_n, &hits))
     }
 }
 
@@ -469,12 +473,60 @@ impl Tool for CodeMapTool {
         })
     }
     fn permission_context(&self, input: &serde_json::Value) -> String {
-        format!("code map of '{}'", input["path"].as_str().unwrap_or("."))
+        let path = input["path"].as_str().unwrap_or(".");
+        format!("sql› {}", code_map_query_sql(path))
     }
     async fn execute(&self, input: serde_json::Value) -> Result<String> {
         let path      = input["path"].as_str().unwrap_or(".");
         let max_depth = input["max_depth"].as_u64().unwrap_or(3) as usize;
         let file_type = input["file_type"].as_str();
         build_code_map(path, max_depth, file_type).await
+    }
+}
+
+// permission_context() doubles as the tool-call header shown in the UI (see
+// `ApprovedCall::ctx` in session/tools.rs) — these tools are read-only and
+// never gated behind a permission prompt, so this is the only place the
+// query is user-visible. Regression coverage for the literal SQL text:
+// it was silently dropped once before (moved to a log-only line in
+// v0.15.25) and the user noticed it missing from the UI.
+#[cfg(test)]
+mod sql_preview_tests {
+    use super::*;
+
+    #[test]
+    fn find_definition_shows_literal_sql() {
+        let ctx = FindDefinitionTool.permission_context(&serde_json::json!({ "symbol": "parse_config" }));
+        assert!(ctx.starts_with("sql› SELECT"));
+        assert!(ctx.contains("FROM symbols"));
+        assert!(ctx.contains("parse_config"));
+    }
+
+    #[test]
+    fn find_references_shows_literal_sql() {
+        let ctx = FindReferencesTool.permission_context(&serde_json::json!({ "symbol": "run_tui" }));
+        assert!(ctx.starts_with("sql› SELECT"));
+        assert!(ctx.contains("FROM call_sites"));
+        assert!(ctx.contains("run_tui"));
+    }
+
+    #[test]
+    fn who_calls_includes_qualifier_in_sql() {
+        let ctx = WhoCallsTool.permission_context(&serde_json::json!({ "name": "foo", "qualifier": "Bar" }));
+        assert!(ctx.contains("qualifier = 'Bar'"));
+
+        let bare = WhoCallsTool.permission_context(&serde_json::json!({ "name": "foo", "qualifier": "" }));
+        assert!(bare.contains("qualifier = ''"));
+
+        let any = WhoCallsTool.permission_context(&serde_json::json!({ "name": "foo" }));
+        assert!(!any.contains("qualifier = "));
+    }
+
+    #[test]
+    fn code_map_shows_literal_sql() {
+        let ctx = CodeMapTool.permission_context(&serde_json::json!({ "path": "src/tui" }));
+        assert!(ctx.starts_with("sql› SELECT"));
+        assert!(ctx.contains("FROM symbols"));
+        assert!(ctx.contains("src/tui"));
     }
 }

@@ -32,14 +32,24 @@ pub(super) async fn run_indexing_with_spinner(
 
     let code_index = session.code_index.clone();
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let progress_cwd = cwd.clone();
     let mut handle = tokio::task::spawn_blocking(move || {
         crate::session::commands::run_init_indexing(&code_index, &cwd)
     });
+    let mut last_progress = std::time::Instant::now();
     let result = loop {
         tokio::select! {
             r = &mut handle => break r.unwrap_or_else(|e| format!("Index error: {}", e)),
             _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
                 app.tick_spinner();
+                if last_progress.elapsed() >= std::time::Duration::from_secs(10) {
+                    last_progress = std::time::Instant::now();
+                    if let Some((files, syms, calls)) = crate::code_index::peek_scan_progress(&progress_cwd) {
+                        if let AppState::ToolRunning { label, .. } = &mut app.state {
+                            *label = format!("codebase — {} files · {} syms · {} calls", files, syms, calls);
+                        }
+                    }
+                }
                 terminal.draw(|frame| render::draw(frame, app))?;
             }
         }

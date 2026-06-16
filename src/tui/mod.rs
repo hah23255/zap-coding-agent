@@ -55,11 +55,18 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     let mut stdout = std::io::stdout();
     // No EnableMouseCapture: it would steal click-drag from the terminal
     // emulator, breaking native text selection/copy. PageUp/PageDown still
-    // scroll without it.
+    // scroll without it. With capture off, terminals fall back to their own
+    // "alternate scroll mode" (DECSET 1007) and translate wheel scroll into
+    // synthesized Up/Down key sequences instead — on some terminals those
+    // don't reassemble cleanly and leak as literal `[A`/`[B` junk into the
+    // input box. Disabling 1007 makes the wheel a no-op here instead of
+    // garbling input; restored on exit below so other alt-screen apps
+    // (less, vim, git pager) keep their normal scroll-as-arrows behavior.
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
+        crossterm::style::Print("\x1b[?1007l"),
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -89,11 +96,19 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     startup::push_startup_messages(&mut app, &mut session);
     startup::maybe_open_onboarding_picker(&mut app, config);
 
+    // Auto-resume can preload a chunk of the previous session's conversation
+    // (up to 30% of the context window) into session.messages before the first
+    // turn — without this, the status bar falsely read 0% until the first
+    // message was sent, then jumped all at once to the real number.
+    app.context_pct = session.context_fill_pct();
+    app.turn = session.turn_count;
+
     let _result = tui_loop(&mut terminal, &mut app, &mut session, config, &mut rx).await;
 
     let _ = crossterm::terminal::disable_raw_mode();
     let _ = crossterm::execute!(
         terminal.backend_mut(),
+        crossterm::style::Print("\x1b[?1007h"),
         crossterm::terminal::LeaveAlternateScreen
     );
     let _ = terminal.show_cursor();

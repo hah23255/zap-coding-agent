@@ -116,6 +116,8 @@ pub fn suspend_for_prompt() {
         let _ = crossterm::terminal::disable_raw_mode();
         let _ = crossterm::execute!(
             std::io::stdout(),
+            // Restore default alternate-scroll behavior — see tui/mod.rs.
+            crossterm::style::Print("\x1b[?1007h"),
             crossterm::terminal::LeaveAlternateScreen
         );
     }
@@ -128,7 +130,10 @@ pub fn resume_from_prompt() {
         let _ = crossterm::terminal::enable_raw_mode();
         let _ = crossterm::execute!(
             std::io::stdout(),
-            crossterm::terminal::EnterAlternateScreen
+            crossterm::terminal::EnterAlternateScreen,
+            // No EnableMouseCapture (breaks click-drag copy); disable
+            // alternate scroll mode too — see tui/mod.rs.
+            crossterm::style::Print("\x1b[?1007l"),
         );
     }
 }

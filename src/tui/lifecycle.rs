@@ -8,6 +8,9 @@ pub(super) fn suspend_tui(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> 
     crossterm::terminal::disable_raw_mode()?;
     crossterm::execute!(
         terminal.backend_mut(),
+        // Restore the terminal's default alternate-scroll behavior (see
+        // resume_tui / tui/mod.rs for why this gets toggled around the TUI).
+        crossterm::style::Print("\x1b[?1007h"),
         crossterm::terminal::LeaveAlternateScreen
     )?;
     terminal.show_cursor()?;
@@ -19,6 +22,10 @@ pub(super) fn resume_tui(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> R
     crossterm::execute!(
         terminal.backend_mut(),
         crossterm::terminal::EnterAlternateScreen,
+        // No EnableMouseCapture (breaks click-drag copy); disable alternate
+        // scroll mode too so wheel scroll doesn't leak `[A`/`[B` junk into
+        // the input — see tui/mod.rs for the full explanation.
+        crossterm::style::Print("\x1b[?1007l"),
     )?;
     terminal.clear()?;
     Ok(())

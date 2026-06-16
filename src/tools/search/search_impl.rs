@@ -1,5 +1,45 @@
 use anyhow::{Context, Result};
 
+// ── sqlite query previews ────────────────────────────────────────────────────
+//
+// Single source of truth for the literal SQL each code-index-backed tool fires,
+// so the same text appears in the tool-call header (like Claude Code shows the
+// real `Bash(...)` command — see `permission_context` in `super::mod`) and in
+// the `.zap/zap.log` diagnostic line. Never put this in a tool's *result* text:
+// that also goes to the LLM, and small/local models tend to parrot the most
+// command-shaped line in a tool result back into chat.
+
+pub(super) fn definition_query_sql(symbol: &str) -> String {
+    format!(
+        "SELECT path, line, kind, signature FROM symbols WHERE name = '{}' COLLATE NOCASE LIMIT 20",
+        symbol
+    )
+}
+
+pub(super) fn call_sites_query_sql(name: &str, qualifier: Option<&str>, limit: usize) -> String {
+    match qualifier {
+        Some(q) if !q.is_empty() => format!(
+            "SELECT path, line, col, name, qualifier, receiver_expr, caller_scope, language FROM call_sites WHERE name = '{}' COLLATE NOCASE AND qualifier = '{}' ORDER BY path, line LIMIT {}",
+            name, q, limit
+        ),
+        Some(_) => format!(
+            "SELECT path, line, col, name, qualifier, receiver_expr, caller_scope, language FROM call_sites WHERE name = '{}' COLLATE NOCASE AND qualifier = '' ORDER BY path, line LIMIT {}",
+            name, limit
+        ),
+        None => format!(
+            "SELECT path, line, col, name, qualifier, receiver_expr, caller_scope, language FROM call_sites WHERE name = '{}' COLLATE NOCASE ORDER BY path, line LIMIT {}",
+            name, limit
+        ),
+    }
+}
+
+pub(super) fn code_map_query_sql(path: &str) -> String {
+    format!(
+        "SELECT name, kind, line, signature FROM symbols WHERE path LIKE '{}%' ORDER BY path, line LIMIT 2000",
+        path
+    )
+}
+
 // ── tool discovery ─────────────────────────────────────────────────────────────
 
 // Warn once per process when a tool is found via Git path but not on system PATH.
@@ -272,8 +312,8 @@ pub(super) async fn find_symbol_definition(symbol: &str, path: &str, lang_hint: 
     let index_hits = crate::code_index::global_find_definition(symbol);
     if !index_hits.is_empty() {
         crate::log::write("INDEX", &format!(
-            "hit · find_definition · '{}' · {} result(s) · sqlite3 .zap/code.db \"SELECT path, line, kind, signature FROM symbols WHERE name LIKE '%{}%' COLLATE NOCASE LIMIT 20;\"",
-            symbol, index_hits.len(), symbol
+            "hit · find_definition · '{}' · {} result(s) · sqlite3 .zap/code.db \"{};\"",
+            symbol, index_hits.len(), definition_query_sql(symbol)
         ));
         let _ = crate::audit::record(&format!("index_hit op=find_definition symbol={} results={}", symbol, index_hits.len()));
         let mut lines = vec![format!("Definition(s) of '{}' [AST index]:", symbol)];
@@ -362,8 +402,8 @@ pub(super) async fn build_code_map(path: &str, max_depth: usize, file_type: Opti
 
     if !index_syms.is_empty() {
         crate::log::write("INDEX", &format!(
-            "hit · code_map · '{}' · {} symbol(s) · sqlite3 .zap/code.db \"SELECT name, kind, line, signature FROM symbols WHERE path LIKE '{}%' ORDER BY path, line LIMIT 2000;\"",
-            path, index_syms.len(), canonical.to_string_lossy()
+            "hit · code_map · '{}' · {} symbol(s) · sqlite3 .zap/code.db \"{};\"",
+            path, index_syms.len(), code_map_query_sql(&canonical.to_string_lossy())
         ));
         let _ = crate::audit::record(&format!("index_hit op=code_map path={} symbols={}", path, index_syms.len()));
         let filtered: Vec<_> = index_syms.iter().filter(|s| {
