@@ -300,11 +300,38 @@ pub(super) async fn handle_action(
                 .filter(|s| !s.is_empty())
                 .map(str::to_lowercase)
                 .collect();
+
+            // Indexing is a full directory walk + tree-sitter parse — slow enough
+            // on a large repo that running it via block_in_place froze the TUI with
+            // no feedback for the whole duration. Run it on a blocking task instead
+            // and keep redrawing (animated "Indexing…" spinner) while we wait.
+            let index_section = if do_index {
+                app.state = AppState::ToolRunning { name: "index".to_string(), label: "codebase".to_string() };
+                app.auto_scroll = true;
+                terminal.draw(|frame| render::draw(frame, app))?;
+
+                let code_index = session.code_index.clone();
+                let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                let mut handle = tokio::task::spawn_blocking(move || {
+                    crate::session::commands::run_init_indexing(&code_index, &cwd)
+                });
+                let result = loop {
+                    tokio::select! {
+                        r = &mut handle => break r.unwrap_or_else(|e| format!("Index error: {}", e)),
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
+                            app.tick_spinner();
+                            terminal.draw(|frame| render::draw(frame, app))?;
+                        }
+                    }
+                };
+                Some(result)
+            } else {
+                None
+            };
+
             app.state = AppState::Thinking;
             terminal.draw(|frame| render::draw(frame, app))?;
-            let (output, llm_prompt) = tokio::task::block_in_place(|| {
-                session.cmd_init_direct(languages, do_index, do_understand)
-            });
+            let (output, llm_prompt) = session.cmd_init_direct(languages, index_section, do_understand);
             app.state = AppState::Idle;
             app.messages.push(UiMessage {
                 role: MsgRole::Assistant,

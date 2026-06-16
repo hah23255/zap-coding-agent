@@ -306,9 +306,14 @@ impl CodeIndex {
             }
         }
 
+        // A handful of unreadable/unparsable files (binary content, odd permissions,
+        // a stray symlink) during a normal scan is routine and not user-actionable —
+        // log it for diagnostics only. Don't push it into the chat as a WARN; the
+        // genuinely actionable case (every file failed, e.g. a corrupt .zap/code.db)
+        // already surfaces through index_dir's Err return below.
         if skipped > 0 {
-            crate::log::write("WARN ", &format!(
-                "index: {} file(s) skipped — {} (fix .zap/code.db permissions or run /init again)",
+            crate::log::write("INDEX", &format!(
+                "{} file(s) skipped during scan (parse/read error) — first: {}",
                 skipped, first_err.as_deref().unwrap_or_default()
             ));
         }

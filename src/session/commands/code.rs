@@ -85,15 +85,71 @@ impl Session {
             Err(e) => { println!("  {} Could not write ZAP.md: {}", "✗".red(), e); None }
         }
     }
+}
 
+/// Run the actual code-index scan for `/init`. Synchronous and CPU/IO-bound (full
+/// directory walk + tree-sitter parse) — callers in the TUI must run this via
+/// `tokio::task::spawn_blocking` rather than calling it directly, so the event loop
+/// keeps redrawing instead of freezing for the duration.
+pub fn run_init_indexing(
+    code_index: &std::sync::Arc<std::sync::Mutex<crate::code_index::CodeIndex>>,
+    cwd: &std::path::Path,
+) -> String {
+    match code_index.lock() {
+        Ok(mut guard) => {
+            if guard.is_in_memory() {
+                if let Ok(file_idx) = crate::code_index::CodeIndex::open(cwd) {
+                    *guard = file_idx;
+                }
+            }
+            match guard.index_dir(cwd) {
+                Ok((new_files, new_syms)) => {
+                    crate::project::mark_indexed();
+                    let (total_files, total_syms) = guard.total_stats().unwrap_or((new_files, new_syms));
+                    let lang_counts = guard.stats_by_language().unwrap_or_default();
+                    let db_kb = cwd.join(".zap").join("code.db")
+                        .metadata().map(|m| m.len() / 1024).unwrap_or(0);
+                    let mut s = format!(
+                        "Code index\n  {} files · {} symbols indexed",
+                        total_files, total_syms
+                    );
+                    if !lang_counts.is_empty() {
+                        let breakdown: Vec<String> = lang_counts.iter()
+                            .map(|(l, n)| format!("{} ({})", l, n))
+                            .collect();
+                        s.push_str(&format!("\n  Languages: {}", breakdown.join(", ")));
+                    }
+                    if db_kb > 0 {
+                        s.push_str(&format!("\n  DB: {} KB · .zap/code.db", db_kb));
+                    }
+                    s.push_str("\n  Stored in .zap/code.db (SQLite, local only — your code never leaves your machine)");
+                    s.push_str("\n  Auto-updates: every 2 min while running · at session end");
+                    s.push_str("\n  Run /index any time to refresh manually");
+                    s
+                }
+                Err(e) => format!("Index error: {}", e),
+            }
+        }
+        Err(_) => "Index busy — run /index manually".to_string(),
+    }
+}
+
+impl Session {
     /// TUI-native init: takes wizard choices, returns (output_text, optional_llm_prompt).
     /// No inquire prompts — all input was collected by the TUI wizard overlay.
+    ///
+    /// `index_section`: pre-computed result of [`run_init_indexing`], or `None` if the
+    /// user skipped indexing. The scan itself is slow (full directory walk + tree-sitter
+    /// parse) so the caller runs it via `tokio::task::spawn_blocking` *before* calling
+    /// this — keeping it out of this function is what lets the TUI keep redrawing
+    /// (animated spinner, "Indexing…" status) instead of freezing for the duration.
     pub fn cmd_init_direct(
         &mut self,
         languages: Vec<String>,
-        do_index: bool,
+        index_section: Option<String>,
         do_understand: bool,
     ) -> (String, Option<String>) {
+        let do_index = index_section.is_some();
         let project_type = detect_project_type();
         let lang_label = if languages.is_empty() {
             project_type.to_string()
@@ -101,47 +157,8 @@ impl Session {
             languages.join(", ")
         };
         let mut sections: Vec<String> = Vec::new();
-
-        if do_index {
-            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-            let index_section = match self.code_index.lock() {
-                Ok(mut guard) => {
-                    if guard.is_in_memory() {
-                        if let Ok(file_idx) = crate::code_index::CodeIndex::open(&cwd) {
-                            *guard = file_idx;
-                        }
-                    }
-                    match guard.index_dir(&cwd) {
-                        Ok((new_files, new_syms)) => {
-                            crate::project::mark_indexed();
-                            let (total_files, total_syms) = guard.total_stats().unwrap_or((new_files, new_syms));
-                            let lang_counts = guard.stats_by_language().unwrap_or_default();
-                            let db_kb = cwd.join(".zap").join("code.db")
-                                .metadata().map(|m| m.len() / 1024).unwrap_or(0);
-                            let mut s = format!(
-                                "Code index\n  {} files · {} symbols indexed",
-                                total_files, total_syms
-                            );
-                            if !lang_counts.is_empty() {
-                                let breakdown: Vec<String> = lang_counts.iter()
-                                    .map(|(l, n)| format!("{} ({})", l, n))
-                                    .collect();
-                                s.push_str(&format!("\n  Languages: {}", breakdown.join(", ")));
-                            }
-                            if db_kb > 0 {
-                                s.push_str(&format!("\n  DB: {} KB · .zap/code.db", db_kb));
-                            }
-                            s.push_str("\n  Stored in .zap/code.db (SQLite, local only — your code never leaves your machine)");
-                            s.push_str("\n  Auto-updates: every 2 min while running · at session end");
-                            s.push_str("\n  Run /index any time to refresh manually");
-                            s
-                        }
-                        Err(e) => format!("Index error: {}", e),
-                    }
-                }
-                Err(_) => "Index busy — run /index manually".to_string(),
-            };
-            sections.push(index_section);
+        if let Some(section) = index_section {
+            sections.push(section);
         }
 
         let cwd_name = std::env::current_dir()

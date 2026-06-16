@@ -104,6 +104,7 @@ fn tool_verb(name: &str) -> &'static str {
         "spawn_agent"      => "Spawning agent",
         "read_memory"      => "Recalling",
         "write_memory"     => "Remembering",
+        "index"            => "Indexing",
         _                  => "Running",
     }
 }
