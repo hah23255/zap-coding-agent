@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-5b3ff8)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/zap-coding-agent/zap-coding-agent?color=5b3ff8)](https://github.com/zap-coding-agent/zap-coding-agent/releases/latest)
 
-> An AI coding agent built in Rust — skill-first context injection, a hard security boundary, and a single binary with no runtime.
+> ZAP is a terminal-first, local AI coding agent built in Rust. It uses AST-powered codebase indexing and lazy-loaded skills to completely eliminate prompt bloat and minimize context token costs — single binary, no runtime.
 
 ```
   ╭────────────────────────────────────────────────────────────────────╮
@@ -29,19 +29,19 @@
 
 ---
 
-## The Problem Every AI Coding Agent Has
+## Eradicating Prompt Bloat in AI Coding Agents
 
 Open any popular AI coding agent and inspect the raw request it sends to the LLM. You'll find hundreds — sometimes thousands — of lines of system prompt sent on **every single turn**, regardless of what you're actually doing.
 
 We measured this. Here's what Gemini CLI and OpenCode send when you ask them to write a Spring Boot service vs. a React component — two completely different languages, frameworks, and conventions:
 
-| | Gemini CLI | OpenCode | zap |
-|---|---|---|---|
-| Spring Boot request | **4,096 tokens** | **2,003 tokens** | 1,889 tokens |
-| React request | **4,096 tokens** | **2,003 tokens** | 1,661 tokens |
-| Prompts identical? | ✅ Yes — same bytes | ✅ Yes — same bytes | ❌ No — different skill injected |
-| Java conventions in prompt? | ❌ None | ❌ None | ✅ 650 tokens |
-| React conventions in prompt? | ❌ None | ❌ None | ✅ 422 tokens |
+### LLM Token Efficiency Matrix (Spring Boot vs. React Tasks)
+
+| AI Coding Agent | Spring Boot Request | React Request | Identical Base Prompt? | Language Context Injected? |
+| :--- | :---: | :---: | :---: | :--- |
+| **Gemini CLI** | 4,096 tokens | 4,096 tokens | ✅ Yes | ❌ None (0 mentions of Java/React) |
+| **OpenCode** | 2,003 tokens | 2,003 tokens | ✅ Yes | ❌ None (`baseAnthropicCoderPrompt`) |
+| **ZAP (Rust)** | **1,889 tokens** | **1,661 tokens** | ❌ **No** | ✅ **Yes** (+650 Java / +422 React tokens) |
 
 **Gemini CLI sends the same 4,096-token prompt for both.** The word "java" does not appear anywhere in its 68,410-character prompt file. Neither does "react", "kotlin", or any other language. The LLM writing your Spring Boot service and the LLM writing your React component receive identical instructions. ([source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/prompts/snippets.ts))
 
@@ -183,7 +183,7 @@ On first launch zap writes all built-in skills to `~/.zap/skills/` automatically
 
 ---
 
-### 2. AST Code Index — Understands Your Code, Not Just Text
+### 2. AST-Powered Code Indexing vs. Agentic Search
 
 Most agents navigate code the same way a shell script does — grep for a string, hope the result is what you meant. zap builds a real **AST symbol index** at startup using tree-sitter + SQLite, giving the model genuine structural understanding of your codebase.
 
@@ -347,7 +347,7 @@ The index doesn't reduce quality — it reduces the number of file reads require
 
 ---
 
-### 3. Built in Rust — One Binary, No Runtime
+### 3. Built in Rust: A Local AI Coding Agent in a Single Binary
 
 zap is written entirely in Rust and ships as a single statically-linked binary.
 
