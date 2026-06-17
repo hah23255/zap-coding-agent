@@ -96,7 +96,15 @@ impl Session {
                 .iter().map(|s| s.tokens()).sum()
         };
 
-        let base_ctx = self.estimated_context_tokens();
+        // Base the compaction check on the same windowed history that's actually
+        // sent to the LLM (and that context_fill_pct() shows in the status bar) —
+        // not the full unwindowed message log. self.messages keeps growing for the
+        // entire session, but everything before the sliding window is replaced by
+        // dropped_summary once it slides out; checking against the full log meant
+        // this could fire (or not) at a token count the user never saw, since the
+        // displayed percentage was already capped by the window.
+        let windowed_tokens = Self::tokens_for_messages(&windowed_history(&self.messages));
+        let base_ctx = windowed_tokens + self.dropped_summary.len() / 4;
         let projected_ctx = base_ctx + projected_skill_tokens;
         let ctx_pct = self.context_fill_pct_with(projected_ctx);
         let proj_ctx_k = (projected_ctx / 1000).max(1);

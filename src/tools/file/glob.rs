@@ -38,11 +38,7 @@ fn glob_walk_safe(
             // Skip build / vendor noise that is never useful to glob.
             let name = entry.file_name();
             let n = name.to_string_lossy();
-            if matches!(n.as_ref(),
-                "target" | "node_modules" | "vendor" | "dist" | "build"
-                | "bin" | "obj" | "out" | "__pycache__" | ".git" | ".svn" | ".hg"
-                | ".venv" | "venv" | "site-packages" | "coverage" | ".next" | ".nuxt"
-            ) { continue; }
+            if super::super::SKIP_DIR_NAMES.contains(&n.as_ref()) { continue; }
             glob_walk_safe(&path, base, pattern, opts, results, max, depth + 1);
         } else if path.is_file() {
             if let Ok(rel) = path.strip_prefix(base) {

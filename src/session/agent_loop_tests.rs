@@ -44,6 +44,50 @@ async fn single_text_turn_makes_one_call_and_appends_assistant_message() {
 }
 
 #[tokio::test]
+async fn context_fill_pct_uses_windowed_history_not_full_log() {
+    let mock = MockClient::with_script(vec![]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    // One huge old turn that will fall outside the default 8-turn window...
+    session.messages.push(crate::llm_client::Message::user_text("x".repeat(200_000)));
+    session.messages.push(crate::llm_client::Message {
+        role: "assistant".to_string(),
+        content: vec![ContentBlock::Text { text: "ok".to_string() }],
+    });
+    // ...followed by enough small turns to push it out of the window.
+    for i in 0..9 {
+        session.messages.push(crate::llm_client::Message::user_text(format!("turn {i}")));
+        session.messages.push(crate::llm_client::Message {
+            role: "assistant".to_string(),
+            content: vec![ContentBlock::Text { text: "ok".to_string() }],
+        });
+    }
+
+    // The full unwindowed log is dominated by the huge first turn (sanity check)...
+    assert!(session.estimated_context_tokens() > 30_000, "sanity: full log should be huge");
+    // ...but context_fill_pct() — what's displayed, and what the auto-compact
+    // trigger is now based on — only reflects the windowed (last 8 user turns)
+    // view, which excludes that huge turn entirely. Before this fix, the
+    // auto-compact trigger used the full count above instead, so it could fire
+    // at a percentage the status bar never showed.
+    let pct = session.context_fill_pct();
+    assert!(pct < 5, "windowed view should be tiny, got {pct}%");
+}
+
+#[tokio::test]
+async fn context_fill_pct_includes_dropped_summary() {
+    let mock = MockClient::with_script(vec![]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    let pct_before = session.context_fill_pct();
+    session.dropped_summary = "y".repeat(40_000);
+    let pct_after = session.context_fill_pct();
+    assert!(pct_after > pct_before, "dropped_summary should count toward context_fill_pct (before: {pct_before}%, after: {pct_after}%)");
+}
+
+#[tokio::test]
 async fn one_tool_round_executes_tool_and_loops_back() {
     // Stage a temp file the model "asks" to read.
     let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");

@@ -243,16 +243,16 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
           </thead>
           <tbody>
             <tr>
+              <td><code>devstral-small-2-2512</code></td>
+              <td>24B (MLX 4-bit, 14 GB)</td>
+              <td class="good col-zap">3/3</td>
+              <td>🥇 <strong>Default for long sessions</strong> — 256K ctx, 12× faster than Qwen3 at turn 17 (measured live)</td>
+            </tr>
+            <tr>
               <td><code>qwen3-coder-30b</code></td>
               <td>30B (MoE, ~3.3B active)</td>
               <td class="good col-zap">3/3</td>
-              <td><strong>Default executor pick</strong> — RL-tuned for the agent loop</td>
-            </tr>
-            <tr>
-              <td><code>devstral-small-2</code></td>
-              <td>24B</td>
-              <td class="good col-zap">3/3</td>
-              <td>Co-built with OpenHands scaffold; great alt</td>
+              <td>Faster early turns, RL-tuned for the agent loop</td>
             </tr>
             <tr>
               <td><code>gemma-4-e4b</code></td>
@@ -276,6 +276,33 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
         </table>
       </div>
       <p class="table-note"><strong>Key lesson:</strong> model <em>class</em> beats model <em>size</em>. Pick an <strong>agentic-tuned</strong> model (Devstral, Qwen3-Coder) for the executor role — not a generic "coder" completion model. Scoped single-file tasks passed on every model tested.</p>
+
+      <div class="section-header" style="margin-top:48px;">
+        <h3 style="font-size:1.4rem;">Devstral vs Qwen3-Coder — measured turn latency, 32 GB M5</h3>
+        <p>Both pass the eval. The difference shows up in sustained agent loops where the conversation grows over many turns — measured live via LM Studio logs running the same zap workflow on each.</p>
+      </div>
+
+      <div class="comparison-table-wrap" style="max-width:760px;">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Convo length</th>
+              <th><code>devstral-small-2</code> (24B dense)</th>
+              <th><code>qwen3-coder-30b</code> (MoE A3B)</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>2–3 msgs</td><td>11–44s</td><td>31s</td><td>mixed</td></tr>
+            <tr><td>5–9 msgs</td><td>24–71s</td><td>10–19s</td><td>Qwen (faster small generations)</td></tr>
+            <tr><td>11 msgs</td><td class="good col-zap">4s ⚡</td><td>37s</td><td class="good col-zap"><strong>Devstral 9×</strong></td></tr>
+            <tr><td>13 msgs</td><td class="good col-zap">4s ⚡</td><td>14s</td><td class="good col-zap"><strong>Devstral 3.5×</strong></td></tr>
+            <tr><td>15 msgs</td><td class="good col-zap">9s ⚡</td><td>62s</td><td class="good col-zap"><strong>Devstral 7×</strong></td></tr>
+            <tr><td>17 msgs</td><td class="good col-zap">7s ⚡</td><td>86s</td><td class="good col-zap"><strong>Devstral 12×</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note"><strong>Why:</strong> Qwen3-Coder MoE is fast per-token but prompt-eval cost grows roughly linearly and stalls long sessions. Devstral is dense (slower per token) but has aggressive prompt caching plus a chat template tuned for agent loops — once the prefix stabilizes, every subsequent turn is near-free. For zap's typical 15–30 turn workloads, Devstral wins.</p>
     </div>
   </section>
 

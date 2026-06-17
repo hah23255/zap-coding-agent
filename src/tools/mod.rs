@@ -17,6 +17,22 @@ pub use agent::SpawnAgentTool;
 pub use memory::take_dirty_flag;
 pub use todo::{clear_todos, global_todos};
 
+/// Directory names every exploration tool (`glob_read`, `code_map`, `search_code`)
+/// skips unconditionally — VCS internals, dependency trees, caches, build output.
+///
+/// Deliberately *not* a blanket "skip anything starting with `.`": real hidden
+/// project directories (`.kiro`, `.claude`, `.cursor`, `.github`, etc.) hold specs,
+/// skills, and config that the agent needs to find. A blanket dot-skip in
+/// `code_map`'s filesystem walker and a missing `--hidden` flag on the `search_code`
+/// ripgrep invocation once meant a whole `.kiro/specs/` tree was invisible to every
+/// exploration tool until the user spelled out the exact path — only `glob_read`
+/// (which already used this distinction) found it.
+pub(crate) const SKIP_DIR_NAMES: &[&str] = &[
+    "target", "node_modules", "vendor", "dist", "build", "bin", "obj", "out",
+    "__pycache__", ".git", ".svn", ".hg", ".venv", "venv", "site-packages",
+    "coverage", ".next", ".nuxt", ".gradle", ".mvn", "tmp", "temp", "logs", ".zap",
+];
+
 // ── Tool trait ────────────────────────────────────────────────────────────────
 
 #[async_trait]

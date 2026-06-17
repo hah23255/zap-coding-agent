@@ -12,6 +12,17 @@ use crate::{
 use super::Session;
 use super::preview::smart_tool_preview;
 
+/// Tools that mutate filesystem or process state must run strictly serial within
+/// a single turn — the model may emit a write followed by a dependent read/build
+/// in the same response, and parallel execution would race the writer.
+/// Read-only tools stay parallel: that's where the frontier multi-read speedup lives.
+fn is_mutating_tool(name: &str) -> bool {
+    matches!(name,
+        "shell" | "write_file" | "edit_file" | "str_replace" |
+        "undo_edit" | "create_file" | "apply_patch"
+    )
+}
+
 fn print_tool_output(output: &str) {
     let trimmed = output.trim();
     if trimmed.is_empty() { return; }
@@ -215,121 +226,158 @@ impl Session {
             .map(|c| (c.name.clone(), c.input.clone()))
             .collect();
 
-        // Phase 2: execute approved tools in parallel.
-        let exec_futures = approved.into_iter().map(|call| {
-            let tool = self.tools.get(&call.name);
-            async move {
-                let icon = tool_icon(&call.name);
-                let cancel_hint = if call.name == "shell" {
-                    format!("  {}", "Ctrl+C to cancel".truecolor(110, 105, 130))
-                } else {
-                    String::new()
-                };
-                let ctx_display = if call.ctx.chars().count() > 52 {
-                    format!("{}…", call.ctx.chars().take(51).collect::<String>())
-                } else {
-                    call.ctx.clone()
-                };
-                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolStart {
-                    id: call.id.clone(),
-                    name: call.name.clone(),
-                    label: ctx_display.clone(),
-                });
-                if !crate::tui::channel::is_tui_mode() {
-                    println!(
-                        "  {} {} {}  {}{}",
-                        "╭─".truecolor(70, 65, 90),
-                        icon,
-                        call.name.truecolor(100, 210, 255).bold(),
-                        ctx_display.truecolor(130, 120, 155),
-                        cancel_hint,
-                    );
-                }
-                let t0 = std::time::Instant::now();
-                match tool {
-                    Some(t) => {
-                        let _ = audit::record(&format!(
-                            "tool_execute name={} input={}",
-                            call.name,
-                            serde_json::to_string(&call.input).unwrap_or_default()
-                        ));
-                        match t.execute(call.input).await {
-                            Ok(output) => {
-                                let _ = audit::record(&format!("tool_success name={}", call.name));
-                                let ms = t0.elapsed().as_millis();
-                                let preview = smart_tool_preview(&call.name, &output);
-                                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
-                                    id: call.id.clone(),
-                                    elapsed_ms: ms as u64,
-                                    success: true,
-                                    preview,
-                                });
-                                if !crate::tui::channel::is_tui_mode() {
-                                    println!("  {} {}  {}",
-                                        "╰─".truecolor(70, 65, 90),
-                                        "✓".truecolor(80, 210, 120),
-                                        format!("{}ms", ms).truecolor(90, 85, 110));
-                                    if t.shows_inline_output() {
-                                        print_tool_output(&output);
-                                    }
+        // Phase 2: execute approved tools.
+        // - Read-only tools (read_file, list_directory, code_map, …) run in parallel
+        //   — preserves the frontier multi-read speedup (Claude often emits 3+ reads/turn).
+        // - Mutating tools (shell, write_file, edit_file, …) run strictly serial,
+        //   in submission order — eliminates the file-dependency race that bit Devstral
+        //   when it tried to run `npm install` while `npx create-vite` was still scaffolding.
+        // Frontier models almost always emit ≤1 mutating call per turn, so for them
+        // this collapses to "run that one call" — no parallelism to lose.
+        let tools_ref = &self.tools;
+        let exec_one = |call: ApprovedCall| async move {
+            let tool = tools_ref.get(&call.name);
+            let icon = tool_icon(&call.name);
+            let cancel_hint = if call.name == "shell" {
+                format!("  {}", "Ctrl+C to cancel".truecolor(110, 105, 130))
+            } else {
+                String::new()
+            };
+            let ctx_display = if call.ctx.chars().count() > 52 {
+                format!("{}…", call.ctx.chars().take(51).collect::<String>())
+            } else {
+                call.ctx.clone()
+            };
+            crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolStart {
+                id: call.id.clone(),
+                name: call.name.clone(),
+                label: ctx_display.clone(),
+            });
+            if !crate::tui::channel::is_tui_mode() {
+                println!(
+                    "  {} {} {}  {}{}",
+                    "╭─".truecolor(70, 65, 90),
+                    icon,
+                    call.name.truecolor(100, 210, 255).bold(),
+                    ctx_display.truecolor(130, 120, 155),
+                    cancel_hint,
+                );
+            }
+            let t0 = std::time::Instant::now();
+            match tool {
+                Some(t) => {
+                    let _ = audit::record(&format!(
+                        "tool_execute name={} input={}",
+                        call.name,
+                        serde_json::to_string(&call.input).unwrap_or_default()
+                    ));
+                    match t.execute(call.input).await {
+                        Ok(output) => {
+                            let _ = audit::record(&format!("tool_success name={}", call.name));
+                            let ms = t0.elapsed().as_millis();
+                            let preview = smart_tool_preview(&call.name, &output);
+                            crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
+                                id: call.id.clone(),
+                                elapsed_ms: ms as u64,
+                                success: true,
+                                preview,
+                            });
+                            if !crate::tui::channel::is_tui_mode() {
+                                println!("  {} {}  {}",
+                                    "╰─".truecolor(70, 65, 90),
+                                    "✓".truecolor(80, 210, 120),
+                                    format!("{}ms", ms).truecolor(90, 85, 110));
+                                if t.shows_inline_output() {
+                                    print_tool_output(&output);
                                 }
-                                const MAX_TOOL_BYTES: usize = 20_000;
-                                let content = if output.len() > MAX_TOOL_BYTES {
-                                    let mut cut = MAX_TOOL_BYTES;
-                                    while cut > 0 && !output.is_char_boundary(cut) { cut -= 1; }
-                                    format!(
-                                        "{}\n\n[... truncated — output was {} bytes, showing first {}]",
-                                        &output[..cut], output.len(), cut,
-                                    )
-                                } else {
-                                    output
-                                };
-                                ContentBlock::ToolResult { tool_use_id: call.id, content }
                             }
-                            Err(e) => {
-                                let _ = audit::record(&format!("tool_error name={} err={}", call.name, e));
-                                let ms = t0.elapsed().as_millis();
-                                let err_str = format!("Error: {}", e);
-                                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
-                                    id: call.id.clone(),
-                                    elapsed_ms: ms as u64,
-                                    success: false,
-                                    preview: err_str.clone(),
-                                });
-                                if !crate::tui::channel::is_tui_mode() {
-                                    println!("  {} {}  {}",
-                                        "╰─".truecolor(70, 65, 90),
-                                        "✗".truecolor(220, 80, 80),
-                                        format!("{}ms", ms).truecolor(90, 85, 110));
-                                    if t.shows_inline_output() {
-                                        println!("    {}", err_str.truecolor(220, 100, 100));
-                                    }
+                            const MAX_TOOL_BYTES: usize = 20_000;
+                            let content = if output.len() > MAX_TOOL_BYTES {
+                                let mut cut = MAX_TOOL_BYTES;
+                                while cut > 0 && !output.is_char_boundary(cut) { cut -= 1; }
+                                format!(
+                                    "{}\n\n[... truncated — output was {} bytes, showing first {}]",
+                                    &output[..cut], output.len(), cut,
+                                )
+                            } else {
+                                output
+                            };
+                            ContentBlock::ToolResult { tool_use_id: call.id, content }
+                        }
+                        Err(e) => {
+                            let _ = audit::record(&format!("tool_error name={} err={}", call.name, e));
+                            let ms = t0.elapsed().as_millis();
+                            let err_str = format!("Error: {}", e);
+                            crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
+                                id: call.id.clone(),
+                                elapsed_ms: ms as u64,
+                                success: false,
+                                preview: err_str.clone(),
+                            });
+                            if !crate::tui::channel::is_tui_mode() {
+                                println!("  {} {}  {}",
+                                    "╰─".truecolor(70, 65, 90),
+                                    "✗".truecolor(220, 80, 80),
+                                    format!("{}ms", ms).truecolor(90, 85, 110));
+                                if t.shows_inline_output() {
+                                    println!("    {}", err_str.truecolor(220, 100, 100));
                                 }
-                                ContentBlock::ToolResult { tool_use_id: call.id, content: err_str }
                             }
+                            ContentBlock::ToolResult { tool_use_id: call.id, content: err_str }
                         }
                     }
-                    None => {
-                        let _ = audit::record(&format!("tool_unknown name={}", call.name));
-                        crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
-                            id: call.id.clone(),
-                            elapsed_ms: 0,
-                            success: false,
-                            preview: format!("Unknown tool: {}", call.name),
-                        });
-                        if !crate::tui::channel::is_tui_mode() {
-                            println!("  {} {} unknown tool",
-                                "╰─".truecolor(70, 65, 90), "✗".truecolor(220, 80, 80));
-                        }
-                        ContentBlock::ToolResult {
-                            tool_use_id: call.id,
-                            content:     format!("Unknown tool: {}", call.name),
-                        }
+                }
+                None => {
+                    let _ = audit::record(&format!("tool_unknown name={}", call.name));
+                    crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::ToolDone {
+                        id: call.id.clone(),
+                        elapsed_ms: 0,
+                        success: false,
+                        preview: format!("Unknown tool: {}", call.name),
+                    });
+                    if !crate::tui::channel::is_tui_mode() {
+                        println!("  {} {} unknown tool",
+                            "╰─".truecolor(70, 65, 90), "✗".truecolor(220, 80, 80));
+                    }
+                    ContentBlock::ToolResult {
+                        tool_use_id: call.id,
+                        content:     format!("Unknown tool: {}", call.name),
                     }
                 }
             }
-        });
-        let mut new_results = join_all(exec_futures).await;
+        };
+
+        // Tag each call with its submission index, then partition by mutating-ness.
+        let mut parallel_calls: Vec<(usize, ApprovedCall)> = Vec::new();
+        let mut serial_calls: Vec<(usize, ApprovedCall)> = Vec::new();
+        for (idx, call) in approved.into_iter().enumerate() {
+            if is_mutating_tool(&call.name) {
+                serial_calls.push((idx, call));
+            } else {
+                parallel_calls.push((idx, call));
+            }
+        }
+
+        // Phase 2a: read-only tools in parallel.
+        let parallel_results: Vec<(usize, ContentBlock)> = join_all(
+            parallel_calls.into_iter().map(|(idx, call)| {
+                let fut = exec_one(call);
+                async move { (idx, fut.await) }
+            })
+        ).await;
+
+        // Phase 2b: mutating tools strictly serial, in submission order.
+        let mut serial_results: Vec<(usize, ContentBlock)> = Vec::new();
+        for (idx, call) in serial_calls {
+            serial_results.push((idx, exec_one(call).await));
+        }
+
+        // Merge back in submission order so tool_results match the model's call order.
+        let mut indexed: Vec<(usize, ContentBlock)> =
+            parallel_results.into_iter().chain(serial_results).collect();
+        indexed.sort_by_key(|(i, _)| *i);
+        let mut new_results: Vec<ContentBlock> =
+            indexed.into_iter().map(|(_, r)| r).collect();
 
         // Fire PostToolUse hooks (informational — cannot block).
         for ((name, input), result) in approved_meta.iter().zip(new_results.iter()) {

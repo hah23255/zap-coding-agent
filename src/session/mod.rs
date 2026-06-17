@@ -469,7 +469,12 @@ impl Session {
 
     pub fn context_fill_pct(&self) -> u8 {
         let effective = history::windowed_history(&self.messages);
-        let tokens = Self::tokens_for_messages(&effective);
+        // Include dropped_summary — it's prepended on every non-casual turn once
+        // older history slides out of the window, so it's part of what's actually
+        // sent. Without it this number could read lower than the same basis used
+        // by the auto-compact trigger, which is exactly the kind of mismatch that
+        // made compact fire at a percentage the user never saw on screen.
+        let tokens = Self::tokens_for_messages(&effective) + self.dropped_summary.len() / 4;
         let limit = std::env::var("ZAP_MAX_CONTEXT_TOKENS")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())

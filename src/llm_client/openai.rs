@@ -323,7 +323,20 @@ impl LlmProvider for OpenAiClient {
                 }
             }
 
-            if message["tool_calls"].is_null() && finish_reason == "stop" {
+            // Recover Mistral-family native `[TOOL_CALLS]name[ARGS]{json}` markers
+            // leaked into content. Fast no-op for frontier models (Claude/GPT/Gemini).
+            let mut recovered_mistral = 0usize;
+            if let Some(t) = message["content"].as_str() {
+                for (name, input) in crate::llm_client::parse_mistral_tool_calls(t) {
+                    content.push(ContentBlock::ToolUse {
+                        id: format!("mistral_recovered_{}", recovered_mistral),
+                        name, input,
+                    });
+                    recovered_mistral += 1;
+                }
+            }
+
+            if message["tool_calls"].is_null() && recovered_mistral == 0 && finish_reason == "stop" {
                 if let Some(t) = message["content"].as_str() {
                     check_text_mode_tool_call(t, tools_were_sent);
                 }
@@ -341,9 +354,12 @@ impl LlmProvider for OpenAiClient {
 
             if let Some(cb) = before_output.take() { cb(); }
 
-            let stop_reason = match finish_reason.as_str() {
-                "tool_calls" => "tool_use".to_string(),
-                _ => "end_turn".to_string(),
+            // If we recovered Mistral markers, the agent loop must continue —
+            // override finish_reason which the model itself set to "stop".
+            let stop_reason = if recovered_mistral > 0 || finish_reason == "tool_calls" {
+                "tool_use".to_string()
+            } else {
+                "end_turn".to_string()
             };
             let usage = if usage_acc.input_tokens > 0 || usage_acc.output_tokens > 0 {
                 Some(usage_acc)
@@ -475,7 +491,13 @@ impl LlmProvider for OpenAiClient {
             }
             if let Some(cb) = before_output.take() { cb(); }
 
-            if tool_accums.is_empty() && finish_reason == "stop" {
+            // Recover Mistral-family native `[TOOL_CALLS]name[ARGS]{json}` markers
+            // leaked into streamed content. Fast no-op for frontier models.
+            let recovered_mistral_stream: Vec<(String, serde_json::Value)> =
+                crate::llm_client::parse_mistral_tool_calls(&text_acc);
+            let recovered_count = recovered_mistral_stream.len();
+
+            if tool_accums.is_empty() && recovered_count == 0 && finish_reason == "stop" {
                 check_text_mode_tool_call(&text_acc, tools_were_sent);
             }
 
@@ -493,10 +515,17 @@ impl LlmProvider for OpenAiClient {
                     serde_json::from_str(&acc.arguments).unwrap_or(serde_json::json!({}));
                 content.push(ContentBlock::ToolUse { id: acc.id, name: acc.name, input });
             }
+            for (i, (name, input)) in recovered_mistral_stream.into_iter().enumerate() {
+                content.push(ContentBlock::ToolUse {
+                    id: format!("mistral_recovered_{}", i),
+                    name, input,
+                });
+            }
 
-            let stop_reason = match finish_reason.as_str() {
-                "tool_calls" => "tool_use".to_string(),
-                _ => "end_turn".to_string(),
+            let stop_reason = if recovered_count > 0 || finish_reason == "tool_calls" {
+                "tool_use".to_string()
+            } else {
+                "end_turn".to_string()
             };
             let usage = if usage_acc.input_tokens > 0 || usage_acc.output_tokens > 0 {
                 Some(usage_acc)

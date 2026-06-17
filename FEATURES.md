@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### search_code and code_map now find hidden project dirs like .kiro (v0.15.30)
+
+ripgrep skips dot-prefixed directories by default, and `code_map`'s filesystem walker had its own blanket "skip anything starting with `.`" check — so `.kiro/specs/`, `.claude/`, `.cursor/` and similar real project directories were invisible to both tools until the user spelled out the exact path. `glob_read` already handled this correctly by maintaining an explicit noise list rather than a blanket dot-skip.
+
+- Added `SKIP_DIR_NAMES` constant in [src/tools/mod.rs](src/tools/mod.rs): an explicit list of build artifacts, VCS internals, and caches (`target`, `node_modules`, `.git`, `.venv`, etc.) that all three exploration tools skip. Real hidden project dirs (`.kiro`, `.claude`, `.github`, `.cursor`) are **not** in the list and are therefore walked.
+- [src/tools/search/search_impl.rs](src/tools/search/search_impl.rs): added `--hidden` flag to the ripgrep invocation so it descends into dot-prefixed dirs, then passes `--exclude-dir=<name>` for each entry in `SKIP_DIR_NAMES` to keep the actual noise out. The fallback `grep -r` path gets matching `--exclude-dir` flags. The native Rust walker's hardcoded skip list is replaced with `SKIP_DIR_NAMES.contains()`.
+- [src/tools/file/glob.rs](src/tools/file/glob.rs): `glob_walk_safe`'s inline skip list replaced with `SKIP_DIR_NAMES`.
+- [src/tools/search/search_impl.rs](src/tools/search/search_impl.rs) `walk_dir_for_map`: blanket `name_str.starts_with('.')` guard removed, replaced with `SKIP_DIR_NAMES.contains()`.
+- 2 regression tests (`hidden_dir_tests` in `search_impl.rs`): a `.kiro`-shaped fixture verifies `search_code` finds matches in hidden dirs while `.git` stays excluded; a second test verifies `code_map` surfaces markdown headings from `.kiro/specs/`.
+- Also: serial execution for mutating tools (`shell`, `write_file`, `edit_file`, etc.) within a turn — read-only tools stay parallel; `context_fill_pct` now uses windowed history instead of the full log (prevents auto-compact triggering at percentages the status bar never shows); 2 new unit tests for the `context_fill_pct` fix.
+
 ### Show the literal sqlite query in code-index tool-call headers, Claude-Code-style (v0.15.29)
 v0.15.25 stopped `find_definition`/`find_references`/`who_calls`/`code_map` from appending their raw SQL to the tool's *returned text*, because that text also goes to the LLM and small/local models parroted the most command-shaped line back into chat — the query was moved to a log-only `crate::log::write("INDEX", ...)` line. That fixed the parroting bug but, as a side effect, also removed the query from the UI entirely: the tool-call header just showed a generic phrase like "find definition of 'foo'", with no equivalent of how Claude Code's own Bash tool shows the literal command it's running (`Bash(npm test)`) in the header — never narrated in prose, but always visible.
 

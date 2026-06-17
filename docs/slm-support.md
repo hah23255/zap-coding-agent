@@ -192,8 +192,8 @@ two harness-measurement bugs were found and fixed — read that folder, it's ins
 
 | Model | Size | Score | Verdict |
 |---|---|:---:|---|
-| `qwen3-coder-30b` (MoE, ~3.3B active) | 30B / 17 GB | **3/3** | **Default executor pick** — RL-tuned for the agent loop |
-| `devstral-small-2` | 24B / 14 GB | **3/3** | Co-built with the OpenHands scaffold; great alt |
+| `devstral-small-2-2512` (MLX 4-bit) | 24B / 14 GB | **3/3** | **🥇 Default for long sessions** — purpose-built for multi-step agent tasks, 256K context |
+| `qwen3-coder-30b` (MoE, ~3.3B active) | 30B / 17 GB | **3/3** | Faster early turns, RL-tuned for the agent loop |
 | `gemma-4-e4b` | 4B / 6 GB | 3/3 | Punches far above its size on scoped tasks |
 | `glm-4.7-flash-reap` | 23B MoE | 2/3 | Solid on fixes/renames, weaker on multi-step |
 | `qwen2.5-coder-14b` | 14B | 1/3 | ⚠ a *completion* model, not an agent — avoid for executor |
@@ -202,6 +202,38 @@ two harness-measurement bugs were found and fixed — read that folder, it's ins
 (Devstral, Qwen3-Coder) for the executor role — not a generic "coder" completion model.
 Scoped single-file tasks passed on **every** model; the agentic-tuned tier also handles
 multi-step and cross-file work.
+
+### Devstral vs Qwen3-Coder — measured turn latency on a 32 GB M5
+
+Both models pass the eval. The difference shows up in **sustained agent loops** where
+the conversation grows over many turns. Measured live via LM Studio logs running the same
+zap session on each model, same workflow:
+
+| Conversation length (msgs) | `devstral-small-2-2512` (MLX 4-bit, 24B dense) | `qwen3-coder-30b` (MLX 4-bit, MoE A3B) | Winner |
+|---:|---:|---:|---|
+| 2–3 | 11–44s | 31s | mixed |
+| 5–9 | 24–71s | 10–19s | Qwen (faster small generations) |
+| 11 | **4s** ⚡ | 37s | **Devstral 9×** |
+| 13 | **4s** ⚡ | 14s | **Devstral 3.5×** |
+| 15 | **9s** ⚡ | 62s | **Devstral 7×** |
+| 17 | **7s** ⚡ | **86s** | **Devstral 12×** |
+
+**The mechanism:** Qwen3-Coder-30B is MoE with ~3.3B active params, so per-token
+*generation* is fast — but the prompt-eval cost grows roughly linearly with conversation
+length and stalls on long agent sessions. Devstral is dense 24B (slower per generated token)
+but has aggressive prompt caching plus a chat template tuned for agent loops, so once the
+prefix stabilizes every subsequent turn is near-free. For zap's typical workload — turn
+counts of 15–30 mechanical edits — Devstral is the clear default.
+
+**Caveat: chat-template strictness.** Devstral's Jinja template strictly enforces user/assistant
+alternation. If you `/provider`-switch mid-session from Qwen → Devstral, the carried-over
+transcript can hit `"After the optional system message, conversation roles must alternate
+user and assistant roles..."`. zap's loop recovers by starting fresh; the right long-term
+fix is to collapse consecutive same-role messages before sending to a Mistral-family model.
+
+**Caveat: LM Studio default context.** LM Studio loads Devstral with a conservative default
+context window (often 8K). Bump it to ≥32K in the model settings — the architecture supports
+256K, and zap workloads regularly exceed 8K once you're a few tool calls deep.
 
 The single gating test before trusting any local model in the loop: confirm it returns
 `finish_reason: tool_calls` with a structured `tool_calls` array (not JSON in `content`)

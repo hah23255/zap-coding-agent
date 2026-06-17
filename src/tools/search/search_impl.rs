@@ -108,9 +108,17 @@ pub(super) async fn search_with_rg_or_grep(
             "--no-heading".into(),
             "--line-number".into(),
             "--color=never".into(),
+            // ripgrep skips dot-prefixed dirs/files by default — without --hidden,
+            // real hidden project dirs (.kiro, .claude, etc.) are invisible to this
+            // tool. Re-exclude the noisy ones (.git, caches, ...) explicitly instead.
+            "--hidden".into(),
             format!("-m{}", max_results),
             format!("-C{}", context_lines),
         ];
+        for skip in crate::tools::SKIP_DIR_NAMES {
+            args.push("-g".into());
+            args.push(format!("!{}", skip));
+        }
         if case_insensitive { args.push("-i".into()); }
         if fixed_string      { args.push("-F".into()); }
         if let Some(ft) = file_type {
@@ -129,7 +137,12 @@ pub(super) async fn search_with_rg_or_grep(
     }
 
     if let Some(grep) = find_tool("grep").await {
+        // Unlike ripgrep, plain `grep -r` already descends into hidden dirs by
+        // default — it just needs the noisy ones excluded explicitly.
         let mut args: Vec<String> = vec!["-rn".into(), "--color=never".into()];
+        for skip in crate::tools::SKIP_DIR_NAMES {
+            args.push(format!("--exclude-dir={}", skip));
+        }
         if case_insensitive { args.push("-i".into()); }
         if fixed_string      { args.push("-F".into()); }
         args.push(format!("-m{}", max_results));
@@ -235,7 +248,7 @@ fn search_rust_native(
             let p = entry.path();
             if p.is_dir() {
                 let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if matches!(name, "target"|"node_modules"|".git"|"dist"|"build"|".zap") { continue; }
+                if crate::tools::SKIP_DIR_NAMES.contains(&name) { continue; }
                 walk(&p, exts, out);
             } else {
                 let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -460,7 +473,8 @@ pub(super) async fn build_code_map(path: &str, max_depth: usize, file_type: Opti
             ""
         };
         return Ok(format!(
-            "No source files found in '{path}' (hidden directories and build artifacts are skipped).{hint}\n\
+            "No source files found in '{path}' (build artifacts and VCS/cache dirs are skipped; \
+             hidden project dirs like .kiro/.claude are not).{hint}\n\
              Use list_directory to inspect the directory contents directly."
         ));
     }
@@ -489,9 +503,9 @@ fn walk_dir_for_map(
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        if name_str.starts_with('.') || matches!(name_str.as_ref(),
-            "target" | "node_modules" | "__pycache__" | ".git" | "dist" | "build"
-        ) {
+        // Not a blanket dot-skip: real hidden project dirs (.kiro, .claude, etc.)
+        // hold specs/config the agent needs to find — see SKIP_DIR_NAMES.
+        if crate::tools::SKIP_DIR_NAMES.contains(&name_str.as_ref()) {
             continue;
         }
 
@@ -534,3 +548,45 @@ fn walk_dir_for_map(
 }
 
 use super::symbols::{ext_label, extract_symbols};
+
+// Regression coverage for the bug a user hit dogfooding zap: `search_code` and
+// `code_map` couldn't find anything under a real hidden project dir (`.kiro`)
+// until told the exact path, because ripgrep skips dot-prefixed dirs by default
+// and `walk_dir_for_map` had its own blanket dot-skip. `glob_read` already got
+// this right (see SKIP_DIR_NAMES) — these tests lock in that the other two tools
+// now match it, and that VCS noise (`.git`) still stays excluded.
+#[cfg(test)]
+mod hidden_dir_tests {
+    use super::*;
+
+    fn write(path: &std::path::Path, content: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    #[tokio::test]
+    async fn search_code_finds_matches_under_hidden_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir.path().join(".kiro/specs/notes.md"), "needle_marker_unique\n");
+        write(&dir.path().join(".git/some_internal_file"), "needle_marker_unique\n");
+
+        let out = search_with_rg_or_grep(
+            "needle_marker_unique", dir.path().to_str().unwrap(),
+            None, false, true, 0, 50,
+        ).await.unwrap();
+
+        assert!(out.contains(".kiro/specs/notes.md"), "expected hidden dir match, got:\n{out}");
+        assert!(!out.contains(".git/"), "expected .git to stay excluded, got:\n{out}");
+    }
+
+    #[tokio::test]
+    async fn code_map_finds_markdown_under_hidden_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir.path().join(".kiro/specs/MASTER-PLAN.md"), "# Master Plan\n\nbody text\n");
+
+        let out = build_code_map(dir.path().to_str().unwrap(), 5, None).await.unwrap();
+
+        assert!(out.contains("MASTER-PLAN.md"), "expected hidden dir file in code map, got:\n{out}");
+        assert!(out.contains("Master Plan"), "expected markdown heading extracted, got:\n{out}");
+    }
+}
