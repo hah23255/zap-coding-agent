@@ -312,6 +312,9 @@ pub(super) async fn run_normal_turn(
     while let Ok(ev) = rx.try_recv() { app.apply_event(ev); }
     app.finalize_turn();
     app.state = AppState::Idle;
+    // Re-establish raw mode: a subprocess (e.g. git opened /dev/tty for credential
+    // prompts) may have left the TTY in a corrupted state when it was SIGKILL'd.
+    let _ = crossterm::terminal::enable_raw_mode();
     while rx.try_recv().is_ok() {}
 
     if cancelled {

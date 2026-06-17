@@ -74,6 +74,10 @@ pub async fn run_args_in(program: &str, args: &[&str], dir: &str) -> Result<Shel
 }
 
 async fn run_with_timeout_secs(cmd: &mut Command, secs: u64) -> Result<ShellOutput> {
+    // Prevent git/SSH from opening /dev/tty for interactive credential prompts.
+    // In TUI mode that would corrupt the terminal; outside TUI it would hang.
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.env("SSH_ASKPASS_REQUIRE", "never");
     let child = cmd.kill_on_drop(true).output();
     match timeout(Duration::from_secs(secs), child).await {
         Ok(Ok(output)) => Ok(ShellOutput {
@@ -91,6 +95,10 @@ async fn run_with_timeout_secs(cmd: &mut Command, secs: u64) -> Result<ShellOutp
 }
 
 async fn run_with_timeout(cmd: &mut Command) -> Result<ShellOutput> {
+    // Prevent git/SSH from opening /dev/tty for interactive credential prompts.
+    // In TUI mode that would corrupt the terminal; outside TUI it would hang.
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.env("SSH_ASKPASS_REQUIRE", "never");
     // kill_on_drop(true): if this future is cancelled (e.g. Ctrl+C in the REPL),
     // tokio sends SIGKILL to the child so it doesn't linger.
     let child = cmd

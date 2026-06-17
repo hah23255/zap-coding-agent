@@ -7,6 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Fix git credential prompts corrupting TUI terminal state (v0.15.30)
+
+When zap ran `git clone` or similar commands requiring credentials, git would open `/dev/tty` directly to prompt for a username/password — bypassing crossterm's raw mode. The user saw a garbled prompt with no way to type into it, and after pressing Ctrl+C the prompt area became erratic (slow, dropped characters) because the SIGKILL'd git process left the TTY in a corrupted state.
+
+- [src/shell_runner.rs](src/shell_runner.rs): `run_with_timeout` and `run_with_timeout_secs` now set `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never` on every subprocess. Git fails immediately with a clear error instead of opening `/dev/tty` and hanging.
+- [src/tui/turn_handler.rs](src/tui/turn_handler.rs): `run_normal_turn` calls `enable_raw_mode()` after every turn completes (including cancelled ones) to force-restore crossterm's terminal state if a killed subprocess left the TTY in a bad state.
+
 ### search_code and code_map now find hidden project dirs like .kiro (v0.15.30)
 
 ripgrep skips dot-prefixed directories by default, and `code_map`'s filesystem walker had its own blanket "skip anything starting with `.`" check — so `.kiro/specs/`, `.claude/`, `.cursor/` and similar real project directories were invisible to both tools until the user spelled out the exact path. `glob_read` already handled this correctly by maintaining an explicit noise list rather than a blanket dot-skip.
