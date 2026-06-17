@@ -7,6 +7,21 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Multi-folder workspaces via --add-dir (v0.15.32)
+
+Open zap across multiple project folders simultaneously, equivalent to Claude Code's `--add-dir` flag.
+
+```bash
+zap --add-dir ../api --add-dir ~/shared-lib
+```
+
+The model gets full read/write access to all listed directories. They appear in the system prompt under `## Environment` and in the TUI welcome message so it's always clear which folders are in scope.
+
+- [src/cli.rs](src/cli.rs): `--add-dir <PATH>` repeatable flag. Paths are resolved to canonical absolute paths (including `~` expansion) at startup.
+- [src/config.rs](src/config.rs): `additional_dirs: Vec<String>` on `Config` and `FileConfig` (also settable in `~/.agent.toml` as `additional_dirs = [...]`).
+- [src/context_manager.rs](src/context_manager.rs): additional dirs listed under `## Environment` in the system prompt.
+- [src/session/mod.rs](src/session/mod.rs): dirs merged into write-roots so file edits are allowed; startup notice shown in TUI.
+
 ### Fix git credential prompts corrupting TUI terminal state (v0.15.30)
 
 When zap ran `git clone` or similar commands requiring credentials, git would open `/dev/tty` directly to prompt for a username/password — bypassing crossterm's raw mode. The user saw a garbled prompt with no way to type into it, and after pressing Ctrl+C the prompt area became erratic (slow, dropped characters) because the SIGKILL'd git process left the TTY in a corrupted state.

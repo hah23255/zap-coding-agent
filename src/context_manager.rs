@@ -43,13 +43,20 @@ pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Re
         std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
     };
 
-    sections.push(format!(
+    let mut env_section = format!(
         "## Environment\n\
          - Platform : {}\n\
          - Shell    : {}\n\
          - CWD      : {}",
         platform, shell, cwd
-    ));
+    );
+    if !config.additional_dirs.is_empty() {
+        env_section.push_str("\n- Additional directories (full read/write access):");
+        for dir in &config.additional_dirs {
+            env_section.push_str(&format!("\n    - {}", dir));
+        }
+    }
+    sections.push(env_section);
 
     // ── Code navigation strategy — differs based on whether the index is built ──
     let db_exists = std::path::Path::new(".zap/code.db").exists();

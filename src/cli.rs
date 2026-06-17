@@ -68,6 +68,13 @@ pub struct Args {
     /// Useful in CI or demo setup scripts to pre-index a repo before running zap.
     #[arg(long)]
     pub index_only: bool,
+
+    /// Additional working directories accessible alongside the primary CWD.
+    /// The model can read and write files in all listed directories.
+    /// Equivalent to Claude Code's --add-dir flag. May be repeated.
+    /// Example: zap --add-dir ../api --add-dir ~/shared-lib
+    #[arg(long = "add-dir", value_name = "PATH")]
+    pub add_dir: Vec<String>,
 }
 
 // ── Banner ────────────────────────────────────────────────────────────────────
@@ -295,6 +302,25 @@ pub async fn run() -> Result<()> {
 
     if let Some(b) = args.budget {
         config.budget = Some(b);
+    }
+
+    if !args.add_dir.is_empty() {
+        // Resolve each path (expand ~ and make absolute) so the model and file
+        // tools always see canonical paths regardless of how they were specified.
+        let resolved: Vec<String> = args.add_dir.iter().map(|p| {
+            let expanded = if p.starts_with("~/") {
+                if let Ok(home) = std::env::var("HOME") {
+                    p.replacen("~", &home, 1)
+                } else { p.clone() }
+            } else { p.clone() };
+            std::path::Path::new(&expanded)
+                .canonicalize()
+                .map(|c| c.display().to_string())
+                .unwrap_or(expanded)
+        }).collect();
+        config.additional_dirs = resolved.clone();
+        // Also grant write access to these directories.
+        config.allowed_paths.extend(resolved);
     }
 
     if args.index_only {

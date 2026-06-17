@@ -172,7 +172,12 @@ pub struct Session {
 impl Session {
     pub async fn new(config: &Config) -> Result<Self> {
         crate::http::init(config);
-        crate::tools::file::init_allowed_write_roots(&config.allowed_paths);
+        // additional_dirs (from --add-dir or ~/.agent.toml) also get write access.
+        let all_write_roots: Vec<String> = config.allowed_paths.iter()
+            .chain(config.additional_dirs.iter())
+            .cloned()
+            .collect();
+        crate::tools::file::init_allowed_write_roots(&all_write_roots);
         crate::tools::clear_todos();
         let store = persistence::init()?;
         let cwd_str = persistence::current_project_cwd();
@@ -299,6 +304,13 @@ impl Session {
         }
 
         let mut startup_notices: Vec<String> = Vec::new();
+        if !config.additional_dirs.is_empty() && !config.is_subagent {
+            let dirs = config.additional_dirs.iter()
+                .map(|d| format!("  + {}", d))
+                .collect::<Vec<_>>()
+                .join("\n");
+            startup_notices.push(format!("Additional directories (read/write):\n{}", dirs));
+        }
         let mut messages: Vec<Message> = Vec::new();
         if !config.is_subagent {
             if let Some(summary) = crate::project::context_summary() {

@@ -99,6 +99,11 @@ pub struct Config {
     /// to the project root and the system temp dir. Writes outside these roots are
     /// rejected. Set in ~/.agent.toml as: allowed_paths = ["~/scratch", "/data/out"]
     pub allowed_paths: Vec<String>,
+    /// Additional working directories opened alongside the primary CWD, equivalent
+    /// to Claude Code's --add-dir flag. The model can read/write files in all of
+    /// them. Set via `--add-dir <path>` or in ~/.agent.toml as:
+    /// additional_dirs = ["../other-project", "~/shared-lib"]
+    pub additional_dirs: Vec<String>,
     /// When true, send stream:false and parse a plain JSON response instead of SSE.
     /// Required for corporate proxies that mangle SSE and return empty tool_use blocks.
     pub disable_stream: bool,
@@ -143,6 +148,7 @@ struct FileConfig {
     skill_token_budget: Option<usize>,
     context_paths:   Option<Vec<String>>,
     allowed_paths:   Option<Vec<String>>,
+    additional_dirs: Option<Vec<String>>,
     disable_stream:  Option<bool>,
     tool_profile:    Option<String>,
 }
@@ -279,6 +285,7 @@ impl Config {
         let skill_token_budget = file.skill_token_budget.unwrap_or(4000);
         let context_paths  = file.context_paths.unwrap_or_default();
         let allowed_paths  = file.allowed_paths.unwrap_or_default();
+        let additional_dirs = file.additional_dirs.unwrap_or_default();
 
         let disable_stream = env::var("AGENT_DISABLE_STREAM")
             .map(|v| matches!(v.trim(), "1" | "true" | "yes"))
@@ -295,7 +302,7 @@ impl Config {
             permission_mode, sandbox, api_key, model, provider, base_url,
             output_format: OutputFormat::Text, agent_depth: 3, is_subagent: false, spawn_depth: 0,
             proxy, no_proxy, ca_bundle, tls_skip_verify, timeout_secs,
-            budget: None, skill_paths, skill_token_budget, context_paths, allowed_paths, disable_stream, skip_domain_prompt: false, tui_mode: false,
+            budget: None, skill_paths, skill_token_budget, context_paths, allowed_paths, additional_dirs, disable_stream, skip_domain_prompt: false, tui_mode: false,
             tool_profile, provider_slug, all_providers,
         })
     }
@@ -411,6 +418,7 @@ impl Default for Config {
             skill_token_budget: 4000,
             context_paths: vec![],
             allowed_paths: vec![],
+            additional_dirs: vec![],
             disable_stream: false,
             tool_profile: "full".to_string(),
             skip_domain_prompt: false,
