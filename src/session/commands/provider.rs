@@ -193,11 +193,16 @@ impl Session {
         new_config.base_url     = base_url.clone();
         new_config.api_key      = api_key.clone();
 
+        let context_window = crate::config::default_context_window_for_provider(
+            def.slug,
+            Some(kind_str),
+        );
+
         new_config.all_providers.insert(def.slug.to_string(), crate::config::ProviderEntry {
             kind:     Some(kind_str.to_string()),
             model:    Some(model_input.clone()),
             api_key:  if api_key.is_empty() { None } else { Some(api_key) },
-            context_window: None,
+            context_window,
             base_url: base_url.clone(),
             credential_method,
             auth_header: def.auth_header.map(|h| h.to_string()),

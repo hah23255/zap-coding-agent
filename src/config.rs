@@ -52,6 +52,16 @@ pub struct ProviderEntry {
     pub auth_header: Option<String>,
 }
 
+pub const CODEX_CONTEXT_WINDOW: usize = 400_000;
+
+pub fn default_context_window_for_provider(slug: &str, kind: Option<&str>) -> Option<usize> {
+    if slug == "codex" || kind.is_some_and(|k| k.eq_ignore_ascii_case("codex")) {
+        Some(CODEX_CONTEXT_WINDOW)
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub permission_mode: PermissionMode,
@@ -434,4 +444,3 @@ impl Default for Config {
         }
     }
 }
-

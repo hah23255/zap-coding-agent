@@ -7,11 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
-### Codex context window defaults to 400k tokens (v0.15.34)
+### Codex provider context and resumed tool history hardening (v0.15.35)
 
-Zap now treats Codex model names as 400,000-token context windows instead of falling back to the generic 32k default, so the TUI context-fill indicator and `/context` view stay accurate without manual environment overrides.
+Zap now treats the Codex provider as a 400,000-token context window instead of falling back to the generic 32k default, so `gpt-5.5` and future Codex model names are handled correctly without fragile model-name matching.
 
-- [src/session/history.rs](src/session/history.rs): `model_context_limit()` recognizes Codex model names and returns `400_000`, with regression coverage for `codex` and `gpt-5.5-codex`.
+- [src/config.rs](src/config.rs) and [src/session/mod.rs](src/session/mod.rs): `configured_context_limit()` honors `ZAP_MAX_CONTEXT_TOKENS`, explicit provider `context_window`, and provider/kind-level Codex defaults.
+- [src/session/history.rs](src/session/history.rs): windowed/resumed history now removes orphan tool results before OpenAI-compatible requests, preventing HTTP 400 errors after history trimming.
+- [tests/provider_e2e.rs](tests/provider_e2e.rs): e2e-style regression coverage verifies Codex provider context stays 400k for plain `gpt-5.5`, future Codex model names, custom `kind = "codex"` providers, and explicit overrides.
 
 ### TUI image attach, text paste, and mouse-wheel scroll (v0.15.33)
 
@@ -977,4 +979,3 @@ Features from Claude Code worth bringing into zap. IDE integration, voice, enter
 | Tool definitions | 0 (skipped) |
 | Skills | 0 (skipped) |
 | **Total baseline** | **~20–30 tokens** |
-

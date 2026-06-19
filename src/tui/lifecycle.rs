@@ -401,11 +401,15 @@ pub(super) fn apply_provider_switch(
     new_config.model = model.clone();
     new_config.base_url = base_url.clone();
     new_config.api_key = api_key.clone().unwrap_or_default();
+    let context_window = crate::config::default_context_window_for_provider(
+        &slug,
+        Some(kind_str),
+    );
     new_config.all_providers.insert(slug.clone(), crate::config::ProviderEntry {
         kind: Some(kind_str.to_string()),
         model: Some(model.clone()),
         api_key: api_key.clone(),
-        context_window: None,
+        context_window,
         base_url: base_url.clone(),
         credential_method: None,
         auth_header,

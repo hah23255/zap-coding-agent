@@ -8,7 +8,7 @@ use std::io::Write;
 
 use serde_json::json;
 
-use crate::config::{Config, PermissionMode};
+use crate::config::{Config, PermissionMode, ProviderEntry, CODEX_CONTEXT_WINDOW};
 use crate::llm_client::mock::MockClient;
 use crate::llm_client::{ContentBlock, LlmProvider};
 
@@ -22,6 +22,43 @@ fn test_config() -> Config {
         budget: None,
         ..Default::default()
     }
+}
+
+#[test]
+fn codex_provider_uses_400k_context_for_any_model_name() {
+    for model in ["gpt-5.5", "gpt-5.5-codex", "some-future-codex-model"] {
+        let mut config = test_config();
+        config.provider_slug = "codex".to_string();
+        config.model = model.to_string();
+
+        assert_eq!(super::configured_context_limit(&config), CODEX_CONTEXT_WINDOW);
+    }
+}
+
+#[test]
+fn codex_kind_uses_400k_context_even_with_custom_slug() {
+    let mut config = test_config();
+    config.provider_slug = "codex_alt".to_string();
+    config.model = "gpt-5.5".to_string();
+    config.all_providers.insert("codex_alt".to_string(), ProviderEntry {
+        kind: Some("codex".to_string()),
+        ..Default::default()
+    });
+
+    assert_eq!(super::configured_context_limit(&config), CODEX_CONTEXT_WINDOW);
+}
+
+#[test]
+fn configured_provider_context_window_overrides_model_guess() {
+    let mut config = test_config();
+    config.provider_slug = "custom".to_string();
+    config.model = "unknown-model".to_string();
+    config.all_providers.insert("custom".to_string(), ProviderEntry {
+        context_window: Some(123_456),
+        ..Default::default()
+    });
+
+    assert_eq!(super::configured_context_limit(&config), 123_456);
 }
 
 #[tokio::test]

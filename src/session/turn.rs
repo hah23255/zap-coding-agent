@@ -9,9 +9,9 @@ use crate::{
     ui::{format_cost, ThinkingSpinner},
 };
 
-use super::{Session, MAX_TURNS};
+use super::{configured_context_limit, Session, MAX_TURNS};
 use super::casual::{is_casual_message, is_topic_shift, needs_prior_context};
-use super::history::{ctx_bar, model_context_limit, select_tools_for_turn, windowed_history};
+use super::history::{ctx_bar, select_tools_for_turn, windowed_history};
 
 impl Session {
     pub async fn handle_user_turn(&mut self, input: &str) -> Result<()> {
@@ -70,11 +70,7 @@ impl Session {
         }
 
         let disable_compact = std::env::var("DISABLE_COMPACT").is_ok();
-        let ctx_limit_k = std::env::var("ZAP_MAX_CONTEXT_TOKENS")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .or_else(|| self.config.budget.map(|b| b as usize))
-            .unwrap_or_else(|| model_context_limit(&self.model)) / 1000;
+        let ctx_limit_k = configured_context_limit(&self.config) / 1000;
 
         // Project skill token cost before compaction check.
         // This prevents a situation where the context looks fine (e.g. 75%) but the

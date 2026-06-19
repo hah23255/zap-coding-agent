@@ -1,5 +1,43 @@
 /// E2E tests for the /provider list and live Codex API connectivity.
+use std::collections::HashMap;
+
+use zap_coding_agent::config::{
+    Config, OutputFormat, PermissionMode, Provider, ProviderEntry, SandboxMode, CODEX_CONTEXT_WINDOW,
+};
+use zap_coding_agent::session::configured_context_limit;
 use zap_coding_agent::session::commands::provider::provider_slugs;
+
+fn minimal_config(provider_slug: &str, model: &str) -> Config {
+    Config {
+        permission_mode: PermissionMode::Auto,
+        sandbox: SandboxMode::Off,
+        api_key: String::new(),
+        model: model.to_string(),
+        provider: Provider::OpenAi,
+        base_url: None,
+        output_format: OutputFormat::Text,
+        agent_depth: 0,
+        is_subagent: false,
+        spawn_depth: 0,
+        proxy: None,
+        no_proxy: None,
+        ca_bundle: None,
+        tls_skip_verify: false,
+        timeout_secs: 120,
+        budget: None,
+        skill_paths: vec![],
+        skill_token_budget: 4000,
+        context_paths: vec![],
+        allowed_paths: vec![],
+        additional_dirs: vec![],
+        disable_stream: false,
+        skip_domain_prompt: false,
+        tui_mode: false,
+        tool_profile: "full".to_string(),
+        provider_slug: provider_slug.to_string(),
+        all_providers: HashMap::new(),
+    }
+}
 
 #[test]
 fn codex_in_provider_list() {
@@ -59,6 +97,48 @@ fn check_codex_auth_presence() {
     std::env::remove_var("CODEX_HOME");
     let _ = std::fs::remove_dir_all(&present_dir);
     assert_eq!(result, Some("ready".into()), "check_codex() should return Some when auth.json present");
+}
+
+#[test]
+fn codex_context_window_contract_end_to_end() {
+    let slugs = provider_slugs();
+    assert!(slugs.contains(&"codex"), "codex provider missing from /provider list");
+
+    for model in ["gpt-5.5", "gpt-5.5-codex", "future-codex-model"] {
+        let mut config = minimal_config("codex", model);
+        config.all_providers.insert("codex".to_string(), ProviderEntry {
+            kind: Some("openai".to_string()),
+            model: Some(model.to_string()),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            configured_context_limit(&config),
+            CODEX_CONTEXT_WINDOW,
+            "Codex provider must use the Codex context window regardless of model name"
+        );
+    }
+
+    let mut custom_codex = minimal_config("custom_codex", "gpt-5.5");
+    custom_codex.all_providers.insert("custom_codex".to_string(), ProviderEntry {
+        kind: Some("codex".to_string()),
+        model: Some("gpt-5.5".to_string()),
+        ..Default::default()
+    });
+    assert_eq!(configured_context_limit(&custom_codex), CODEX_CONTEXT_WINDOW);
+
+    let mut explicit_override = custom_codex.clone();
+    explicit_override.all_providers.insert("custom_codex".to_string(), ProviderEntry {
+        kind: Some("codex".to_string()),
+        model: Some("gpt-5.5".to_string()),
+        context_window: Some(123_456),
+        ..Default::default()
+    });
+    assert_eq!(
+        configured_context_limit(&explicit_override),
+        123_456,
+        "explicit provider context_window should still override the Codex default"
+    );
 }
 
 // ── OpenRouter helpers ────────────────────────────────────────────────────────

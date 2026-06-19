@@ -383,7 +383,7 @@ pub(super) async fn run_normal_turn(
 /// Snapshot session.messages into a ContextViewerState for the /context overlay.
 pub(super) fn build_context_viewer(session: &Session) -> ContextViewerState {
     use crate::llm_client::ContentBlock;
-    use crate::session::model_context_limit;
+    use crate::session::configured_context_limit;
 
     let window: usize = std::env::var("ZAP_HISTORY_WINDOW")
         .ok()
@@ -481,7 +481,7 @@ pub(super) fn build_context_viewer(session: &Session) -> ContextViewerState {
         turns,
         selected,
         total_tokens,
-        limit_tokens: model_context_limit(&session.model),
+        limit_tokens: configured_context_limit(&session.config),
         context_pct: session.context_fill_pct(),
         confirm_clear: false,
         confirm_drop: false,

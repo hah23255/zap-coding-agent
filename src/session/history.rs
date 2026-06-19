@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashSet;
 use crate::llm_client::{ContentBlock, Message};
 
 /// Best-effort context window size for known model families.
@@ -124,7 +125,7 @@ pub(super) fn windowed_history(messages: &[Message]) -> Vec<Message> {
     const PRUNE_THRESHOLD: usize = 300;
     const PRUNE_PREVIEW:   usize = 150;
 
-    messages[start..].iter().enumerate()
+    let windowed: Vec<Message> = messages[start..].iter().enumerate()
         .map(|(rel_i, msg)| {
             let abs_i = start + rel_i;
             if abs_i < prune_before {
@@ -147,12 +148,84 @@ pub(super) fn windowed_history(messages: &[Message]) -> Vec<Message> {
                 msg.clone()
             }
         })
-        .collect()
+        .collect();
+
+    repair_tool_call_adjacency(&windowed)
+}
+
+/// OpenAI-compatible APIs require every `tool` message to answer a preceding
+/// assistant `tool_calls` entry. History trimming can leave an orphan tool result
+/// at the front of the window, causing HTTP 400.
+pub(super) fn repair_tool_call_adjacency(messages: &[Message]) -> Vec<Message> {
+    let mut out = Vec::with_capacity(messages.len());
+    let mut pending_tool_ids: HashSet<String> = HashSet::new();
+
+    for (idx, msg) in messages.iter().enumerate() {
+        match msg.role.as_str() {
+            "assistant" => {
+                let next_tool_result_ids: HashSet<String> = messages
+                    .get(idx + 1)
+                    .filter(|m| m.role == "user")
+                    .map(|m| {
+                        m.content.iter().filter_map(|b| {
+                            if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                                Some(tool_use_id.clone())
+                            } else {
+                                None
+                            }
+                        }).collect()
+                    })
+                    .unwrap_or_default();
+
+                let mut kept_tool_ids = HashSet::new();
+                let content: Vec<ContentBlock> = msg.content.iter().filter_map(|b| {
+                    if let ContentBlock::ToolUse { id, .. } = b {
+                        if next_tool_result_ids.contains(id) {
+                            kept_tool_ids.insert(id.clone());
+                            Some(b.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(b.clone())
+                    }
+                }).collect();
+
+                if !content.is_empty() {
+                    pending_tool_ids.extend(kept_tool_ids);
+                    out.push(Message { role: msg.role.clone(), content });
+                }
+            }
+            "user" if msg.content.iter().any(|b| matches!(b, ContentBlock::ToolResult { .. })) => {
+                let content: Vec<ContentBlock> = msg.content.iter().filter_map(|b| {
+                    if let ContentBlock::ToolResult { tool_use_id, .. } = b {
+                        if pending_tool_ids.remove(tool_use_id) {
+                            Some(b.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }).collect();
+
+                if !content.is_empty() {
+                    out.push(Message { role: msg.role.clone(), content });
+                }
+            }
+            _ => {
+                pending_tool_ids.clear();
+                out.push(msg.clone());
+            }
+        }
+    }
+
+    out
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ctx_bar, model_context_limit, select_tools_for_turn, windowed_history};
+    use super::{ctx_bar, model_context_limit, repair_tool_call_adjacency, select_tools_for_turn, windowed_history};
     use crate::llm_client::{ContentBlock, Message};
 
     fn user_text(t: &str) -> Message {
@@ -164,6 +237,16 @@ mod tests {
             content: vec![ContentBlock::ToolResult {
                 tool_use_id: id.to_string(),
                 content: content.to_string(),
+            }],
+        }
+    }
+    fn assistant_tool_call(id: &str) -> Message {
+        Message {
+            role: "assistant".to_string(),
+            content: vec![ContentBlock::ToolUse {
+                id: id.to_string(),
+                name: "shell".to_string(),
+                input: serde_json::json!({ "cmd": "pwd" }),
             }],
         }
     }
@@ -226,8 +309,10 @@ mod tests {
         let big = "x".repeat(400);
         let mut msgs = vec![
             user_text("turn1"),
+            assistant_tool_call("id1"),
             tool_result("id1", &big),
             user_text("turn2"),
+            assistant_tool_call("id2"),
             tool_result("id2", &big),
             user_text("turn3"),
         ];
@@ -257,8 +342,10 @@ mod tests {
         let big = "abcdefghij".repeat(50); // 500 chars
         let msgs = vec![
             user_text("turn1"),
+            assistant_tool_call("id1"),
             tool_result("id1", &big),
             user_text("turn2"),
+            assistant_tool_call("id2"),
             tool_result("id2", "short"),
             user_text("turn3"),
         ];
@@ -275,6 +362,33 @@ mod tests {
         assert!(content.contains("500 chars"), "should report original length");
         // Preview of first 150 chars of "abcdefghij" * 50 = "abcdefghijabcdefghij..."
         assert!(content.contains("abcdefghij"), "should include content preview");
+    }
+
+    #[test]
+    fn orphan_tool_results_are_removed() {
+        let msgs = vec![
+            tool_result("orphan", "stale"),
+            user_text("next real turn"),
+        ];
+
+        let repaired = repair_tool_call_adjacency(&msgs);
+
+        assert_eq!(repaired.len(), 1);
+        assert_eq!(repaired[0].role, "user");
+        assert!(repaired[0].content.iter().any(|b| matches!(b, ContentBlock::Text { .. })));
+    }
+
+    #[test]
+    fn unmatched_assistant_tool_calls_are_removed() {
+        let msgs = vec![
+            assistant_tool_call("missing"),
+            user_text("not a tool response"),
+        ];
+
+        let repaired = repair_tool_call_adjacency(&msgs);
+
+        assert_eq!(repaired.len(), 1);
+        assert_eq!(repaired[0].role, "user");
     }
 
     #[test]

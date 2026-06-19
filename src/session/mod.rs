@@ -23,7 +23,7 @@ use inquire::Confirm;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    config::Config,
+    config::{default_context_window_for_provider, Config},
     context_manager,
     llm_client::{create_client, ContentBlock, LlmProvider, Message, Usage},
     permission_manager::PermissionManager,
@@ -34,6 +34,25 @@ use crate::{
 
 pub const MAX_TURNS: usize = 50;
 
+pub fn configured_context_limit(config: &Config) -> usize {
+    std::env::var("ZAP_MAX_CONTEXT_TOKENS")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .or_else(|| config.budget.map(|b| b as usize))
+        .or_else(|| {
+            let entry = config.all_providers.get(&config.provider_slug);
+            entry.and_then(|e| e.context_window).or_else(|| {
+                default_context_window_for_provider(
+                    &config.provider_slug,
+                    entry.and_then(|e| e.kind.as_deref()),
+                )
+            })
+        })
+        .unwrap_or_else(|| {
+            model_context_limit(&config.model)
+        })
+}
+
 /// Load the previous session's messages, applying a context-size guard:
 /// 1. `windowed_history` — cap to 8 user turns + prune oversized tool results
 /// 2. Token budget — drop oldest user+assistant pairs until under 30% of the
@@ -42,7 +61,7 @@ fn load_and_guard_previous_messages(
     store: &crate::persistence::Store,
     current_session_id: i64,
     cwd: &str,
-    model: &str,
+    config: &Config,
 ) -> Vec<Message> {
     let Some(json) = store.load_previous_messages(current_session_id, cwd).ok().flatten() else {
         return Vec::new();
@@ -57,7 +76,7 @@ fn load_and_guard_previous_messages(
     let mut windowed = history::windowed_history(&prev);
 
     // Step 2: token budget — cap at 30% of the model's context window.
-    let budget = model_context_limit(model) * 30 / 100;
+    let budget = configured_context_limit(config) * 30 / 100;
     let mut tokens = Session::tokens_for_messages(&windowed);
     while tokens > budget && windowed.len() > 1 {
         // Find the oldest user-text message to drop it together with any
@@ -83,7 +102,7 @@ fn load_and_guard_previous_messages(
         tokens = Session::tokens_for_messages(&windowed);
     }
 
-    windowed
+    history::repair_tool_call_adjacency(&windowed)
 }
 
 // ── Edit ledger ────────────────────────────────────────────────────────────────
@@ -331,7 +350,7 @@ impl Session {
                         system.push_str(&ctx);
                     }
                     // Restore full conversation history from the previous session.
-                    messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, &config.model);
+                    messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, config);
                 } else {
                     println!("  {} Last: {}", "◌".dimmed(), summary.truecolor(180, 175, 210));
                     if !files_part.is_empty() {
@@ -352,7 +371,7 @@ impl Session {
                             system.push_str(&ctx);
                         }
                         // Restore full conversation history from the previous session.
-                        messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, &config.model);
+                        messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, config);
                     }
                 }
             }
@@ -487,22 +506,14 @@ impl Session {
         // by the auto-compact trigger, which is exactly the kind of mismatch that
         // made compact fire at a percentage the user never saw on screen.
         let tokens = Self::tokens_for_messages(&effective) + self.dropped_summary.len() / 4;
-        let limit = std::env::var("ZAP_MAX_CONTEXT_TOKENS")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .or_else(|| self.config.budget.map(|b| b as usize))
-            .unwrap_or_else(|| model_context_limit(&self.model));
+        let limit = configured_context_limit(&self.config);
         ((tokens * 100) / limit).min(100) as u8
     }
 
     /// Same as `context_fill_pct` but accepts a pre-computed token count (e.g. including
     /// projected skill tokens) so the compaction check can be skill-aware.
     pub fn context_fill_pct_with(&self, tokens: usize) -> u8 {
-        let limit = std::env::var("ZAP_MAX_CONTEXT_TOKENS")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .or_else(|| self.config.budget.map(|b| b as usize))
-            .unwrap_or_else(|| model_context_limit(&self.model));
+        let limit = configured_context_limit(&self.config);
         ((tokens * 100) / limit).min(100) as u8
     }
 
