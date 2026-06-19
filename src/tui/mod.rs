@@ -23,7 +23,10 @@ use std::io::Stdout;
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{Event, EventStream};
+use crossterm::event::{
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
+    EventStream, MouseEventKind,
+};
 use futures_util::StreamExt as _;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
@@ -53,20 +56,17 @@ pub async fn run_tui(config: &Config) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
-    // No EnableMouseCapture: it would steal click-drag from the terminal
-    // emulator, breaking native text selection/copy. PageUp/PageDown still
-    // scroll without it. With capture off, terminals fall back to their own
-    // "alternate scroll mode" (DECSET 1007) and translate wheel scroll into
-    // synthesized Up/Down key sequences instead — on some terminals those
-    // don't reassemble cleanly and leak as literal `[A`/`[B` junk into the
-    // input box. Disabling 1007 makes the wheel a no-op here instead of
-    // garbling input; restored on exit below so other alt-screen apps
-    // (less, vim, git pager) keep their normal scroll-as-arrows behavior.
+    // Enable mouse capture so Zap receives wheel events for chat scrolling.
+    // Click/drag events are intentionally ignored in the event loop; terminals
+    // that reserve normal drag selection while mouse capture is active usually
+    // still support selection with their modifier key (for example Option/Alt).
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
         crossterm::style::Print("\x1b[?1007l"),
+        EnableBracketedPaste,
+        EnableMouseCapture,
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -109,6 +109,8 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     let _ = crossterm::execute!(
         terminal.backend_mut(),
         crossterm::style::Print("\x1b[?1007h"),
+        DisableBracketedPaste,
+        DisableMouseCapture,
         crossterm::terminal::LeaveAlternateScreen
     );
     let _ = terminal.show_cursor();
@@ -206,6 +208,21 @@ async fn tui_loop(
                     if key.kind != crossterm::event::KeyEventKind::Release =>
                 {
                     let action = handle_key(app, key);
+                    if actions::handle_action(action, app, session, terminal, config).await? {
+                        break;
+                    }
+                }
+                Event::Paste(text) => {
+                    if actions::handle_action(input::InputAction::PasteText(text), app, session, terminal, config).await? {
+                        break;
+                    }
+                }
+                Event::Mouse(mouse) => {
+                    let action = match mouse.kind {
+                        MouseEventKind::ScrollUp => input::InputAction::ScrollUp(3),
+                        MouseEventKind::ScrollDown => input::InputAction::ScrollDown(3),
+                        _ => input::InputAction::None,
+                    };
                     if actions::handle_action(action, app, session, terminal, config).await? {
                         break;
                     }

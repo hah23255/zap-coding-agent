@@ -7,6 +7,14 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### TUI image attach, text paste, and mouse-wheel scroll (v0.15.33)
+
+Fixes three TUI usability gaps: image attachments are staged for the next multimodal turn, normal clipboard text paste inserts into the input box, and mouse-wheel scrolling moves the chat history.
+
+- [src/tui/commands/mod.rs](src/tui/commands/mod.rs): adds `/attach <image-path>` and `/paste` to the command picker and stages supported image formats (`png`, `jpg/jpeg`, `gif`, `webp`) in `session.staged_images` after vision-provider checks.
+- [src/tui/input.rs](src/tui/input.rs) and [src/tui/actions.rs](src/tui/actions.rs): route bracketed paste text through a cursor-safe insertion helper so multi-line clipboard text pastes like normal typing.
+- [src/tui/mod.rs](src/tui/mod.rs): enables bracketed paste and mouse capture, handles `Event::Paste`, maps wheel events to existing scroll actions, and restores terminal modes on exit.
+
 ### Multi-folder workspaces via --add-dir (v0.15.32)
 
 Open zap across multiple project folders simultaneously, equivalent to Claude Code's `--add-dir` flag.

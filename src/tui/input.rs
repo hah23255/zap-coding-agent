@@ -22,6 +22,7 @@ pub enum InputAction {
     None,
     Submit(String),
     Slash(String),
+    PasteText(String),
     Quit,
     Cancel,
     ScrollUp(usize),
@@ -535,16 +536,20 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
                          && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
-            let byte_idx = char_to_byte_idx(&app.input, app.cursor);
-            app.input.insert(byte_idx, c);
-            app.cursor += 1;
-            app.picker_sel = 0;
-            app.history_idx = None; // typing breaks out of history navigation
+            insert_text_at_cursor(app, &c.to_string());
             InputAction::None
         }
 
         _ => InputAction::None,
     }
+}
+
+pub(super) fn insert_text_at_cursor(app: &mut App, text: &str) {
+    let byte_idx = char_to_byte_idx(&app.input, app.cursor);
+    app.input.insert_str(byte_idx, text);
+    app.cursor += text.chars().count();
+    app.picker_sel = 0;
+    app.history_idx = None;
 }
 
 /// Convert a char-index into a byte index into `s`.

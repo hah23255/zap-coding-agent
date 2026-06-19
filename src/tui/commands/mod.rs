@@ -26,6 +26,8 @@ pub const SLASH_COMMANDS: &[(&str, &str)] = &[
     ("/permissions",       "change permission mode"),
     ("/tasks",             "browse & execute task sessions"),
     ("/think",             "toggle extended thinking (on/off/N tokens)"),
+    ("/attach",            "attach an image file to the next message"),
+    ("/paste",             "attach an image from the clipboard to the next message"),
     ("/goal",              "run autonomously until condition met"),
     ("/index [quality]",   "reindex AST symbols · /index quality = health report"),
     ("/undo",              "undo last file edit"),
@@ -225,6 +227,67 @@ pub fn handle_inline(
                 }
             }
         }
+        "/attach" => {
+            if !crate::llm_client::provider_supports_vision(&session.config) {
+                return Some(format!(
+                    "✗ {} does not support vision — image will not be sent.\n· Switch to Claude or GPT-4o to use images.",
+                    session.config.base_url.as_deref().unwrap_or("this provider")
+                ));
+            }
+
+            if arg.is_empty() {
+                return Some("Usage: /attach <image-path>".to_string());
+            }
+
+            let mime = match std::path::Path::new(arg)
+                .extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref()
+            {
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("gif") => "image/gif",
+                Some("webp") => "image/webp",
+                _ => return Some("✗ Unsupported format. Use png / jpg / gif / webp.".to_string()),
+            };
+
+            match std::fs::read(arg) {
+                Ok(bytes) => {
+                    use base64::Engine;
+                    let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                    let kb = bytes.len() / 1024;
+                    session.staged_images.push((mime.to_string(), data));
+                    Some(format!("✓ Attached {} ({} KB, {}) — it will be sent with your next message.", arg, kb, mime))
+                }
+                Err(e) => Some(format!("✗ Could not read '{}': {}", arg, e)),
+            }
+        }
+        "/paste" => {
+            if !crate::llm_client::provider_supports_vision(&session.config) {
+                return Some(format!(
+                    "✗ {} does not support vision — image will not be sent.\n· Switch to Claude or GPT-4o to use images.",
+                    session.config.base_url.as_deref().unwrap_or("this provider")
+                ));
+            }
+
+            #[cfg(windows)]
+            let tmp = r"C:\Windows\Temp\zap_clipboard_paste.png";
+            #[cfg(not(windows))]
+            let tmp = "/tmp/zap_clipboard_paste.png";
+
+            if crate::session::commands::paste_clipboard_image(tmp) && std::path::Path::new(tmp).exists() {
+                match std::fs::read(tmp) {
+                    Ok(bytes) => {
+                        use base64::Engine;
+                        let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                        let kb = bytes.len() / 1024;
+                        session.staged_images.push(("image/png".to_string(), data));
+                        Some(format!("✓ Image attached from clipboard ({} KB) — it will be sent with your next message.", kb))
+                    }
+                    Err(e) => Some(format!("✗ Failed to read clipboard image: {}", e)),
+                }
+            } else {
+                Some("✗ No image in clipboard. Copy a screenshot first, then run /paste.\n· You can also use /attach <path> to stage a file directly.".to_string())
+            }
+        }
         "/skill" => Some(text::handle_skill_inline(session, arg)),
         "/remote" => {
             // Remote control is gated by a per-session token (see src/remote.rs):
@@ -296,6 +359,51 @@ mod tests {
     fn slash_alone_returns_all_commands() {
         let cmds = filter_commands("/", &[]);
         assert_eq!(cmds.len(), SLASH_COMMANDS.len());
+    }
+
+    #[test]
+    fn image_commands_are_listed() {
+        let cmds = filter_commands("/att", &[]);
+        assert!(cmds.iter().any(|(c, _)| c == "/attach"));
+
+        let cmds = filter_commands("/pas", &[]);
+        assert!(cmds.iter().any(|(c, _)| c == "/paste"));
+    }
+
+    #[test]
+    fn attach_stages_image_for_next_turn() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("zap-test-{}.png", std::process::id()));
+        std::fs::write(&path, b"not-real-png-but-extension-is-enough").unwrap();
+
+        let config = crate::config::Config::default();
+        let mut session = crate::session::Session::new_for_test(
+            &config,
+            Box::new(crate::llm_client::mock::MockClient::with_script(vec![])),
+        ).unwrap();
+        let response = handle_inline(&mut session, &format!("/attach {}", path.display()), &config)
+            .expect("/attach should be handled inline");
+
+        let _ = std::fs::remove_file(&path);
+
+        assert!(response.contains("Attached"));
+        assert_eq!(session.staged_images.len(), 1);
+        assert_eq!(session.staged_images[0].0, "image/png");
+        assert!(!session.staged_images[0].1.is_empty());
+    }
+
+    #[test]
+    fn attach_reports_missing_file() {
+        let config = crate::config::Config::default();
+        let mut session = crate::session::Session::new_for_test(
+            &config,
+            Box::new(crate::llm_client::mock::MockClient::with_script(vec![])),
+        ).unwrap();
+        let response = handle_inline(&mut session, "/attach /tmp/zap-definitely-missing.png", &config)
+            .expect("/attach should be handled inline");
+
+        assert!(response.contains("Could not read"));
+        assert!(session.staged_images.is_empty());
     }
 
     #[test]

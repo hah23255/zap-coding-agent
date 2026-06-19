@@ -8,7 +8,7 @@ use ratatui::Terminal;
 
 use super::app::{App, AppState, DiffPanel, MsgRole, UiBlock, UiMessage};
 use super::channel::PermissionDecision;
-use super::input::InputAction;
+use super::input::{self, InputAction};
 use super::{file_browser, git_info, goal, lifecycle, render, startup, turn_handler};
 use crate::config::Config;
 use crate::session::Session;
@@ -119,6 +119,12 @@ pub(super) async fn handle_action(
         }
 
         InputAction::Cancel => {}
+
+        InputAction::PasteText(text) => {
+            if matches!(app.state, AppState::Idle) {
+                input::insert_text_at_cursor(app, &text);
+            }
+        }
 
         InputAction::ScrollUp(n) => { app.scroll_up(n); }
 
