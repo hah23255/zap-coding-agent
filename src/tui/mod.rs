@@ -24,8 +24,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{
-    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
-    EventStream, MouseEventKind,
+    DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, MouseEventKind,
 };
 use futures_util::StreamExt as _;
 use ratatui::backend::CrosstermBackend;
@@ -56,17 +55,15 @@ pub async fn run_tui(config: &Config) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
-    // Enable mouse capture so Zap receives wheel events for chat scrolling.
-    // Click/drag events are intentionally ignored in the event loop; terminals
-    // that reserve normal drag selection while mouse capture is active usually
-    // still support selection with their modifier key (for example Option/Alt).
+    // Enable only wheel-button mouse reporting, not full mouse capture.
+    // This preserves in-app mouse-wheel scrolling while avoiding drag-motion
+    // reporting, which is what commonly breaks normal terminal text selection.
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
-        crossterm::style::Print("\x1b[?1007l"),
+        crossterm::style::Print("\x1b[?1007l\x1b[?1000h\x1b[?1006h"),
         EnableBracketedPaste,
-        EnableMouseCapture,
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -108,9 +105,8 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     let _ = crossterm::execute!(
         terminal.backend_mut(),
-        crossterm::style::Print("\x1b[?1007h"),
+        crossterm::style::Print("\x1b[?1006l\x1b[?1000l\x1b[?1007h"),
         DisableBracketedPaste,
-        DisableMouseCapture,
         crossterm::terminal::LeaveAlternateScreen
     );
     let _ = terminal.show_cursor();

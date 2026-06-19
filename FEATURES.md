@@ -7,6 +7,12 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### TUI mouse-wheel scrolling without full mouse capture (v0.15.36)
+
+Zap now enables narrow terminal mouse button/wheel reporting instead of crossterm's full mouse capture in TUI mode. This keeps mouse-wheel scrolling in the chat history while avoiding the drag-motion capture that commonly prevents normal terminal text selection.
+
+- [src/tui/mod.rs](src/tui/mod.rs): enters TUI with SGR/button mouse reporting (`?1000h`/`?1006h`) plus bracketed paste, and restores those modes on exit. Full `EnableMouseCapture` remains disabled so click-drag terminal selection has a better chance to work.
+
 ### Codex provider context and resumed tool history hardening (v0.15.35)
 
 Zap now treats the Codex provider as a 400,000-token context window instead of falling back to the generic 32k default, so `gpt-5.5` and future Codex model names are handled correctly without fragile model-name matching.
