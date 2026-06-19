@@ -7,6 +7,12 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Codex context window defaults to 400k tokens (v0.15.34)
+
+Zap now treats Codex model names as 400,000-token context windows instead of falling back to the generic 32k default, so the TUI context-fill indicator and `/context` view stay accurate without manual environment overrides.
+
+- [src/session/history.rs](src/session/history.rs): `model_context_limit()` recognizes Codex model names and returns `400_000`, with regression coverage for `codex` and `gpt-5.5-codex`.
+
 ### TUI image attach, text paste, and mouse-wheel scroll (v0.15.33)
 
 Fixes three TUI usability gaps: image attachments are staged for the next multimodal turn, normal clipboard text paste inserts into the input box, and mouse-wheel scrolling moves the chat history.

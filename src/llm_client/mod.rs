@@ -430,6 +430,7 @@ mod credential_tests {
             base_url: Some("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string()),
             credential_method: credential_method.map(|s| s.to_string()),
             auth_header: auth_header.map(|s| s.to_string()),
+            context_window: None,
         }
     }
 

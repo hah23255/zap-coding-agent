@@ -4,7 +4,8 @@ use crate::llm_client::{ContentBlock, Message};
 /// Best-effort context window size for known model families.
 pub fn model_context_limit(model: &str) -> usize {
     let m = model.to_lowercase();
-    if m.contains("claude")                                        { 200_000 }
+    if m.contains("codex")                                          { 400_000 }
+    else if m.contains("claude")                                   { 200_000 }
     else if m.contains("gemini-1.5") || m.contains("gemini-2")    { 1_000_000 }
     else if m.contains("gemini")
          || m.contains("gpt-4o") || m.contains("gpt-4-turbo")
@@ -172,6 +173,12 @@ mod tests {
     #[test]
     fn claude_gets_200k() {
         assert_eq!(model_context_limit("claude-3-5-sonnet"), 200_000);
+    }
+
+    #[test]
+    fn codex_gets_400k() {
+        assert_eq!(model_context_limit("codex"), 400_000);
+        assert_eq!(model_context_limit("gpt-5.5-codex"), 400_000);
     }
 
     #[test]

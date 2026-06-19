@@ -38,6 +38,9 @@ pub struct ProviderEntry {
     pub kind:     Option<String>,
     pub api_key:  Option<String>,
     pub model:    Option<String>,
+    /// Explicit context window for this provider/model, in tokens.
+    /// Set in ~/.agent.toml as `context_window = 128000` under `[providers.<slug>]`.
+    pub context_window: Option<usize>,
     /// Full endpoint URL, e.g. "http://localhost:1234/v1/chat/completions".
     pub base_url: Option<String>,
     /// Credential resolution method: "api_key" (default) or "gcloud_adc".
@@ -370,6 +373,9 @@ impl Config {
                 if !key.is_empty() {
                     writeln!(f, "api_key  = {:?}", key)?;
                 }
+            }
+            if let Some(window) = entry.context_window {
+                writeln!(f, "context_window = {}", window)?;
             }
             if let Some(ref url) = entry.base_url {
                 writeln!(f, "base_url = {:?}", url)?;

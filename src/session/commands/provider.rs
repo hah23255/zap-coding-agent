@@ -197,6 +197,7 @@ impl Session {
             kind:     Some(kind_str.to_string()),
             model:    Some(model_input.clone()),
             api_key:  if api_key.is_empty() { None } else { Some(api_key) },
+            context_window: None,
             base_url: base_url.clone(),
             credential_method,
             auth_header: def.auth_header.map(|h| h.to_string()),
