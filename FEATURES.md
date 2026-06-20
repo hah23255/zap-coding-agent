@@ -7,6 +7,14 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### LSP client module skeleton (Task 1 of lsp-integration)
+
+Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles.
+
+- [src/lsp/servers.rs](src/lsp/servers.rs): maps languages to LSP binaries (rust-analyzer, pylsp, gopls, tsserver), PATH detection, and file-extension → language mapping
+- [src/lsp/client.rs](src/lsp/client.rs): `ZapLspClient` wraps an `async_lsp::ServerSocket`; handles initialize handshake, did-open/did-save notifications, hover and goto-definition requests, and caches incoming diagnostics
+- [src/lsp/mod.rs](src/lsp/mod.rs): `LspManager` pools per-language clients, `GLOBAL_LSP` singleton mirrors the `GLOBAL_INDEX` pattern
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.

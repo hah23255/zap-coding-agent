@@ -56,6 +56,8 @@ pulldown-cmark = "0.9"
 libc = "0.2"
 git2 = "0.21.0"
 regex = "1"
+async-lsp = { version = "0.2", features = ["stdio", "tracing", "client-monitor"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 axum = { version = "0.7", features = ["ws"] }
 futures-util = "0.3"
 tempfile = "3"

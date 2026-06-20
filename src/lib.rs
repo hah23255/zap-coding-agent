@@ -6,6 +6,7 @@ pub mod log;
 pub mod audit;
 pub mod cli;
 pub mod code_index;
+pub mod lsp;
 pub mod config;
 pub mod plan_execution;
 pub mod context_manager;
