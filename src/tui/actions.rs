@@ -118,7 +118,17 @@ pub(super) async fn handle_action(
             app.pending_input = Some(cmd);
         }
 
-        InputAction::Cancel => {}
+        InputAction::Cancel => {
+            // handle_action is only reached from the idle event loop, never from
+            // run_normal_turn (which intercepts Ctrl+C before dispatching actions).
+            // If we're somehow stuck in a non-Idle state here (e.g. a background
+            // log WARN landed an LlmChunk that flipped state to Thinking with no
+            // real turn running), reset so the user isn't trapped.
+            if !matches!(app.state, AppState::Idle) {
+                app.state = AppState::Idle;
+                app.streaming_blocks.clear();
+            }
+        }
 
         InputAction::PasteText(text) => {
             if matches!(app.state, AppState::Idle) {

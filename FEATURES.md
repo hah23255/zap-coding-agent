@@ -7,6 +7,14 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Background index errors no longer block the TUI (v0.15.37)
+
+Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
+
+- [src/log.rs](src/log.rs): WARN/ERROR sends `TuiEvent::Warning` (no state change) instead of `TuiEvent::LlmChunk`
+- [src/tui/actions.rs](src/tui/actions.rs): `InputAction::Cancel` in the idle path resets phantom Thinking state as defense-in-depth
+- [src/code_index/index_impl.rs](src/code_index/index_impl.rs): lossy UTF-8 read + file path in error messages
+
 ### TUI mouse-wheel scrolling without full mouse capture (v0.15.36)
 
 Zap now enables narrow terminal mouse button/wheel reporting instead of crossterm's full mouse capture in TUI mode. This keeps mouse-wheel scrolling in the chat history while avoiding the drag-motion capture that commonly prevents normal terminal text selection.

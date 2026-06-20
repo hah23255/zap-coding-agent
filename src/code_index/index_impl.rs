@@ -183,8 +183,8 @@ impl CodeIndex {
     }
 
     pub fn index_file(&mut self, path: &Path) -> Result<usize> {
-        let source = std::fs::read_to_string(path)
-            .context("read source file")?;
+        let raw = std::fs::read(path).context("read source file")?;
+        let source = String::from_utf8_lossy(&raw).into_owned();
         let lang = detect_language(path);
         let path_str = path.to_string_lossy().to_string();
         let mtime = file_mtime(path).unwrap_or(0);
@@ -293,7 +293,7 @@ impl CodeIndex {
                 match self.index_file(&path) {
                     Ok(n) => { files += 1; symbols += n; }
                     Err(e) => {
-                        let msg = e.to_string();
+                        let msg = format!("{}: {}", path.display(), e);
                         if first_err.is_none() { first_err = Some(msg.clone()); }
                         skipped += 1;
                         // Bail immediately on readonly — avoids holding the mutex for O(N)

@@ -156,9 +156,12 @@ pub fn write(level: &str, msg: &str) {
     }
 
     // Route WARN/ERROR into the chat so the user sees them even in TUI mode.
+    // Use Warning (not LlmChunk) so the app state is never forced to Thinking
+    // by a background process writing to the log — LlmChunk unconditionally sets
+    // state = Thinking, which blocks Ctrl+C (idle path maps it to Cancel, a no-op).
     if level.trim() == "WARN" || level.trim() == "ERROR" {
         crate::tui::channel::tui_send(
-            crate::tui::channel::TuiEvent::LlmChunk(format!("\n⚠ {}\n", msg))
+            crate::tui::channel::TuiEvent::Warning(format!("⚠ {}", msg))
         );
     }
 
