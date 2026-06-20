@@ -27,7 +27,11 @@ impl LanguageClient for ClientState {
 
     fn publish_diagnostics(&mut self, params: PublishDiagnosticsParams) -> Self::NotifyResult {
         let path = params.uri.path().to_string();
-        self.diags.lock().unwrap().insert(path, params.diagnostics);
+        // Use unwrap_or_else to recover from a poisoned mutex rather than panic.
+        self.diags
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(path, params.diagnostics);
         ControlFlow::Continue(())
     }
 }
@@ -37,13 +41,16 @@ impl LanguageClient for ClientState {
 // ---------------------------------------------------------------------------
 
 pub struct ZapLspClient {
-    pub server: async_lsp::ServerSocket,
-    pub diags:  Arc<Mutex<HashMap<String, Vec<Diagnostic>>>>,
+    pub(crate) server:       async_lsp::ServerSocket,
+    diags:                   Arc<Mutex<HashMap<String, Vec<Diagnostic>>>>,
+    mainloop_handle:         tokio::task::JoinHandle<()>,
 }
 
 impl ZapLspClient {
     /// Spawn the language-server binary, run the LSP initialize handshake, and
     /// return a connected client.
+    ///
+    /// `binary` should be the fully-resolved path returned by `servers::find_binary`.
     pub async fn spawn(binary: &str, args: &[&str], root_uri: Url) -> Result<Self> {
         let diags       = Arc::new(Mutex::new(HashMap::<String, Vec<Diagnostic>>::new()));
         let diags_clone = diags.clone();
@@ -57,12 +64,16 @@ impl ZapLspClient {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
+            .kill_on_drop(true)  // kill child when the handle is dropped
             .spawn()?;
 
         let stdout = child.stdout.take().unwrap();
         let stdin  = child.stdin.take().unwrap();
 
-        tokio::spawn(async move {
+        // Keep child alive by moving it into the task; kill_on_drop ensures the
+        // OS process is reaped when this JoinHandle (and thus the task) is dropped.
+        let mainloop_handle = tokio::spawn(async move {
+            let _child = child; // hold child alive for the duration of the mainloop
             // Convert tokio AsyncRead/AsyncWrite to futures-compatible via tokio-util compat.
             mainloop
                 .run_buffered(stdout.compat(), stdin.compat_write())
@@ -86,16 +97,23 @@ impl ZapLspClient {
         // initialized is a notification — synchronous, no await.
         server.initialized(InitializedParams {})?;
 
-        Ok(Self { server, diags })
+        Ok(Self { server, diags, mainloop_handle })
+    }
+
+    /// Returns true if the background mainloop task is still running (server alive).
+    pub fn is_alive(&self) -> bool {
+        !self.mainloop_handle.is_finished()
     }
 
     /// Notify the server that a file has been opened.
     pub fn open_file(&self, abs_path: &str, content: &str, lang_id: &str) -> Result<()> {
-        // Use the low-level notify so we only need &self (ServerSocket::notify takes &self).
+        // Use Url::from_file_path to correctly percent-encode spaces and special chars.
+        let uri = Url::from_file_path(abs_path)
+            .map_err(|_| anyhow::anyhow!("invalid path: {}", abs_path))?;
         self.server
             .notify::<lsp_types::notification::DidOpenTextDocument>(DidOpenTextDocumentParams {
                 text_document: TextDocumentItem {
-                    uri:         Url::parse(&format!("file://{}", abs_path))?,
+                    uri,
                     language_id: lang_id.to_string(),
                     version:     1,
                     text:        content.to_string(),
@@ -106,11 +124,11 @@ impl ZapLspClient {
 
     /// Notify the server that a file has been saved.
     pub fn save_file(&self, abs_path: &str) -> Result<()> {
+        let uri = Url::from_file_path(abs_path)
+            .map_err(|_| anyhow::anyhow!("invalid path: {}", abs_path))?;
         self.server
             .notify::<lsp_types::notification::DidSaveTextDocument>(DidSaveTextDocumentParams {
-                text_document: TextDocumentIdentifier {
-                    uri: Url::parse(&format!("file://{}", abs_path))?,
-                },
+                text_document: TextDocumentIdentifier { uri },
                 text: None,
             })?;
         Ok(())
@@ -118,7 +136,12 @@ impl ZapLspClient {
 
     /// Return cached diagnostics for the given absolute path (empty vec if none).
     pub fn cached_diags(&self, abs_path: &str) -> Vec<Diagnostic> {
-        self.diags.lock().unwrap().get(abs_path).cloned().unwrap_or_default()
+        self.diags
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(abs_path)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Request goto-definition locations.
@@ -128,13 +151,13 @@ impl ZapLspClient {
         line: u32,
         col: u32,
     ) -> Result<Vec<lsp_types::Location>> {
+        let uri = Url::from_file_path(abs_path)
+            .map_err(|_| anyhow::anyhow!("invalid path: {}", abs_path))?;
         let result = self
             .server
             .definition(GotoDefinitionParams {
                 text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier {
-                        uri: Url::parse(&format!("file://{}", abs_path))?,
-                    },
+                    text_document: TextDocumentIdentifier { uri },
                     position: Position { line, character: col },
                 },
                 work_done_progress_params:  WorkDoneProgressParams::default(),
@@ -149,7 +172,7 @@ impl ZapLspClient {
                 .into_iter()
                 .map(|l| lsp_types::Location {
                     uri:   l.target_uri,
-                    range: l.target_range,
+                    range: l.target_selection_range, // prefer selection range over full target range
                 })
                 .collect(),
             None => vec![],
@@ -158,13 +181,13 @@ impl ZapLspClient {
 
     /// Request hover documentation.
     pub async fn hover_text(&mut self, abs_path: &str, line: u32, col: u32) -> Result<Option<String>> {
+        let uri = Url::from_file_path(abs_path)
+            .map_err(|_| anyhow::anyhow!("invalid path: {}", abs_path))?;
         let result = self
             .server
             .hover(HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier {
-                        uri: Url::parse(&format!("file://{}", abs_path))?,
-                    },
+                    text_document: TextDocumentIdentifier { uri },
                     position: Position { line, character: col },
                 },
                 work_done_progress_params: WorkDoneProgressParams::default(),
@@ -176,6 +199,13 @@ impl ZapLspClient {
             HoverContents::Scalar(ms) => Some(marked_string_to_text(ms)),
             HoverContents::Array(arr) => arr.into_iter().map(marked_string_to_text).next(),
         }))
+    }
+}
+
+impl Drop for ZapLspClient {
+    fn drop(&mut self) {
+        // Abort the mainloop task; kill_on_drop on the child handles OS-level cleanup.
+        self.mainloop_handle.abort();
     }
 }
 

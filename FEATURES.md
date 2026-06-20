@@ -7,13 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
-### LSP client module skeleton (Task 1 of lsp-integration)
+### LSP client module skeleton (Task 1 of lsp-integration) + code-review fixes
 
-Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles.
+Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles. A follow-up code-review pass fixed child-process leaks, URL encoding, dead code, and mutex-poison panics.
 
-- [src/lsp/servers.rs](src/lsp/servers.rs): maps languages to LSP binaries (rust-analyzer, pylsp, gopls, tsserver), PATH detection, and file-extension → language mapping
-- [src/lsp/client.rs](src/lsp/client.rs): `ZapLspClient` wraps an `async_lsp::ServerSocket`; handles initialize handshake, did-open/did-save notifications, hover and goto-definition requests, and caches incoming diagnostics
-- [src/lsp/mod.rs](src/lsp/mod.rs): `LspManager` pools per-language clients, `GLOBAL_LSP` singleton mirrors the `GLOBAL_INDEX` pattern
+- [src/lsp/servers.rs](src/lsp/servers.rs): maps languages to LSP binaries (rust-analyzer, pylsp, gopls, tsserver), PATH detection, and file-extension → language mapping; dead `spawn_server()` removed
+- [src/lsp/client.rs](src/lsp/client.rs): `ZapLspClient` wraps an `async_lsp::ServerSocket`; handles initialize handshake, did-open/did-save notifications, hover and goto-definition requests, and caches incoming diagnostics; `kill_on_drop(true)` + stored `JoinHandle` prevent orphan child processes; `Url::from_file_path` replaces unsafe string-concat URLs; mutex poison recovered with `unwrap_or_else`; `Drop` impl aborts the mainloop task; `is_alive()` exposed
+- [src/lsp/mod.rs](src/lsp/mod.rs): `LspManager` pools per-language clients with dead-client eviction and `has_client_for()` liveness check; binary resolved once to avoid TOCTOU; `GLOBAL_LSP` singleton mirrors the `GLOBAL_INDEX` pattern
 
 ### Background index errors no longer block the TUI (v0.15.37)
 
