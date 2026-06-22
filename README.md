@@ -240,6 +240,15 @@ This makes it auditable — you can see exactly when the index was used vs. when
 | `code_map` | Structural outline of any file or directory — functions, structs, classes, enums, with line numbers |
 | `find_definition` | Jump directly to where a symbol is defined — AST index first, ripgrep fallback |
 | `find_references` | Every call site of a symbol across the entire codebase |
+| `who_calls` | All callers of a function, optionally filtered by qualifier |
+| `file_imports` | Everything a file imports |
+| `where_imported` | Every file that imports a given name — blast radius for renames |
+| `find_subtypes` / `find_supertypes` | Type hierarchy traversal |
+| `pack_context` | Auto-selects the most load-bearing files for a task and returns them in a token budget |
+| `ripple_analysis` | BFS blast radius: who calls a symbol, who calls those callers, and so on — instant, no compiler |
+| `get_diagnostics` | Compiler errors/warnings via language server — same as `cargo check` without running it |
+| `lsp_definition` | Type-resolved go-to-definition for cross-crate symbols (std, deps, generics) |
+| `lsp_type_at` | Exact inferred type of any expression — the tooltip your editor shows, in the agent |
 
 The model is instructed to always use `code_map` or `find_definition` before reaching for `read_file` — so it reads only the lines it actually needs, not whole files.
 
@@ -255,6 +264,28 @@ You: "refactor the UserStore struct"
 
 Without index: grep entire repo → read 3 wrong files → hallucinate location
 With index:    SQLite lookup → read 20 lines → done
+```
+
+**Blast radius before you touch anything:**
+
+```
+You: "what breaks if I change the signature of parse_config?"
+
+  zap (tool call)  →  ripple_analysis("parse_config", depth=3)
+  call graph BFS   →  Depth 1 — 4 direct callers across 3 files
+                       Depth 2 — 11 callers of callers across 6 files
+                       Depth 3 — 2 more files indirectly affected
+  zap              →  "Here's what's at risk — want me to check each caller?"
+```
+
+**Compiler errors without running cargo check:**
+
+```
+You: "check if my edit to src/lsp/client.rs is correct"
+
+  zap (tool call)  →  get_diagnostics("src/lsp/client.rs")
+  rust-analyzer    →  src/lsp/client.rs:47 error[E0308]: mismatched types
+  zap              →  "Line 47 has a type mismatch — here's the fix..."
 ```
 
 **Code quality report** — the same SQLite index powers `/index quality`, a human-readable health report run directly in the TUI:
@@ -797,6 +828,16 @@ Set `GOOGLE_API_KEY` in your environment to use an API key instead.
 | `code_map` | AST-backed structural outline — functions, structs, classes, line numbers |
 | `find_definition` | Jump to where a symbol is defined (AST index → ripgrep fallback) |
 | `find_references` | All call sites of a symbol across the codebase |
+| `who_calls` | All callers of a function, with optional qualifier filter |
+| `file_imports` | All imports in a file |
+| `where_imported` | Every file that imports a given name |
+| `find_subtypes` | All types that extend or implement a given type |
+| `find_supertypes` | All types a given type extends or implements |
+| `pack_context` | Auto-selects the most relevant files for a task within a token budget |
+| `ripple_analysis` | BFS call-graph walk — who calls a symbol transitively (blast radius) |
+| `get_diagnostics` | Live compiler errors/warnings via language server (rust-analyzer, pylsp, gopls…) |
+| `lsp_definition` | Type-resolved go-to-definition — resolves cross-crate, generic, and trait symbols |
+| `lsp_type_at` | Inferred type or signature of any expression at a given position |
 | `web_fetch` | Fetch a URL, strip HTML, return readable text |
 | `web_search` | DuckDuckGo search — no API key required |
 | `spawn_agent` | Spawn a parallel sub-agent with its own tool loop |

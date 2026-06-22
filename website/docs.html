@@ -614,8 +614,8 @@ rank_files(top: 10)
           <strong>The pattern:</strong> every example replaces <em>"agent reads 5 files and guesses"</em> with <em>"agent asks the graph and knows."</em> Fewer tool calls, fewer tokens burnt, and — critically — no hallucinated answers. The graph either knows or it doesn't, and when it doesn't it falls back to text search transparently.
         </div>
 
-        <div class="subsection-title">Five tools the model uses automatically</div>
-        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:12px;">You don't have to think about any of this. The agent has five tools that consult the graph automatically when you ask the right kind of question:</p>
+        <div class="subsection-title">Code intelligence tools</div>
+        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:12px;">You don't have to think about any of this. The agent picks the right tool for each question automatically:</p>
         <div class="context-table-wrap">
           <table class="context-table">
             <thead>
@@ -650,6 +650,26 @@ rank_files(top: 10)
                 <td><code>pack_context</code></td>
                 <td>Curated context bundle within a token budget (signatures + provenance)</td>
                 <td>Loading the right code for a multi-file task</td>
+              </tr>
+              <tr>
+                <td><code>ripple_analysis</code></td>
+                <td>BFS walk of the call graph — direct callers, callers of callers, full transitive blast radius</td>
+                <td>Before renaming a function, changing a signature, or deleting a symbol</td>
+              </tr>
+              <tr>
+                <td><code>get_diagnostics</code></td>
+                <td>Live compiler errors and warnings via language server — no full compile needed</td>
+                <td>After editing a file, to confirm it's correct before moving on</td>
+              </tr>
+              <tr>
+                <td><code>lsp_definition</code></td>
+                <td>Type-resolved go-to-definition for cross-crate symbols (std, deps, generics, trait impls)</td>
+                <td>When AST index says "not found" — usually an external symbol</td>
+              </tr>
+              <tr>
+                <td><code>lsp_type_at</code></td>
+                <td>Exact inferred type of any expression — the editor tooltip, in the agent</td>
+                <td>When the type of an expression isn't obvious from reading the code</td>
               </tr>
             </tbody>
           </table>
@@ -698,7 +718,7 @@ WHERE name = 'write' AND qualifier = 'crate::log';</div>
           zap resolves names, not types. That means <code>foo.bar()</code> matches any <code>bar</code> with that name — not the one a full type-checker would resolve to. The win: queries finish in <strong>microseconds</strong>, in-process, with zero external dependencies. The cost: when several symbols share a name, the agent gets all matches and disambiguates with a qualifier filter (<code>who_calls</code>). In practice this is rarely the bottleneck — agents read the file anyway to confirm.
         </p>
         <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:16px;">
-          Going further (LSP-grade type resolution) is a year of engineering for a ~5% accuracy bump. zap chose to ship the agent-shaped layer (<code>pack_context</code>) first — the differentiator no other code-intelligence tool currently offers.
+          For queries that need full type resolution — cross-crate symbols, generic instantiations, trait impls — zap now ships three LSP tools that query a running language server: <code>get_diagnostics</code> (instant compiler errors), <code>lsp_definition</code> (type-resolved go-to-definition), and <code>lsp_type_at</code> (inferred type of any expression). AST tools answer structural questions in microseconds; LSP tools answer semantic questions when precision matters. Both layers work together.
         </p>
 
         <div class="callout">

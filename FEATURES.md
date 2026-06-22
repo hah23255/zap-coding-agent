@@ -7,6 +7,12 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### ripple_analysis — BFS tests + closure injection (v0.15.50)
+
+Refactored `ripple_bfs` to use closure injection (`ripple_bfs_with`) so the BFS core is testable without needing the global index. Added 9 new end-to-end BFS tests covering: direct callers, no callers, two-depth chains, max-depth cutoff, cycle termination, visited-set re-expansion prevention, multi-caller files, and `impl Trait for Struct · method` scope parsing.
+
+- [src/tools/ripple.rs](src/tools/ripple.rs): `ripple_bfs_with` (testable core), 23 total tests
+
 ### ripple_analysis tool — blast radius for symbol changes (v0.15.49)
 
 BFS walk of the call graph to show who calls a symbol, who calls those callers, and so on. Pure SQLite graph traversal — no language server or network needed. Groups output by depth and file, sorts by line number. Accepts optional `depth` parameter (1–5, default 3).

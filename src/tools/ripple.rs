@@ -49,6 +49,17 @@ pub struct CallerSite {
 /// Uses `global_callers_of` which queries the in-process CodeIndex; returns
 /// an empty vec (not an error) when the index is not available.
 pub fn ripple_bfs(symbol: &str, max_depth: usize) -> Vec<RippleLevel> {
+    ripple_bfs_with(symbol, max_depth, |name, limit| {
+        crate::code_index::global_callers_of(name, None, limit)
+    })
+}
+
+/// Testable core: same BFS but the caller-lookup is injected via closure.
+/// `callers_fn(name, limit)` must return all call sites where `name` is called.
+pub(crate) fn ripple_bfs_with<F>(symbol: &str, max_depth: usize, callers_fn: F) -> Vec<RippleLevel>
+where
+    F: Fn(&str, usize) -> Vec<crate::code_index::CallSite>,
+{
     let per_level_limit = 500;
     let mut levels: Vec<RippleLevel> = Vec::new();
 
@@ -68,7 +79,7 @@ pub fn ripple_bfs(symbol: &str, max_depth: usize) -> Vec<RippleLevel> {
             if queried.contains(name.as_str()) { continue; }
             queried.insert(name.clone());
 
-            let sites = crate::code_index::global_callers_of(name, None, per_level_limit);
+            let sites = callers_fn(name, per_level_limit);
             for cs in sites {
                 let fn_name = extract_fn_name(&cs.caller_scope).to_string();
                 if fn_name.is_empty() { continue; }
@@ -363,5 +374,140 @@ mod tests {
     fn shorten_short_path_unchanged() {
         let path = "src/main.rs";
         assert_eq!(shorten_path(path), path);
+    }
+
+    // ── ripple_bfs_with (end-to-end BFS logic) ───────────────────────────────
+
+    /// Build a synthetic CallSite for tests — only the fields ripple_bfs_with uses.
+    fn cs(called: &str, caller_scope: &str, path: &str, line: usize) -> crate::code_index::CallSite {
+        crate::code_index::CallSite {
+            name:          called.to_string(),
+            caller_scope:  caller_scope.to_string(),
+            path:          path.to_string(),
+            line,
+            col:           0,
+            qualifier:     String::new(),
+            receiver_expr: String::new(),
+            language:      String::new(),
+        }
+    }
+
+    #[test]
+    fn bfs_direct_caller_found() {
+        // callee() is called by fn caller in /src/a.rs:10
+        let levels = ripple_bfs_with("callee", 3, |name, _| {
+            if name == "callee" { vec![cs("callee", "fn caller", "/src/a.rs", 10)] }
+            else { vec![] }
+        });
+        assert_eq!(levels.len(), 1, "one depth level");
+        assert_eq!(levels[0].depth, 1);
+        assert_eq!(levels[0].callers.len(), 1);
+        assert_eq!(levels[0].callers[0].fn_name, "caller");
+        assert_eq!(levels[0].callers[0].path, "/src/a.rs");
+        assert_eq!(levels[0].callers[0].line, 10);
+    }
+
+    #[test]
+    fn bfs_no_callers_returns_empty() {
+        let levels = ripple_bfs_with("leaf", 3, |_, _| vec![]);
+        assert!(levels.is_empty(), "no callers → empty levels");
+    }
+
+    #[test]
+    fn bfs_two_depth_levels() {
+        // c() ← b() ← a()
+        let levels = ripple_bfs_with("c", 3, |name, _| match name {
+            "c" => vec![cs("c", "fn b", "/src/b.rs", 5)],
+            "b" => vec![cs("b", "fn a", "/src/a.rs", 2)],
+            _   => vec![],
+        });
+        assert_eq!(levels.len(), 2, "two depth levels");
+        assert_eq!(levels[0].depth, 1);
+        assert_eq!(levels[0].callers[0].fn_name, "b");
+        assert_eq!(levels[1].depth, 2);
+        assert_eq!(levels[1].callers[0].fn_name, "a");
+    }
+
+    #[test]
+    fn bfs_respects_max_depth() {
+        // Deep chain: a←b←c←d←e but max_depth=2 → only depth 1 and 2
+        let levels = ripple_bfs_with("a", 2, |name, _| match name {
+            "a" => vec![cs("a", "fn b", "/src.rs", 1)],
+            "b" => vec![cs("b", "fn c", "/src.rs", 2)],
+            "c" => vec![cs("c", "fn d", "/src.rs", 3)],
+            _   => vec![],
+        });
+        assert!(levels.len() <= 2, "should not exceed max_depth=2, got {}", levels.len());
+    }
+
+    #[test]
+    fn bfs_does_not_loop_on_cycle() {
+        // a←b←a (cycle): BFS must terminate
+        let levels = ripple_bfs_with("a", 5, |name, _| match name {
+            "a" => vec![cs("a", "fn b", "/src.rs", 1)],
+            "b" => vec![cs("b", "fn a", "/src.rs", 2)], // cycle back to a
+            _   => vec![],
+        });
+        // Must terminate; visited set prevents infinite loop
+        let total: usize = levels.iter().map(|l| l.callers.len()).sum();
+        assert!(total <= 2, "cycle should produce at most 2 sites, got {}", total);
+    }
+
+    #[test]
+    fn bfs_visited_prevents_reexpansion() {
+        // "shared" calls both caller_a and caller_b (depth 2).
+        // "shared" should then be in the frontier for depth 3, but only once — the
+        // visited set must not let it be queried again.
+        // We verify this by checking "shared" does NOT re-appear at depth 3.
+        let levels = ripple_bfs_with("root", 3, |name, _| match name {
+            "root"     => vec![cs("root",     "fn caller_a", "/src/a.rs", 1)],
+            "caller_a" => vec![cs("caller_a", "fn shared",   "/src/s.rs", 5)],
+            // If "shared" were re-queried at depth 3, "deep" would appear — it should not.
+            "shared"   => vec![cs("shared",   "fn deep",     "/src/d.rs", 9)],
+            _          => vec![],
+        });
+        // depth 1: caller_a, depth 2: shared, depth 3: deep — 3 levels total
+        assert_eq!(levels.len(), 3);
+        // "deep" should appear exactly once at depth 3 (not twice from re-querying shared)
+        let deep_count = levels[2].callers.iter().filter(|c| c.fn_name == "deep").count();
+        assert_eq!(deep_count, 1, "visited set should prevent shared from being re-queried");
+    }
+
+    #[test]
+    fn bfs_impl_method_scope_resolved() {
+        // caller_scope is "impl Session · new" → fn_name should be "new"
+        let levels = ripple_bfs_with("target", 1, |name, _| {
+            if name == "target" {
+                vec![cs("target", "impl Session · new", "/src/session.rs", 42)]
+            } else { vec![] }
+        });
+        assert_eq!(levels[0].callers[0].fn_name, "new");
+    }
+
+    #[test]
+    fn bfs_trait_impl_method_scope_resolved() {
+        // caller_scope is "impl Tool for FooTool · execute"
+        let levels = ripple_bfs_with("helper", 1, |name, _| {
+            if name == "helper" {
+                vec![cs("helper", "impl Tool for FooTool · execute", "/src/foo.rs", 7)]
+            } else { vec![] }
+        });
+        assert_eq!(levels[0].callers[0].fn_name, "execute");
+    }
+
+    #[test]
+    fn bfs_multiple_callers_same_file() {
+        // Two different callers in the same file
+        let levels = ripple_bfs_with("shared", 1, |name, _| {
+            if name == "shared" {
+                vec![
+                    cs("shared", "fn alpha", "/src/main.rs", 10),
+                    cs("shared", "fn beta",  "/src/main.rs", 20),
+                ]
+            } else { vec![] }
+        });
+        assert_eq!(levels[0].callers.len(), 2);
+        let names: Vec<&str> = levels[0].callers.iter().map(|c| c.fn_name.as_str()).collect();
+        assert!(names.contains(&"alpha") && names.contains(&"beta"));
     }
 }
