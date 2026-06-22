@@ -182,6 +182,82 @@ impl Tool for LspDefinitionTool {
     }
 }
 
+pub struct LspTypeAtTool;
+
+#[async_trait]
+impl Tool for LspTypeAtTool {
+    fn name(&self) -> &str { "lsp_type_at" }
+
+    fn description(&self) -> &str {
+        "Get the type or signature of any expression at a specific position using the \
+         language server's hover capability. Returns the same information shown in editor \
+         tooltips: variable types, function signatures, doc comments. Use this when you \
+         need to know the exact type of an expression without reading through type \
+         inference manually. Provide a 0-indexed line and column pointing at the \
+         expression. Returns 1-indexed positions in output."
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path to the source file."
+                },
+                "line": {
+                    "type": "integer",
+                    "description": "0-indexed line number of the expression."
+                },
+                "col": {
+                    "type": "integer",
+                    "description": "0-indexed column number of the expression."
+                }
+            },
+            "required": ["path", "line", "col"]
+        })
+    }
+
+    fn permission_context(&self, input: &serde_json::Value) -> String {
+        format!(
+            "lsp_type_at({}:{}:{})",
+            input["path"].as_str().unwrap_or("?"),
+            input["line"].as_u64().unwrap_or(0),
+            input["col"].as_u64().unwrap_or(0),
+        )
+    }
+
+    async fn execute(&self, input: serde_json::Value) -> Result<String> {
+        let path_str = input["path"].as_str().context("lsp_type_at: 'path' required")?;
+        let line     = input["line"].as_u64().context("lsp_type_at: 'line' required")? as u32;
+        let col      = input["col"].as_u64().context("lsp_type_at: 'col' required")? as u32;
+
+        let abs_path = std::fs::canonicalize(path_str)
+            .unwrap_or_else(|_| std::path::PathBuf::from(path_str));
+        let abs_str  = abs_path.to_string_lossy().to_string();
+        let lang     = crate::lsp::language_for_path(&abs_str);
+
+        if lang == "unknown" {
+            return Ok(format!("lsp_type_at: no LSP server for this file type ({})", abs_str));
+        }
+
+        let content = std::fs::read_to_string(&abs_path)
+            .with_context(|| format!("cannot read {}", abs_str))?;
+
+        let lsp_arc = crate::lsp::global_lsp()
+            .ok_or_else(|| anyhow::anyhow!("LSP not initialized"))?;
+
+        let mut mgr = lsp_arc.lock().await;
+        let client  = mgr.client_for(lang).await?;
+        client.open_file(&abs_str, &content, lang)?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        match client.hover_text(&abs_str, line, col).await? {
+            Some(text) => Ok(text),
+            None       => Ok(format!("no type information at {}:{}:{}", abs_str, line + 1, col + 1)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

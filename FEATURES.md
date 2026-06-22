@@ -49,6 +49,13 @@ Four correctness and usability fixes to the LSP definition path:
 
 - [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): (1) added 100ms sleep after `open_file` before `goto_definition` so the LSP has time to index cold files before resolving definitions; (2) fixed `format_locations()` to use `to_file_path()` instead of `path()` to properly decode percent-encoded URLs, so paths with spaces display correctly; (3) updated tool description to clarify that output locations use 1-indexed line and column numbers (input is 0-indexed); (4) added `test_format_locations_multiple()` unit test to cover the multi-location join path
 
+### lsp_type_at tool — expression types and signatures via LSP hover (Task 5 of lsp-integration)
+
+Adds the `lsp_type_at` tool to `ToolRegistry`. The tool queries the language server's hover capability at a specific line and column, returning the type or signature of the expression at that position — the same information shown in editor tooltips. Use this when you need the exact type of a variable, function signature, or doc comment without manual type inference. Input uses 0-indexed line/column; output includes friendly 1-indexed position information. Returns a friendly message if the LSP is not initialized or the file type is unsupported.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `LspTypeAtTool` struct implementing the `Tool` trait, wraps `client.hover_text()` 
+- [src/tools/mod.rs](src/tools/mod.rs): `LspTypeAtTool` added to `use lsp_tools::...` import and registered in `ToolRegistry::new`
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
