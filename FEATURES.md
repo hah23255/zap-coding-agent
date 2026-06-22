@@ -7,6 +7,37 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `zap skill install/uninstall/list` — skill package management (v0.15.57)
+
+Install community skills (slash-command packs) from GitHub or any URL, without leaving the terminal. Mirrors how Claude Code and Gemini CLI handle extension installation.
+
+```bash
+# Install from GitHub shorthand (fetches SKILL.md from repo root)
+zap skill install alice/code-review-skills
+
+# Install a specific file from a repo
+zap skill install alice/skills-pack/debug.md
+
+# Install from a raw URL
+zap skill install https://raw.githubusercontent.com/.../SKILL.md
+
+# Install into the current project only (default is global ~/.zap/skills/)
+zap skill install alice/my-skill --local
+
+# List all installed skills (local + global)
+zap skill list
+
+# Remove a skill
+zap skill uninstall code-review
+zap skill uninstall debug --local
+```
+
+Installed skills are auto-loaded on the next zap session and invokable via `/<slug>`.
+
+- [src/skill_installer.rs](src/skill_installer.rs): `install()`, `uninstall()`, `list()`; `resolve_url()` handles GitHub shorthand (`user/repo`, `user/repo/path/skill.md`) and raw HTTPS URLs; 4 unit tests
+- [src/cli.rs](src/cli.rs): `Commands::Skill` subcommand with `SkillAction::{Install, Uninstall, List}`; dispatched before config load so it runs fast with no agent session overhead
+- [src/lib.rs](src/lib.rs): `pub mod skill_installer` declaration
+
 ### `extra_headers` in provider config (v0.15.55)
 
 Providers can now declare arbitrary extra HTTP headers sent on every request. Useful for AI gateway routing (GoModel `X-GoModel-User-Path`) or any other per-request header a proxy requires. Configured as a TOML table under each provider's section.

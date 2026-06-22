@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use colored::Colorize;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -75,6 +75,50 @@ pub struct Args {
     /// Example: zap --add-dir ../api --add-dir ~/shared-lib
     #[arg(long = "add-dir", value_name = "PATH")]
     pub add_dir: Vec<String>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+/// Top-level subcommands (no subcommand = interactive agent session).
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Manage installed skills (slash-command packs).
+    ///
+    /// Skills are single markdown files that teach zap new slash commands.
+    /// Install from any GitHub repo or raw URL:
+    ///
+    ///   zap skill install alice/code-review-skills
+    ///   zap skill install alice/skills/debug.md --local
+    ///   zap skill install https://raw.githubusercontent.com/…/SKILL.md
+    ///
+    /// Installed skills are auto-loaded on the next zap session.
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SkillAction {
+    /// Install a skill from GitHub (user/repo or user/repo/path/skill.md) or a URL.
+    Install {
+        /// GitHub shorthand (user/repo, user/repo/path/skill.md) or raw HTTPS URL.
+        source: String,
+        /// Install into the current project (.zap/skills/) instead of globally (~/.zap/skills/).
+        #[arg(long)]
+        local: bool,
+    },
+    /// Remove an installed skill by name.
+    Uninstall {
+        /// Skill name (the slug, without .md).
+        name: String,
+        /// Remove from the current project (.zap/skills/) instead of the global store.
+        #[arg(long)]
+        local: bool,
+    },
+    /// List all installed skills (global and local).
+    List,
 }
 
 // ── Banner ────────────────────────────────────────────────────────────────────
@@ -288,6 +332,20 @@ pub fn print_banner(config: &crate::config::Config) {
 
 pub async fn run() -> Result<()> {
     let args = Args::parse();
+
+    // Skill subcommands run without loading config or starting an agent session.
+    if let Some(Commands::Skill { action }) = args.command {
+        return match action {
+            SkillAction::Install { source, local } => {
+                crate::skill_installer::install(&source, local)
+            }
+            SkillAction::Uninstall { name, local } => {
+                crate::skill_installer::uninstall(&name, local)
+            }
+            SkillAction::List => crate::skill_installer::list(),
+        };
+    }
+
     crate::log::rotate_logs(); // trim llm.log + llm_requests/ to last 24 h (background)
     let mut config = crate::config::Config::load()?;
 

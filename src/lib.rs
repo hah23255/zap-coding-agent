@@ -20,6 +20,7 @@ pub mod project;
 pub mod secret_scanner;
 pub mod session;
 pub mod shell_runner;
+pub mod skill_installer;
 pub mod skill_manager;
 pub mod snapshot;
 pub mod stream_highlighter;
