@@ -26,12 +26,12 @@ impl LanguageClient for ClientState {
     type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
     fn publish_diagnostics(&mut self, params: PublishDiagnosticsParams) -> Self::NotifyResult {
-        let path = params.uri.path().to_string();
+        let key = params.uri.to_string();
         // Use unwrap_or_else to recover from a poisoned mutex rather than panic.
         self.diags
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(path, params.diagnostics);
+            .insert(key, params.diagnostics);
         ControlFlow::Continue(())
     }
 }
@@ -44,6 +44,7 @@ pub struct ZapLspClient {
     pub(crate) server:       async_lsp::ServerSocket,
     diags:                   Arc<Mutex<HashMap<String, Vec<Diagnostic>>>>,
     mainloop_handle:         tokio::task::JoinHandle<()>,
+    opened_files:            std::collections::HashSet<String>,
 }
 
 impl ZapLspClient {
@@ -97,7 +98,7 @@ impl ZapLspClient {
         // initialized is a notification — synchronous, no await.
         server.initialized(InitializedParams {})?;
 
-        Ok(Self { server, diags, mainloop_handle })
+        Ok(Self { server, diags, mainloop_handle, opened_files: std::collections::HashSet::new() })
     }
 
     /// Returns true if the background mainloop task is still running (server alive).
@@ -106,7 +107,11 @@ impl ZapLspClient {
     }
 
     /// Notify the server that a file has been opened.
-    pub fn open_file(&self, abs_path: &str, content: &str, lang_id: &str) -> Result<()> {
+    /// Skips sending if `didOpen` was already sent for this path (protocol dedup).
+    pub fn open_file(&mut self, abs_path: &str, content: &str, lang_id: &str) -> Result<()> {
+        if self.opened_files.contains(abs_path) {
+            return Ok(());
+        }
         // Use Url::from_file_path to correctly percent-encode spaces and special chars.
         let uri = Url::from_file_path(abs_path)
             .map_err(|_| anyhow::anyhow!("invalid path: {}", abs_path))?;
@@ -119,6 +124,7 @@ impl ZapLspClient {
                     text:        content.to_string(),
                 },
             })?;
+        self.opened_files.insert(abs_path.to_string());
         Ok(())
     }
 
@@ -136,10 +142,13 @@ impl ZapLspClient {
 
     /// Return cached diagnostics for the given absolute path (empty vec if none).
     pub fn cached_diags(&self, abs_path: &str) -> Vec<Diagnostic> {
+        let key = Url::from_file_path(abs_path)
+            .map(|u| u.to_string())
+            .unwrap_or_else(|_| abs_path.to_string());
         self.diags
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .get(abs_path)
+            .get(&key)
             .cloned()
             .unwrap_or_default()
     }

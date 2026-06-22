@@ -19,7 +19,7 @@ impl LspManager {
         Self { clients: HashMap::new(), root }
     }
 
-    pub async fn client_for(&mut self, lang: &str) -> Result<&ZapLspClient> {
+    pub async fn client_for(&mut self, lang: &str) -> Result<&mut ZapLspClient> {
         // Evict a dead client so we respawn on the next call.
         if let Some(c) = self.clients.get(lang) {
             if !c.is_alive() {
@@ -38,7 +38,7 @@ impl LspManager {
             let client = ZapLspClient::spawn(&resolved, spec.args, root_uri).await?;
             self.clients.insert(lang.to_string(), client);
         }
-        Ok(self.clients.get(lang).unwrap())
+        Ok(self.clients.get_mut(lang).unwrap())
     }
 
     /// Returns true if a live client for `lang` is already connected.

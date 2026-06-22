@@ -28,6 +28,14 @@ Adds the `get_diagnostics` tool to `ToolRegistry`. The tool opens a file with th
 - [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `format_diagnostics()` helper + `GetDiagnosticsTool` struct implementing the `Tool` trait
 - [src/tools/mod.rs](src/tools/mod.rs): `pub mod lsp_tools` declaration + `GetDiagnosticsTool` registered in `ToolRegistry::new`
 
+### get_diagnostics bug fixes (Task 3 follow-up)
+
+Three protocol-correctness bugs fixed in the LSP diagnostic path:
+
+- [src/lsp/client.rs](src/lsp/client.rs): `open_file` changed to `&mut self`; added `opened_files: HashSet<String>` to `ZapLspClient` to deduplicate `textDocument/didOpen` — sending it twice for the same URI is a protocol error that causes rust-analyzer to stop delivering diagnostics for that file; `publish_diagnostics` now keys the diagnostics map by the full `file://` URL string (`params.uri.to_string()`) instead of the bare percent-decoded path; `cached_diags` converts the lookup path through `Url::from_file_path` to match — fixes key mismatch for paths containing spaces or other characters that percent-encode differently
+- [src/lsp/mod.rs](src/lsp/mod.rs): `client_for` return type changed from `&ZapLspClient` to `&mut ZapLspClient` so callers can invoke the now-`&mut self` `open_file`
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): removed spurious `block_in_place`/`block_on` wrapper from `execute` (already `async fn`); replaced with direct `.await` calls — the old pattern blocked a thread for the full 500 ms sleep
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.

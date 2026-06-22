@@ -82,17 +82,14 @@ impl Tool for GetDiagnosticsTool {
         let lsp_arc = crate::lsp::global_lsp()
             .ok_or_else(|| anyhow::anyhow!("LSP not initialized"))?;
 
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut mgr = lsp_arc.lock().await;
-                let client  = mgr.client_for(lang).await?;
-                client.open_file(&abs_str, &content, lang)?;
-                // Wait briefly for publishDiagnostics notification from server.
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                let diags = client.cached_diags(&abs_str);
-                Ok(format_diagnostics(&abs_str, &diags))
-            })
-        })
+        let mut mgr = lsp_arc.lock().await;
+        let client  = mgr.client_for(lang).await?;
+        client.open_file(&abs_str, &content, lang)?;
+        // Wait for publishDiagnostics notification; 500ms covers most cases but may
+        // miss results from slow servers under load.
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let diags = client.cached_diags(&abs_str);
+        Ok(format_diagnostics(&abs_str, &diags))
     }
 }
 
