@@ -71,7 +71,9 @@ impl Tool for FindDefinitionTool {
             "properties": {
                 "symbol":   { "type": "string", "description": "Symbol name to find (e.g. 'MyStruct', 'parse_config', 'MAX_RETRIES')." },
                 "path":     { "type": "string", "description": "Directory to search (default: .)." },
-                "language": { "type": "string", "description": "Hint: 'rust', 'python', 'typescript', 'go', 'java', 'c'. Auto-detected if omitted." }
+                "language": { "type": "string", "description": "Hint: 'rust', 'python', 'typescript', 'go', 'java', 'c'. Auto-detected if omitted." },
+                "line":     { "type": "integer", "description": "0-indexed line for LSP fallback when AST index has no result." },
+                "col":      { "type": "integer", "description": "0-indexed col for LSP fallback when AST index has no result." }
             },
             "required": ["symbol"]
         })
@@ -84,7 +86,44 @@ impl Tool for FindDefinitionTool {
         let symbol = input["symbol"].as_str().context("find_definition: 'symbol' required")?;
         let path   = input["path"].as_str().unwrap_or(".");
         let lang   = input["language"].as_str().unwrap_or("");
-        find_symbol_definition(symbol, path, lang).await
+        let result = find_symbol_definition(symbol, path, lang).await?;
+
+        // If the AST index and grep both found nothing, try LSP as a fallback
+        // when position info is available and a client is already running.
+        if result.starts_with("No definition found") {
+            if let (Some(path_val), Some(line_val), Some(col_val)) = (
+                input.get("path").and_then(|v| v.as_str()),
+                input.get("line").and_then(|v| v.as_u64()),
+                input.get("col").and_then(|v| v.as_u64()),
+            ) {
+                if let Some(lsp_arc) = crate::lsp::global_lsp() {
+                    let abs_path = std::fs::canonicalize(path_val)
+                        .unwrap_or_else(|_| std::path::PathBuf::from(path_val));
+                    let abs_str = abs_path.to_string_lossy().to_string();
+                    let lang = crate::lsp::language_for_path(&abs_str);
+                    if lang != "unknown" {
+                        if let Ok(mut mgr) = lsp_arc.try_lock() {
+                            if let Some(client) = mgr.get_client_if_alive(lang) {
+                                if let Ok(locs) = client.goto_definition(
+                                    &abs_str,
+                                    line_val as u32,
+                                    col_val as u32,
+                                ).await {
+                                    if !locs.is_empty() {
+                                        return Ok(format!(
+                                            "{}\n\n(AST index had no result; found via LSP)",
+                                            crate::tools::lsp_tools::format_locations(&locs)
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
     }
 }
 

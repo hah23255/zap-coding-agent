@@ -133,6 +133,33 @@ pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Re
         ));
     }
 
+    // ── LSP tools (semantic, live) ───────────────────────────────────────────
+    sections.push(
+        "## LSP Tools (Semantic, Live)\n\
+         \n\
+         Three LSP tools complement the AST index by querying the running language server:\n\
+         \n\
+         - **`get_diagnostics`** — instant compiler errors/warnings without running \
+           `cargo check`. Use after editing a file to confirm it compiles before moving on. \
+           Most valuable for Rust (rust-analyzer).\n\
+         - **`lsp_definition`** — type-resolved go-to-definition. Prefer over `find_definition` \
+           for: cross-crate symbols (std, external deps), generic type parameters, trait impls, \
+           and anything the AST index reports \"not found\" for.\n\
+         - **`lsp_type_at`** — the type or signature of any expression at a position. \
+           Use when you need the exact inferred type without reading through type inference manually.\n\
+         \n\
+         **When to use LSP vs AST:**\n\
+         - Structural questions (call graph, import graph, type hierarchy, packing context): \
+           use AST tools (`who_calls`, `file_imports`, `find_subtypes`, `pack_context`)\n\
+         - \"Did this edit break anything?\": use `get_diagnostics`\n\
+         - \"What does this cross-crate symbol resolve to?\": use `lsp_definition`\n\
+         - \"What is the type of this expression?\": use `lsp_type_at`\n\
+         - LSP tools require a language server installed (rust-analyzer, typescript-language-server, \
+           pylsp, gopls). If no server is available for the file type, they return a clear \
+           message and you should fall back to AST tools."
+            .to_string(),
+    );
+
     // ── Search, discovery, and reasoning ─────────────────────────────────────
     let search_strategy = if db_exists {
         "## Search and Discovery\n\

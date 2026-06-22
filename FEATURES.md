@@ -7,6 +7,81 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### LSP client module skeleton (Task 1 of lsp-integration) + code-review fixes
+
+Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles. A follow-up code-review pass fixed child-process leaks, URL encoding, dead code, and mutex-poison panics.
+
+- [src/lsp/servers.rs](src/lsp/servers.rs): maps languages to LSP binaries (rust-analyzer, pylsp, gopls, tsserver), PATH detection, and file-extension → language mapping; dead `spawn_server()` removed
+- [src/lsp/client.rs](src/lsp/client.rs): `ZapLspClient` wraps an `async_lsp::ServerSocket`; handles initialize handshake, did-open/did-save notifications, hover and goto-definition requests, and caches incoming diagnostics; `kill_on_drop(true)` + stored `JoinHandle` prevent orphan child processes; `Url::from_file_path` replaces unsafe string-concat URLs; mutex poison recovered with `unwrap_or_else`; `Drop` impl aborts the mainloop task; `is_alive()` exposed
+- [src/lsp/mod.rs](src/lsp/mod.rs): `LspManager` pools per-language clients with dead-client eviction and `has_client_for()` liveness check; binary resolved once to avoid TOCTOU; `GLOBAL_LSP` singleton mirrors the `GLOBAL_INDEX` pattern
+
+### LspManager initialization at session startup (Task 2 of lsp-integration)
+
+Initializes the `LspManager` singleton when a new session starts, right after the `CodeIndex` singleton setup. Language servers are spawned lazily on first tool use, so session startup remains fast. Tools can now call `crate::lsp::global_lsp()` to access the singleton instance.
+
+- [src/session/mod.rs](src/session/mod.rs): `LspManager::new()` initialized with current working directory at session creation time, mirroring the `CodeIndex` setup pattern
+
+### get_diagnostics tool — instant compiler errors via LSP (Task 3 of lsp-integration)
+
+Adds the `get_diagnostics` tool to `ToolRegistry`. The tool opens a file with the language server, waits 500 ms for a `publishDiagnostics` notification, and returns the cached diagnostics formatted as `line:col severity[code]: message`. Returns a friendly message if the LSP is not initialized or the file type is unsupported. Includes 3 unit tests for `format_diagnostics` covering the empty case, 1-indexed line/col conversion, and severity labels.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `format_diagnostics()` helper + `GetDiagnosticsTool` struct implementing the `Tool` trait
+- [src/tools/mod.rs](src/tools/mod.rs): `pub mod lsp_tools` declaration + `GetDiagnosticsTool` registered in `ToolRegistry::new`
+
+### get_diagnostics bug fixes (Task 3 follow-up)
+
+Three protocol-correctness bugs fixed in the LSP diagnostic path:
+
+- [src/lsp/client.rs](src/lsp/client.rs): `open_file` changed to `&mut self`; added `opened_files: HashSet<String>` to `ZapLspClient` to deduplicate `textDocument/didOpen` — sending it twice for the same URI is a protocol error that causes rust-analyzer to stop delivering diagnostics for that file; `publish_diagnostics` now keys the diagnostics map by the full `file://` URL string (`params.uri.to_string()`) instead of the bare percent-decoded path; `cached_diags` converts the lookup path through `Url::from_file_path` to match — fixes key mismatch for paths containing spaces or other characters that percent-encode differently
+- [src/lsp/mod.rs](src/lsp/mod.rs): `client_for` return type changed from `&ZapLspClient` to `&mut ZapLspClient` so callers can invoke the now-`&mut self` `open_file`
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): removed spurious `block_in_place`/`block_on` wrapper from `execute` (already `async fn`); replaced with direct `.await` calls — the old pattern blocked a thread for the full 500 ms sleep
+
+### lsp_definition tool — type-resolved go-to-definition via LSP (Task 4 of lsp-integration)
+
+Adds the `lsp_definition` tool to `ToolRegistry`. The tool invokes `goto_definition` on the language server at a specific line and column, returning locations as `path:line:col` (1-indexed). Unlike `find_definition` (symbol-table and import-graph search), `lsp_definition` resolves full type information — accurate for cross-crate symbols, generics, and trait implementations. Returns a friendly message if the LSP is not initialized or the file type is unsupported. Includes 2 unit tests for `format_locations` covering the empty case and 1-indexed line/col conversion.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `format_locations()` helper + `LspDefinitionTool` struct implementing the `Tool` trait
+- [src/tools/mod.rs](src/tools/mod.rs): `LspDefinitionTool` added to `use lsp_tools::...` import and registered in `ToolRegistry::new`
+
+### lsp_definition tool fixes (Task 4 follow-up)
+
+Four correctness and usability fixes to the LSP definition path:
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): (1) added 100ms sleep after `open_file` before `goto_definition` so the LSP has time to index cold files before resolving definitions; (2) fixed `format_locations()` to use `to_file_path()` instead of `path()` to properly decode percent-encoded URLs, so paths with spaces display correctly; (3) updated tool description to clarify that output locations use 1-indexed line and column numbers (input is 0-indexed); (4) added `test_format_locations_multiple()` unit test to cover the multi-location join path
+
+### lsp_type_at tool — expression types and signatures via LSP hover (Task 5 of lsp-integration)
+
+Adds the `lsp_type_at` tool to `ToolRegistry`. The tool queries the language server's hover capability at a specific line and column, returning the type or signature of the expression at that position — the same information shown in editor tooltips. Use this when you need the exact type of a variable, function signature, or doc comment without manual type inference. Input uses 0-indexed line/column; output includes friendly 1-indexed position information. Returns a friendly message if the LSP is not initialized or the file type is unsupported.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `LspTypeAtTool` struct implementing the `Tool` trait, wraps `client.hover_text()` 
+- [src/tools/mod.rs](src/tools/mod.rs): `LspTypeAtTool` added to `use lsp_tools::...` import and registered in `ToolRegistry::new`
+
+### LSP did_save notification on file edit (Task 6 of lsp-integration)
+
+Zap now notifies the language server of file saves via textDocument/didSave whenever tools write to files. This keeps the LSP server in sync with the current file state, enabling accurate diagnostics, definitions, and hovers after edits. The notification is sent after existing code-index reindex, using non-blocking `try_lock()` to avoid contention with async operations.
+
+- [src/lsp/mod.rs](src/lsp/mod.rs): added `notify_save()` method to `LspManager` that gets a live client and sends the save notification if the LSP is alive
+- [src/session/tools.rs](src/session/tools.rs): after reindexing files, send LSP did_save notification with canonicalized absolute path, using `try_lock()` for non-blocking lock acquisition
+
+### LSP fallback in find_definition for cross-crate symbols (Task 7 of lsp-integration)
+
+When the AST index and grep both return no results, `find_definition` now attempts a `goto_definition` request via the language server if the caller supplies `path`, `line`, and `col` fields and a live LSP client is already running for the file's language. No new LSP servers are spawned; `try_lock()` is used for non-blocking lock acquisition. The result is annotated with "(AST index had no result; found via LSP)". The `find_definition` input schema now accepts optional `line` and `col` integer fields (0-indexed) for this fallback.
+
+- [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block in `FindDefinitionTool::execute`; added `line` and `col` to `input_schema`
+
+### Fix TOCTOU race in LSP fallback path (Task 7 follow-up)
+
+The LSP fallback in `find_definition` had a race condition: `has_client_for()` checked if a live client existed, but between that check and the subsequent `client_for()` call, the client could die. When it died, `client_for()` would spawn a new server — violating the spec that says "no new server spawns" in the fallback path. The fix replaces the two-call pattern with a single atomic method `get_client_if_alive()` that checks liveness and returns the reference in a single operation, with no TOCTOU window.
+
+- [src/lsp/mod.rs](src/lsp/mod.rs): new `get_client_if_alive()` method atomically checks client liveness and returns a mutable reference, or None if dead (and silently evicts it); never spawns a new server
+- [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block now uses `get_client_if_alive()` instead of the `has_client_for()` + `client_for()` pattern; simplified nested-if chain as a result
+
+### LSP vs AST tool guidance in system prompt (Task 8 of lsp-integration)
+
+Added a new "LSP tools (semantic, live)" section to the system prompt in `src/context_manager.rs` explaining when to use each of the three new LSP tools (`get_diagnostics`, `lsp_definition`, `lsp_type_at`) vs the existing AST tools. Provides decision guidance: structural questions → AST tools; post-edit correctness → `get_diagnostics`; cross-crate resolution → `lsp_definition`; expression types → `lsp_type_at`.
+
+- [src/context_manager.rs](src/context_manager.rs): added ~27-line LSP tool guidance section after Code Navigation Strategy
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.

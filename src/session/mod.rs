@@ -407,6 +407,12 @@ impl Session {
             };
             let arc = Arc::new(Mutex::new(idx));
             crate::code_index::set_global(arc.clone());
+
+            // Initialize LSP manager with current working directory as root.
+            // Language servers are spawned lazily on first tool use.
+            let lsp_cwd = cwd.to_string_lossy().to_string();
+            crate::lsp::set_global(crate::lsp::LspManager::new(lsp_cwd));
+
             arc
         };
 
