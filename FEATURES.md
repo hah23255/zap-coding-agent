@@ -63,6 +63,12 @@ Zap now notifies the language server of file saves via textDocument/didSave when
 - [src/lsp/mod.rs](src/lsp/mod.rs): added `notify_save()` method to `LspManager` that gets a live client and sends the save notification if the LSP is alive
 - [src/session/tools.rs](src/session/tools.rs): after reindexing files, send LSP did_save notification with canonicalized absolute path, using `try_lock()` for non-blocking lock acquisition
 
+### LSP fallback in find_definition for cross-crate symbols (Task 7 of lsp-integration)
+
+When the AST index and grep both return no results, `find_definition` now attempts a `goto_definition` request via the language server if the caller supplies `path`, `line`, and `col` fields and a live LSP client is already running for the file's language. No new LSP servers are spawned; `try_lock()` is used for non-blocking lock acquisition. The result is annotated with "(AST index had no result; found via LSP)". The `find_definition` input schema now accepts optional `line` and `col` integer fields (0-indexed) for this fallback.
+
+- [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block in `FindDefinitionTool::execute`; added `line` and `col` to `input_schema`
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
