@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `/understand` prompt: block doc files, add Hotspots section (v0.15.58)
+
+Fixed the root cause of low-quality `/understand` output: the model was reading `CLAUDE.md`/`README.md` and paraphrasing them instead of analysing code structure. Two fixes:
+
+1. **Explicit doc-file prohibition** — prompt now opens with a STRICT RULES block that names `README.md`, `CLAUDE.md`, `AGENTS.md`, and all markdown/doc files as off-limits. All insights must come from `code_map` output.
+2. **Code-first framing** — reframed the task as "surface things the documentation does NOT say" — hotspots, real entry points, actual coupling — so the model produces additive value rather than a paraphrase.
+3. **New `### Hotspots` section** — up to 5 most-connected files/modules from `code_map` output, the highest-leverage files for understanding the system.
+4. **New `### Tech Stack` section** — one-line summary extracted from manifests, kept separate from domain concerns.
+5. **Multi-directory `code_map` guidance** — prompt now explicitly lists common source dir names (`src/`, `Services/`, `Controllers/`, `pages/`, `api/`, etc.) so the model explores polyglot/framework repos instead of stopping after `code_map '.'`.
+
+- [src/domain_map.rs](src/domain_map.rs): `build_domain_extraction_prompt()` rewritten; all 6 existing unit tests still pass; E2E test `b5_understand_writes_domain_map` passes
+
 ### `zap skill install/uninstall/list` — skill package management (v0.15.57)
 
 Install community skills (slash-command packs) from GitHub or any URL, without leaving the terminal. Mirrors how Claude Code and Gemini CLI handle extension installation.
