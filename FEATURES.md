@@ -7,6 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### ripple_analysis tool — blast radius for symbol changes (v0.15.49)
+
+BFS walk of the call graph to show who calls a symbol, who calls those callers, and so on. Pure SQLite graph traversal — no language server or network needed. Groups output by depth and file, sorts by line number. Accepts optional `depth` parameter (1–5, default 3).
+
+- [src/tools/ripple.rs](src/tools/ripple.rs): `RippleAnalysisTool`, `ripple_bfs`, `format_ripple`, `extract_fn_name`, `shorten_path` — 14 unit tests
+- [src/tools/mod.rs](src/tools/mod.rs): registered `RippleAnalysisTool`
+
 ### LSP client module skeleton (Task 1 of lsp-integration) + code-review fixes
 
 Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles. A follow-up code-review pass fixed child-process leaks, URL encoding, dead code, and mutex-poison panics.
