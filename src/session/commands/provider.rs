@@ -123,13 +123,39 @@ impl Session {
             let (slug, _) = &user_entries[idx - providers.len()];
             let entry = config.all_providers.get(slug);
             let current_model = entry.and_then(|e| e.model.clone()).unwrap_or_default();
-            let model_input = match Text::new("Model:")
-                .with_initial_value(&current_model)
-                .with_render_config(cfg)
-                .prompt_skippable()
-            {
-                Ok(Some(m)) if !m.trim().is_empty() => m.trim().to_string(),
-                _ => return,
+
+            // If the provider has a `models` map, show a picker; otherwise free text.
+            let model_input = if let Some(e) = entry {
+                if !e.models.is_empty() {
+                    let mut model_ids: Vec<String> = e.models.keys().cloned().collect();
+                    model_ids.sort();
+                    model_ids.push("Other…".into());
+                    match Select::new("Model:", model_ids.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+                        .with_render_config(cfg)
+                        .with_help_message("↑↓ navigate   Enter select   Esc cancel")
+                        .with_page_size(10)
+                        .prompt_skippable()
+                    {
+                        Ok(Some(m)) if m != "Other…" => m.to_string(),
+                        Ok(Some(_)) | Ok(None) => {
+                            match Text::new("Model:").with_initial_value(&current_model).with_render_config(cfg).prompt_skippable() {
+                                Ok(Some(m)) if !m.trim().is_empty() => m.trim().to_string(),
+                                _ => return,
+                            }
+                        }
+                        Err(_) => return,
+                    }
+                } else {
+                    match Text::new("Model:").with_initial_value(&current_model).with_render_config(cfg).prompt_skippable() {
+                        Ok(Some(m)) if !m.trim().is_empty() => m.trim().to_string(),
+                        _ => return,
+                    }
+                }
+            } else {
+                match Text::new("Model:").with_initial_value(&current_model).with_render_config(cfg).prompt_skippable() {
+                    Ok(Some(m)) if !m.trim().is_empty() => m.trim().to_string(),
+                    _ => return,
+                }
             };
             let mut new_config = config.clone();
             new_config.provider_slug = slug.clone();
@@ -256,6 +282,7 @@ impl Session {
             credential_method,
             auth_header: def.auth_header.map(|h| h.to_string()),
             extra_headers: Default::default(),
+            models: Default::default(),
         });
 
         self.client   = crate::llm_client::create_client(&new_config);

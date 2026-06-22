@@ -1,3 +1,23 @@
+## Session #424 — 2026-06-22
+Goal: understand
+Files: .zap/understanding.md
+
+## Session #415 — 2026-06-20
+Goal: can you check mode
+Files: src/tui/mod.rs, Cargo.toml, FEATURES.md
+
+## Session #414 — 2026-06-19
+Goal: deploy
+Files: (no files modified)
+
+## Session #413 — 2026-06-19
+Goal: what is the new context size of this session
+Files: (no files modified)
+
+## Session #412 — 2026-06-19
+Goal: this repo is about zap skill first terminal agent , but how come it indentifies 
+Files: src/tui/commands/mod.rs, src/tui/input.rs, src/tui/mod.rs, src/tui/actions.rs, Cargo.toml, FEATURES.md, src/config.rs, src/tui/lifecycle.rs, src/session/commands/provider.rs, src/session/history.rs, src/llm_client/mod.rs
+
 ## Session #334 — 2026-06-13
 Goal: hi
 Files: src/llm_client/mod.rs, src/session/commands/provider.rs, src/tui/startup.rs, src/tui/turn_handler.rs, Cargo.toml, FEATURES.md

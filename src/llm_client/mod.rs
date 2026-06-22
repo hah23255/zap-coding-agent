@@ -438,6 +438,7 @@ mod credential_tests {
             auth_header: auth_header.map(|s| s.to_string()),
             context_window: None,
             extra_headers: Default::default(),
+            models: Default::default(),
         }
     }
 

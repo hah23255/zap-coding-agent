@@ -209,7 +209,11 @@ async fn tui_loop(
                     }
                 }
                 Event::Paste(text) => {
-                    if actions::handle_action(input::InputAction::PasteText(text), app, session, terminal, config).await? {
+                    if text.is_empty() {
+                        // Terminal sent an empty paste — likely an image.
+                        // Try OS clipboard extraction (image then text fallback).
+                        lifecycle::handle_paste_image(app, session);
+                    } else if actions::handle_action(input::InputAction::PasteText(text), app, session, terminal, config).await? {
                         break;
                     }
                 }

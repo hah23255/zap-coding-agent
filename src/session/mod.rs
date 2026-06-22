@@ -41,12 +41,18 @@ pub fn configured_context_limit(config: &Config) -> usize {
         .or_else(|| config.budget.map(|b| b as usize))
         .or_else(|| {
             let entry = config.all_providers.get(&config.provider_slug);
-            entry.and_then(|e| e.context_window).or_else(|| {
-                default_context_window_for_provider(
-                    &config.provider_slug,
-                    entry.and_then(|e| e.kind.as_deref()),
-                )
-            })
+            // Per-model context takes priority over provider-level context_window.
+            let model_ctx = entry
+                .and_then(|e| e.models.get(&config.model))
+                .and_then(|m| m.context);
+            model_ctx
+                .or_else(|| entry.and_then(|e| e.context_window))
+                .or_else(|| {
+                    default_context_window_for_provider(
+                        &config.provider_slug,
+                        entry.and_then(|e| e.kind.as_deref()),
+                    )
+                })
         })
         .unwrap_or_else(|| {
             model_context_limit(&config.model)

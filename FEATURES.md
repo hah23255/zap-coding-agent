@@ -7,6 +7,37 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Per-model config in `~/.agent.toml` (v0.15.62)
+
+Adds `[providers.<slug>.models."<model-id>"]` support — users can set per-model `name`, `reasoning`, `context`, and `output` directly in config, similar to opencode.
+
+**TOML example:**
+```toml
+[providers.my-gateway]
+api_key = "sk-..."
+base_url = "https://gateway.example.com/v1"
+
+[providers.my-gateway.models."llama-3.3-70b-instruct"]
+name    = "Llama 70B"
+context = 131072
+output  = 8192
+
+[providers.my-gateway.models."qwen-2.5-coder-32b"]
+name      = "Qwen Coder 32B"
+reasoning = true
+context   = 131072
+```
+
+**Context priority** (highest first): env var → budget → per-model `context` field → provider-level `context_window` → model name heuristic.
+
+**Model picker** — when `/provider` selects a user-configured provider, if the config has a non-empty `models` map the picker shows a sorted Select list (+ "Other…") instead of a free-text field.
+
+**`Config::save()` fix** — `extra_headers` was silently dropped on every save. Both `extra_headers` and `models` sub-tables are now written correctly.
+
+- [src/config.rs](src/config.rs): `ModelEntry` struct, `models` field on `ProviderEntry`, `Config::save()` writes sub-tables, 10 unit tests
+- [src/session/mod.rs](src/session/mod.rs): `configured_context_limit()` checks per-model context before provider-level
+- [src/session/commands/provider.rs](src/session/commands/provider.rs): model picker uses `models` map when present
+
 ### `/models` auth + `/provider` shows user-configured providers (v0.15.61)
 
 Two gaps reported by a gateway user (issue #2):

@@ -31,35 +31,67 @@ pub enum Provider {
     OpenAi,
 }
 
+/// Per-model attributes under `[providers.<slug>.models."<model-id>"]`.
+///
+/// ```toml
+/// [providers.gomodel.models."xiaomi/mimo-v2.5"]
+/// name      = "mimo-v2.5"    # human-readable display name (optional)
+/// reasoning = true           # reasoning/thinking model — affects token budget
+/// context   = 1000000        # context window in tokens
+/// output    = 128000         # max output tokens
+/// ```
+#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
+pub struct ModelEntry {
+    /// Human-readable display name shown in pickers (optional).
+    pub name:      Option<String>,
+    /// Whether this is a reasoning/thinking model (affects how output is interpreted).
+    #[serde(default)]
+    pub reasoning: bool,
+    /// Context window in tokens — overrides the provider-level `context_window`.
+    pub context:   Option<usize>,
+    /// Maximum output tokens for this model.
+    pub output:    Option<usize>,
+}
+
 /// Per-provider settings stored in the `[providers.<slug>]` TOML table.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct ProviderEntry {
     /// Wire protocol: "anthropic" or "openai" (OpenAI-compatible).
     pub kind:     Option<String>,
     pub api_key:  Option<String>,
+    /// Active model for this provider. When `models` is non-empty, this should
+    /// be one of the keys in that map.
     pub model:    Option<String>,
-    /// Explicit context window for this provider/model, in tokens.
-    /// Set in ~/.agent.toml as `context_window = 128000` under `[providers.<slug>]`.
+    /// Provider-level context window fallback (tokens). Overridden by the
+    /// per-model `context` field when the active model has an entry in `models`.
     pub context_window: Option<usize>,
     /// Full endpoint URL, e.g. "http://localhost:1234/v1/chat/completions".
     pub base_url: Option<String>,
     /// Credential resolution method: "api_key" (default) or "gcloud_adc".
-    /// When "gcloud_adc", api_key is ignored and credentials are fetched
-    /// from `gcloud auth application-default print-access-token`.
     pub credential_method: Option<String>,
     /// Custom auth header name, e.g. "x-goog-api-key" for Gemini API keys.
     /// If absent, defaults to "Authorization" (Bearer token).
     pub auth_header: Option<String>,
-    /// Arbitrary extra HTTP headers sent on every request to this provider.
-    /// Useful for gateway routing headers, user-path tokens, tenant IDs, etc.
+    /// Arbitrary extra HTTP headers sent on every request.
     ///
     /// ```toml
     /// [providers.gomodel.extra_headers]
     /// X-GoModel-User-Path = "my/path"
-    /// X-Tenant-ID = "acme"
     /// ```
     #[serde(default)]
     pub extra_headers: std::collections::HashMap<String, String>,
+    /// Named model definitions with per-model attributes.
+    /// Key is the model ID sent to the API (e.g. "xiaomi/mimo-v2.5").
+    ///
+    /// ```toml
+    /// [providers.gomodel.models."xiaomi/mimo-v2.5"]
+    /// name      = "mimo-v2.5"
+    /// reasoning = true
+    /// context   = 1000000
+    /// output    = 128000
+    /// ```
+    #[serde(default)]
+    pub models: std::collections::HashMap<String, ModelEntry>,
 }
 
 pub const CODEX_CONTEXT_WINDOW: usize = 400_000;
@@ -407,6 +439,41 @@ impl Config {
                 writeln!(f, "auth_header = {:?}", hdr)?;
             }
             writeln!(f)?;
+
+            // extra_headers sub-table
+            if !entry.extra_headers.is_empty() {
+                writeln!(f, "[providers.{}.extra_headers]", slug)?;
+                let mut hdr_keys: Vec<&String> = entry.extra_headers.keys().collect();
+                hdr_keys.sort();
+                for k in hdr_keys {
+                    writeln!(f, "{} = {:?}", k, entry.extra_headers[k])?;
+                }
+                writeln!(f)?;
+            }
+
+            // models sub-tables — sorted by model ID for determinism
+            if !entry.models.is_empty() {
+                let mut model_ids: Vec<&String> = entry.models.keys().collect();
+                model_ids.sort();
+                for model_id in model_ids {
+                    let m = &entry.models[model_id];
+                    // Quote model IDs that contain characters needing TOML quoting (e.g. "/")
+                    writeln!(f, r#"[providers.{}.models."{}"]"#, slug, model_id)?;
+                    if let Some(ref name) = m.name {
+                        writeln!(f, "name      = {:?}", name)?;
+                    }
+                    if m.reasoning {
+                        writeln!(f, "reasoning = true")?;
+                    }
+                    if let Some(ctx) = m.context {
+                        writeln!(f, "context   = {}", ctx)?;
+                    }
+                    if let Some(out) = m.output {
+                        writeln!(f, "output    = {}", out)?;
+                    }
+                    writeln!(f)?;
+                }
+            }
         }
 
         // Restrict to owner-read/write only — file contains API keys.
@@ -419,6 +486,7 @@ impl Config {
         Ok(())
     }
 }
+
 
 #[cfg(test)]
 impl Default for Config {
@@ -454,3 +522,6 @@ impl Default for Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

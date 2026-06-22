@@ -3,20 +3,14 @@
 <!-- auto-written by zap at session end — edit freely -->
 
 ## Last updated
-2026-06-13 12:30 — Session #334
+2026-06-22 13:18 — Session #424
 
 ## What was being worked on
-hi
+understand
 
 ## Files touched
-  - src/llm_client/mod.rs
-  - src/session/commands/provider.rs
-  - src/tui/startup.rs
-  - src/tui/turn_handler.rs
-  - Cargo.toml
-  - FEATURES.md
+  - .zap/understanding.md
 
 ## What's next
-All 4 improvements from the spec are implemented. 159 tests pass. Next steps (optional):
-- Add integration tests for new extractors (type_edges) and new queries
-- Run zap --index-only on the codebase and verify type_edges are populated
+- Verify the released TUI mouse behavior manually in a real terminal: confirm text selection works normally while mouse-wheel scrolling still works in the relevant TUI screen(s).
+- Decide whether to keep, ignore, or clean the remaining local `.zap` metadata changes: `.zap/context.md`, `.zap/session_log.md`, `.zap/understanding.md`.
