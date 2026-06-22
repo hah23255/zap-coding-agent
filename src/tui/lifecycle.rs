@@ -333,6 +333,7 @@ pub(super) fn handle_gemini_auth_launch(
             base_url: base_url.clone(),
             credential_method: Some("gcloud_adc".to_string()),
             auth_header: Some("x-goog-api-key".to_string()),
+            extra_headers: Default::default(),
         });
         session.client = crate::llm_client::create_client(&new_config);
         session.model = model.clone();
@@ -413,6 +414,7 @@ pub(super) fn apply_provider_switch(
         base_url: base_url.clone(),
         credential_method: None,
         auth_header,
+        extra_headers: Default::default(),
     });
     session.client = crate::llm_client::create_client(&new_config);
     session.model = model.clone();

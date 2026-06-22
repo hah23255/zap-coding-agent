@@ -26,6 +26,8 @@ pub(super) struct OpenAiClient {
     image_support: bool,
     /// Auth header name — "Authorization" (default) or "x-goog-api-key" (Gemini API keys).
     pub(super) auth_header: String,
+    /// Arbitrary extra headers sent on every request (e.g. gateway routing headers).
+    extra_headers: Vec<(String, String)>,
 }
 
 impl OpenAiClient {
@@ -36,6 +38,7 @@ impl OpenAiClient {
         suppress_stream: bool,
         disable_stream: bool,
         auth_header: Option<String>,
+        extra_headers: Vec<(String, String)>,
     ) -> Self {
         let url = normalize_openai_url(base_url.as_deref());
         let image_support = !url.contains("deepseek.com");
@@ -49,6 +52,7 @@ impl OpenAiClient {
             disable_stream,
             image_support,
             auth_header,
+            extra_headers,
         }
     }
 
@@ -243,14 +247,18 @@ impl LlmProvider for OpenAiClient {
                 } else {
                     format!("{}: {}", self.auth_header, redact_token(&auth_val))
                 };
+                let extra_lines: String = self.extra_headers.iter()
+                    .map(|(k, v)| format!("\n{k}: {v}"))
+                    .collect();
                 crate::log::write_llm(
                     "REQUEST [openai]",
-                    &format!("POST {}\n{}\n\n{}{}", self.url, auth_line, pretty, curl),
+                    &format!("POST {}\n{}{}\n\n{}{}", self.url, auth_line, extra_lines, pretty, curl),
                 );
             }
         }
 
         let auth_header = &self.auth_header;
+        let extra_headers = &self.extra_headers;
         let resp = send_with_retry(&self.http, |http| {
             let mut req = http
                 .post(&self.url)
@@ -273,6 +281,9 @@ impl LlmProvider for OpenAiClient {
                     api_key.clone()
                 };
                 req = req.header(auth_header.as_str(), &value);
+            }
+            for (name, value) in extra_headers {
+                req = req.header(name.as_str(), value.as_str());
             }
             req
         })

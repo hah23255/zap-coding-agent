@@ -50,6 +50,16 @@ pub struct ProviderEntry {
     /// Custom auth header name, e.g. "x-goog-api-key" for Gemini API keys.
     /// If absent, defaults to "Authorization" (Bearer token).
     pub auth_header: Option<String>,
+    /// Arbitrary extra HTTP headers sent on every request to this provider.
+    /// Useful for gateway routing headers, user-path tokens, tenant IDs, etc.
+    ///
+    /// ```toml
+    /// [providers.gomodel.extra_headers]
+    /// X-GoModel-User-Path = "my/path"
+    /// X-Tenant-ID = "acme"
+    /// ```
+    #[serde(default)]
+    pub extra_headers: std::collections::HashMap<String, String>,
 }
 
 pub const CODEX_CONTEXT_WINDOW: usize = 400_000;

@@ -122,6 +122,8 @@ pub(super) struct AnthropicClient {
     suppress_stream: bool,
     bearer_auth: bool,
     disable_stream: bool,
+    /// Arbitrary extra headers sent on every request (e.g. gateway routing headers).
+    extra_headers: Vec<(String, String)>,
 }
 
 impl AnthropicClient {
@@ -131,6 +133,7 @@ impl AnthropicClient {
         base_url: Option<String>,
         suppress_stream: bool,
         disable_stream: bool,
+        extra_headers: Vec<(String, String)>,
     ) -> Self {
         let bearer_auth = base_url.is_some();
         let url = normalize_anthropic_url(base_url.as_deref());
@@ -142,6 +145,7 @@ impl AnthropicClient {
             suppress_stream,
             bearer_auth,
             disable_stream,
+            extra_headers,
         }
     }
 
@@ -318,6 +322,7 @@ impl LlmProvider for AnthropicClient {
         }
 
         let bearer_auth = self.bearer_auth;
+        let extra_headers = &self.extra_headers;
         let resp = send_with_retry(&self.http, |http| {
             let mut req = http.post(&self.url)
                 .header("anthropic-version", ANTHROPIC_VERSION)
@@ -327,6 +332,9 @@ impl LlmProvider for AnthropicClient {
                 req = req.header("Authorization", format!("Bearer {}", api_key));
             } else {
                 req = req.header("x-api-key", &api_key);
+            }
+            for (name, value) in extra_headers {
+                req = req.header(name.as_str(), value.as_str());
             }
             req
         })

@@ -7,6 +7,25 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `extra_headers` in provider config (v0.15.55)
+
+Providers can now declare arbitrary extra HTTP headers sent on every request. Useful for AI gateway routing (GoModel `X-GoModel-User-Path`) or any other per-request header a proxy requires. Configured as a TOML table under each provider's section.
+
+```toml
+[providers.gomodel]
+kind = "openai"
+base_url = "https://gateway.gomodel.ai/v1"
+api_key = "sk-..."
+
+[providers.gomodel.extra_headers]
+X-GoModel-User-Path = "my/user/path"
+```
+
+- [src/config.rs](src/config.rs): `extra_headers: HashMap<String, String>` field on `ProviderEntry` (`#[serde(default)]`)
+- [src/llm_client/openai.rs](src/llm_client/openai.rs): `extra_headers: Vec<(String, String)>` applied in request builder
+- [src/llm_client/anthropic.rs](src/llm_client/anthropic.rs): same, applied after auth header
+- [src/llm_client/mod.rs](src/llm_client/mod.rs): threads extra_headers from entry into both clients
+
 ### `/understand` — real examples in README + website (v0.15.54)
 
 Added real output from running `/understand` on the zap repo itself (the domain map the agent actually wrote during E2E testing) to both README.md and website/docs.html. The example shows the exact tool calls (2× code_map, 1× edit_file), timing, and the full domain map table.

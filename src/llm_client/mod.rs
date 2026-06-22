@@ -198,6 +198,10 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
         }
     };
 
+    let extra_headers: Vec<(String, String)> = entry
+        .map(|e| e.extra_headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default();
+
     match config.provider {
         Provider::Anthropic => Box::new(AnthropicClient::new(
             credential,
@@ -205,6 +209,7 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
             config.base_url.clone(),
             suppress,
             config.disable_stream,
+            extra_headers,
         )),
         Provider::OpenAi => {
             let auth_header = if matches!(credential, CredentialProvider::GcloudAdc { .. }) {
@@ -219,6 +224,7 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
                 suppress,
                 config.disable_stream,
                 auth_header,
+                extra_headers,
             ))
         }
     }
@@ -431,6 +437,7 @@ mod credential_tests {
             credential_method: credential_method.map(|s| s.to_string()),
             auth_header: auth_header.map(|s| s.to_string()),
             context_window: None,
+            extra_headers: Default::default(),
         }
     }
 
