@@ -103,19 +103,17 @@ impl Tool for FindDefinitionTool {
                     let lang = crate::lsp::language_for_path(&abs_str);
                     if lang != "unknown" {
                         if let Ok(mut mgr) = lsp_arc.try_lock() {
-                            if mgr.has_client_for(lang) {
-                                if let Ok(client) = mgr.client_for(lang).await {
-                                    if let Ok(locs) = client.goto_definition(
-                                        &abs_str,
-                                        line_val as u32,
-                                        col_val as u32,
-                                    ).await {
-                                        if !locs.is_empty() {
-                                            return Ok(format!(
-                                                "{}\n\n(AST index had no result; found via LSP)",
-                                                crate::tools::lsp_tools::format_locations(&locs)
-                                            ));
-                                        }
+                            if let Some(client) = mgr.get_client_if_alive(lang) {
+                                if let Ok(locs) = client.goto_definition(
+                                    &abs_str,
+                                    line_val as u32,
+                                    col_val as u32,
+                                ).await {
+                                    if !locs.is_empty() {
+                                        return Ok(format!(
+                                            "{}\n\n(AST index had no result; found via LSP)",
+                                            crate::tools::lsp_tools::format_locations(&locs)
+                                        ));
                                     }
                                 }
                             }

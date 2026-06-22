@@ -46,6 +46,20 @@ impl LspManager {
         self.clients.get(lang).map(|c| c.is_alive()).unwrap_or(false)
     }
 
+    /// Returns a mutable reference to an existing, live client for `lang`.
+    /// Never spawns a new server. Returns None if no client exists or the client has died.
+    /// Atomically checks liveness and evicts dead clients — no TOCTOU window.
+    pub fn get_client_if_alive(&mut self, lang: &str) -> Option<&mut ZapLspClient> {
+        // First check: is the client dead?
+        let is_dead = self.clients.get(lang).map(|c| !c.is_alive()).unwrap_or(false);
+        if is_dead {
+            self.clients.remove(lang);
+            return None;
+        }
+        // Now we can safely return a mutable reference if it exists.
+        self.clients.get_mut(lang)
+    }
+
     pub fn has_server_for(&self, lang: &str) -> bool {
         self.has_client_for(lang)
             || servers::spec_for_language(lang)

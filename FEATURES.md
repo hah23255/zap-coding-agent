@@ -69,6 +69,13 @@ When the AST index and grep both return no results, `find_definition` now attemp
 
 - [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block in `FindDefinitionTool::execute`; added `line` and `col` to `input_schema`
 
+### Fix TOCTOU race in LSP fallback path (Task 7 follow-up)
+
+The LSP fallback in `find_definition` had a race condition: `has_client_for()` checked if a live client existed, but between that check and the subsequent `client_for()` call, the client could die. When it died, `client_for()` would spawn a new server — violating the spec that says "no new server spawns" in the fallback path. The fix replaces the two-call pattern with a single atomic method `get_client_if_alive()` that checks liveness and returns the reference in a single operation, with no TOCTOU window.
+
+- [src/lsp/mod.rs](src/lsp/mod.rs): new `get_client_if_alive()` method atomically checks client liveness and returns a mutable reference, or None if dead (and silently evicts it); never spawns a new server
+- [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block now uses `get_client_if_alive()` instead of the `has_client_for()` + `client_for()` pattern; simplified nested-if chain as a result
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
