@@ -52,6 +52,16 @@ impl LspManager {
                 .and_then(|s| servers::find_binary(s.binary))
                 .is_some()
     }
+
+    /// Notify the LSP server that a file has been saved.
+    /// Silently skips if no live client exists for the language or if the notification fails.
+    pub fn notify_save(&self, lang: &str, abs_path: &str) {
+        if let Some(client) = self.clients.get(lang) {
+            if client.is_alive() {
+                let _ = client.save_file(abs_path);
+            }
+        }
+    }
 }
 
 static GLOBAL_LSP: OnceLock<Arc<tokio::sync::Mutex<LspManager>>> = OnceLock::new();

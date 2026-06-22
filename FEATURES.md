@@ -56,6 +56,13 @@ Adds the `lsp_type_at` tool to `ToolRegistry`. The tool queries the language ser
 - [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `LspTypeAtTool` struct implementing the `Tool` trait, wraps `client.hover_text()` 
 - [src/tools/mod.rs](src/tools/mod.rs): `LspTypeAtTool` added to `use lsp_tools::...` import and registered in `ToolRegistry::new`
 
+### LSP did_save notification on file edit (Task 6 of lsp-integration)
+
+Zap now notifies the language server of file saves via textDocument/didSave whenever tools write to files. This keeps the LSP server in sync with the current file state, enabling accurate diagnostics, definitions, and hovers after edits. The notification is sent after existing code-index reindex, using non-blocking `try_lock()` to avoid contention with async operations.
+
+- [src/lsp/mod.rs](src/lsp/mod.rs): added `notify_save()` method to `LspManager` that gets a live client and sends the save notification if the LSP is alive
+- [src/session/tools.rs](src/session/tools.rs): after reindexing files, send LSP did_save notification with canonicalized absolute path, using `try_lock()` for non-blocking lock acquisition
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.

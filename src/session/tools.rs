@@ -472,6 +472,20 @@ impl Session {
                             v.insert(crate::session::EditedFile { first_turn: cur, last_turn: cur, ops_count: 1 });
                         }
                     }
+
+                    // Notify LSP server that file was saved via did_save notification.
+                    if let Some(ref lsp_arc) = crate::lsp::global_lsp() {
+                        let abs_path_str = std::fs::canonicalize(path_str)
+                            .unwrap_or_else(|_| std::path::PathBuf::from(path_str))
+                            .to_string_lossy()
+                            .to_string();
+                        let lang = crate::lsp::language_for_path(&abs_path_str);
+                        if lang != "unknown" {
+                            if let Ok(mgr) = lsp_arc.try_lock() {
+                                mgr.notify_save(lang, &abs_path_str);
+                            }
+                        }
+                    }
                 }
             }
         }
