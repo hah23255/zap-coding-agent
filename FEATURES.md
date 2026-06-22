@@ -36,6 +36,13 @@ Three protocol-correctness bugs fixed in the LSP diagnostic path:
 - [src/lsp/mod.rs](src/lsp/mod.rs): `client_for` return type changed from `&ZapLspClient` to `&mut ZapLspClient` so callers can invoke the now-`&mut self` `open_file`
 - [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): removed spurious `block_in_place`/`block_on` wrapper from `execute` (already `async fn`); replaced with direct `.await` calls — the old pattern blocked a thread for the full 500 ms sleep
 
+### lsp_definition tool — type-resolved go-to-definition via LSP (Task 4 of lsp-integration)
+
+Adds the `lsp_definition` tool to `ToolRegistry`. The tool invokes `goto_definition` on the language server at a specific line and column, returning locations as `path:line:col` (1-indexed). Unlike `find_definition` (symbol-table and import-graph search), `lsp_definition` resolves full type information — accurate for cross-crate symbols, generics, and trait implementations. Returns a friendly message if the LSP is not initialized or the file type is unsupported. Includes 2 unit tests for `format_locations` covering the empty case and 1-indexed line/col conversion.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `format_locations()` helper + `LspDefinitionTool` struct implementing the `Tool` trait
+- [src/tools/mod.rs](src/tools/mod.rs): `LspDefinitionTool` added to `use lsp_tools::...` import and registered in `ToolRegistry::new`
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
