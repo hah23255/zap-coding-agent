@@ -639,6 +639,12 @@ impl Session {
                         println!("  {} agent error: {}", "✗".red(), e);
                     } else {
                         crate::project::mark_domain_map_current();
+                        // Trim trailing blank lines the LLM may have written.
+                        let upath = crate::project::zap_dir().join("understanding.md");
+                        if let Ok(content) = std::fs::read_to_string(&upath) {
+                            let trimmed = content.trim_end_matches('\n').to_string() + "\n";
+                            let _ = std::fs::write(&upath, trimmed);
+                        }
                     }
                 }
             }

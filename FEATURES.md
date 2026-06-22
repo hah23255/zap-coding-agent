@@ -7,6 +7,12 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `/understand` trailing blank lines trimmed after LLM write (v0.15.60)
+
+The LLM sometimes wrote dozens of trailing blank lines to `.zap/understanding.md` via `edit_file`. The session handler only called `mark_domain_map_current()` after the turn — no normalization. Fix: after the turn succeeds, read the file and `trim_end_matches('\n')` before writing it back.
+
+- [src/session/mod.rs](src/session/mod.rs): `/understand` handler trims trailing newlines from `understanding.md` after the LLM turn
+
 ### `/understand` prompt v3: ban recycling old output, require 3+ code_map calls (v0.15.59)
 
 Second prompt fix pass. Root cause of still-poor output: model was reading `.zap/understanding.md` first and re-merging the old domain map rather than doing fresh analysis, even after the v0.15.58 doc-file prohibition.
