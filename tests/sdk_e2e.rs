@@ -224,8 +224,6 @@ fn b3_find_references_called_before_rename() {
 #[test]
 #[ignore = "requires API key — run with: cargo test --test sdk_e2e -- --ignored"]
 fn b5_understand_writes_domain_map() {
-    use std::path::Path;
-
     // Run from the zap repo itself — it has a real code index.
     let understanding_path = ".zap/understanding.md";
 
