@@ -15,6 +15,12 @@ Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go
 - [src/lsp/client.rs](src/lsp/client.rs): `ZapLspClient` wraps an `async_lsp::ServerSocket`; handles initialize handshake, did-open/did-save notifications, hover and goto-definition requests, and caches incoming diagnostics; `kill_on_drop(true)` + stored `JoinHandle` prevent orphan child processes; `Url::from_file_path` replaces unsafe string-concat URLs; mutex poison recovered with `unwrap_or_else`; `Drop` impl aborts the mainloop task; `is_alive()` exposed
 - [src/lsp/mod.rs](src/lsp/mod.rs): `LspManager` pools per-language clients with dead-client eviction and `has_client_for()` liveness check; binary resolved once to avoid TOCTOU; `GLOBAL_LSP` singleton mirrors the `GLOBAL_INDEX` pattern
 
+### LspManager initialization at session startup (Task 2 of lsp-integration)
+
+Initializes the `LspManager` singleton when a new session starts, right after the `CodeIndex` singleton setup. Language servers are spawned lazily on first tool use, so session startup remains fast. Tools can now call `crate::lsp::global_lsp()` to access the singleton instance.
+
+- [src/session/mod.rs](src/session/mod.rs): `LspManager::new()` initialized with current working directory at session creation time, mirroring the `CodeIndex` setup pattern
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
