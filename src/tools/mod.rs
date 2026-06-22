@@ -11,6 +11,7 @@ pub mod search;
 pub mod shell;
 pub mod todo;
 pub mod undo;
+pub mod lsp_tools;
 pub mod web;
 
 pub use agent::SpawnAgentTool;
@@ -74,6 +75,7 @@ impl Default for ToolRegistry {
 impl ToolRegistry {
     pub fn new(sandbox: crate::config::SandboxMode) -> Self {
         use file::{BatchEditTool, EditFileTool, GlobReadTool, ReadFileTool, WriteFileTool};
+        use lsp_tools::GetDiagnosticsTool;
         use search::{CodeMapTool, FileImportsTool, FindByReturnTypeTool, FindDefinitionTool, FindReferencesTool, FindSubtypesTool, FindSupertypesTool, PackContextTool, SearchCodeTool, WhereImportedTool, WhoCallsTool};
         use shell::{ListDirectoryTool, ShellTool};
         use undo::UndoEditTool;
@@ -102,6 +104,7 @@ impl ToolRegistry {
         r.register(Arc::new(FindSubtypesTool));
         r.register(Arc::new(FindSupertypesTool));
         r.register(Arc::new(FindByReturnTypeTool));
+        r.register(Arc::new(GetDiagnosticsTool));
         r.register(Arc::new(WebFetchTool));
         r.register(Arc::new(WebSearchTool));
         r.register(Arc::new(TodoWriteTool));

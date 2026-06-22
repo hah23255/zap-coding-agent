@@ -21,6 +21,13 @@ Initializes the `LspManager` singleton when a new session starts, right after th
 
 - [src/session/mod.rs](src/session/mod.rs): `LspManager::new()` initialized with current working directory at session creation time, mirroring the `CodeIndex` setup pattern
 
+### get_diagnostics tool — instant compiler errors via LSP (Task 3 of lsp-integration)
+
+Adds the `get_diagnostics` tool to `ToolRegistry`. The tool opens a file with the language server, waits 500 ms for a `publishDiagnostics` notification, and returns the cached diagnostics formatted as `line:col severity[code]: message`. Returns a friendly message if the LSP is not initialized or the file type is unsupported. Includes 3 unit tests for `format_diagnostics` covering the empty case, 1-indexed line/col conversion, and severity labels.
+
+- [src/tools/lsp_tools.rs](src/tools/lsp_tools.rs): `format_diagnostics()` helper + `GetDiagnosticsTool` struct implementing the `Tool` trait
+- [src/tools/mod.rs](src/tools/mod.rs): `pub mod lsp_tools` declaration + `GetDiagnosticsTool` registered in `ToolRegistry::new`
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
