@@ -38,14 +38,15 @@ pub fn format_locations(locations: &[lsp_types::Location]) -> String {
     if locations.is_empty() {
         return "no definition found".to_string();
     }
-    let mut lines = Vec::new();
-    for loc in locations {
-        let path = loc.uri.path();
+    locations.iter().map(|loc| {
+        let path = loc.uri.to_file_path()
+            .ok()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| loc.uri.path().to_string());
         let line = loc.range.start.line + 1;
         let col  = loc.range.start.character + 1;
-        lines.push(format!("{}:{}:{}", path, line, col));
-    }
-    lines.join("\n")
+        format!("{}:{}:{}", path, line, col)
+    }).collect::<Vec<_>>().join("\n")
 }
 
 pub struct GetDiagnosticsTool;
@@ -118,7 +119,8 @@ impl Tool for LspDefinitionTool {
          More accurate than find_definition for cross-crate symbols, \
          generics, and trait implementations because it uses full type \
          resolution. Provide a 0-indexed line and column pointing at the \
-         symbol you want to resolve."
+         symbol you want to resolve. Output locations use 1-indexed line \
+         and column numbers."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -174,6 +176,7 @@ impl Tool for LspDefinitionTool {
         let mut mgr = lsp_arc.lock().await;
         let client  = mgr.client_for(lang).await?;
         client.open_file(&abs_str, &content, lang)?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let locations = client.goto_definition(&abs_str, line, col).await?;
         Ok(format_locations(&locations))
     }
@@ -237,5 +240,26 @@ mod tests {
         let out = format_locations(&[loc]);
         assert!(out.contains("/src/main.rs"), "should contain path");
         assert!(out.contains("10:5"), "line/col should be 1-indexed");
+    }
+
+    #[test]
+    fn format_locations_multiple() {
+        use lsp_types::{Location, Position, Range, Url};
+        let make_loc = |path: &str, line: u32, col: u32| Location {
+            uri: Url::from_file_path(path).unwrap(),
+            range: Range {
+                start: Position { line, character: col },
+                end:   Position { line, character: col },
+            },
+        };
+        let locs = vec![
+            make_loc("/src/a.rs", 0, 0),
+            make_loc("/src/b.rs", 9, 4),
+        ];
+        let out = format_locations(&locs);
+        assert!(out.contains("/src/a.rs:1:1"), "first location");
+        assert!(out.contains("/src/b.rs:10:5"), "second location 1-indexed");
+        // Two separate lines.
+        assert_eq!(out.lines().count(), 2);
     }
 }
