@@ -217,6 +217,60 @@ fn b3_find_references_called_before_rename() {
     let _ = std::fs::remove_file(path);
 }
 
+// ── B5: /understand domain extraction writes sentinel-wrapped section ─────────
+
+/// B5: When given the domain extraction prompt, the agent calls code_map and
+/// writes a domain-map section wrapped in sentinel comments to understanding.md.
+#[test]
+#[ignore = "requires API key — run with: cargo test --test sdk_e2e -- --ignored"]
+fn b5_understand_writes_domain_map() {
+    use std::path::Path;
+
+    // Run from the zap repo itself — it has a real code index.
+    let understanding_path = ".zap/understanding.md";
+
+    // Back up existing understanding.md if present.
+    let backup = std::fs::read_to_string(understanding_path).ok();
+
+    // Send the domain extraction prompt directly — same content as build_domain_extraction_prompt().
+    let prompt_text = "Please map the business domains of this codebase. \
+        Use code_map '.' first (one call), then optionally code_map 'src'. \
+        Write the result to .zap/understanding.md merging a section wrapped in \
+        <!-- zap:domain-map:begin --> and <!-- zap:domain-map:end --> sentinel comments. \
+        The section must include: ## Domain Map, ### Business Domains table (Domain | Owns | Key entry points), \
+        ### Cross-Cutting Concerns, ### Dependency Direction. No source file reads. \
+        Start reply: 'Domain map via: [tools used]'.";
+    let prompt = format!("{{\"type\":\"user\",\"text\":\"{}\"}}\n",
+        prompt_text.replace('"', "\\\""));
+    let stdout = run_sdk(
+        &[&prompt, "{\"type\":\"quit\"}\n"],
+        Duration::from_secs(180),
+    );
+
+    // Restore backup regardless of outcome.
+    let result_file = std::fs::read_to_string(understanding_path).ok();
+    if let Some(backup_content) = backup {
+        let _ = std::fs::write(understanding_path, backup_content);
+    }
+
+    // Agent must have called code_map (or code_map appears in tool stream).
+    assert!(
+        stdout.contains("code_map"),
+        "expected code_map tool call in stdout:\n{stdout}"
+    );
+
+    // The written file must contain the sentinel markers.
+    let file_content = result_file.unwrap_or_default();
+    assert!(
+        file_content.contains("zap:domain-map:begin"),
+        "expected domain-map sentinel in understanding.md content captured before restore"
+    );
+    assert!(
+        file_content.contains("## Domain Map"),
+        "expected '## Domain Map' section heading"
+    );
+}
+
 // ── B4: shell timeout param is respected ─────────────────────────────────────
 
 /// B4: shell timeout parameter is wired through — sleep 10 with 1s timeout

@@ -59,6 +59,7 @@
         <div class="sidebar-group">
           <span class="sidebar-heading">Core Features</span>
           <a class="sidebar-link" href="#init"               data-section="init">Project Init (/init)</a>
+          <a class="sidebar-link" href="#understand"         data-section="understand">Domain Map (/understand)</a>
           <a class="sidebar-link" href="#skills"             data-section="skills">Skill-First Context</a>
           <a class="sidebar-link" href="#code-index"         data-section="code-index">Code Graph</a>
           <a class="sidebar-link" href="#context-visibility" data-section="context-visibility">Context Visibility</a>
@@ -310,6 +311,65 @@ mvn clean install &amp;&amp; mvn test
 
         <div class="callout callout-tip">
           <strong>After /init:</strong> Every future session starts informed. The agent already knows your build commands, architecture, and what you worked on last time. You never re-explain the project.
+        </div>
+      </section>
+
+      <div class="section-divider"></div>
+
+      <!-- ── Domain Map ─────────────────────────────────────────────────── -->
+      <section class="doc-section" id="understand">
+        <h2>Domain Map <code style="font-size:0.75em;background:var(--surface-2);padding:2px 8px;border-radius:4px;">/understand</code></h2>
+        <p class="doc-lead">Run <code>/understand</code> after <code>/init</code> to extract a structured business-domain map — which modules own auth, billing, storage, and so on. One LLM call, pure <code>code_map</code> output, no source-file reads needed.</p>
+
+        <div class="stat-row">
+          <div class="stat-card"><div class="stat-num">1</div><div class="stat-label">LLM call</div></div>
+          <div class="stat-card"><div class="stat-num">0</div><div class="stat-label">Source files read</div></div>
+          <div class="stat-card"><div class="stat-num">Auto</div><div class="stat-label">Staleness detection</div></div>
+        </div>
+
+        <div class="subsection-title">What it produces</div>
+        <div class="feature-row">
+          <div class="feature-row-item">
+            <h4>Business Domains table</h4>
+            <p>Each distinct concern — auth, billing, queuing, etc. — mapped to the files and key function names that implement it. Navigate straight to the right module, no guessing.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Cross-Cutting Concerns</h4>
+            <p>Infrastructure every domain touches: error handling, logging, config, DB, serialization. Helps the agent know what to check before changing something low-level.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Dependency direction</h4>
+            <p>One-line layering rule (e.g. <em>tools → session → agent_core; nothing imports upward</em>) so the agent never suggests a circular import.</p>
+          </div>
+        </div>
+
+        <div class="subsection-title">Example output in .zap/understanding.md</div>
+        <div class="code-block"><span class="c-dim">## Domain Map</span>
+
+<span class="c-dim">### Business Domains</span>
+| Domain        | Owns                                    | Key entry points           |
+|---------------|-----------------------------------------|----------------------------|
+| Auth          | src/auth.rs, src/session/mod.rs         | `authenticate`, `Session::new` |
+| Code indexing | src/code_index/                         | `index_dir`, `global_callers_of` |
+| LLM I/O       | src/llm_client/                         | `send`, `stream`           |
+| Tool dispatch | src/tools/mod.rs                        | `ToolRegistry::execute`    |
+| Agent loop    | src/session/mod.rs, src/agent_core.rs   | `handle_user_turn`         |
+
+<span class="c-dim">### Cross-Cutting Concerns</span>
+- Error handling: `anyhow::Result` everywhere; tool errors surfaced as text responses
+- Logging: `crate::log::write` (file-only, never stdout)
+- Config: `Config` struct in src/config.rs, loaded once at startup
+
+<span class="c-dim">### Dependency Direction</span>
+tools → session → agent_core; llm_client ← session only; nothing imports session from tools</div>
+
+        <div class="subsection-title">Staleness detection</div>
+        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:16px;">
+          Zap records how many source modules existed when <code>/understand</code> last ran. If the count drifts more than 10% (new modules added, old ones removed), the system prompt shows a nudge — <em>"project structure has changed — run /understand to update the domain map"</em> — so the map stays accurate without any manual bookkeeping.
+        </p>
+
+        <div class="callout callout-tip">
+          <strong>Workflow:</strong> <code>/init</code> → <code>/understand</code> → done. The domain map is injected into every future session automatically alongside the navigation map.
         </div>
       </section>
 
@@ -1030,7 +1090,9 @@ Tests use testcontainers — don't mock the database.</div>
               </tr>
             </thead>
             <tbody>
-              <tr><td><code>/init</code></td><td>Build (or rebuild) the code index for the current project</td></tr>
+              <tr><td><code>/init</code></td><td>Build the code index and write project knowledge files (ZAP.md, understanding.md)</td></tr>
+              <tr><td><code>/understand</code></td><td>Extract a business-domain map from the code index — one LLM call, no file reads</td></tr>
+              <tr><td><code>/index</code></td><td>Rebuild the code index after large refactors</td></tr>
               <tr><td><code>/skills</code></td><td>List loaded skills and which triggered last</td></tr>
               <tr><td><code>/context</code></td><td>Show context window with token counts per message</td></tr>
               <tr><td><code>/context drop N</code></td><td>Drop message at index N</td></tr>

@@ -7,15 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
-### `/understand` — domain extraction (v0.15.52)
+### `/understand` — domain extraction + website docs + E2E test (v0.15.53)
 
-Adds a `/understand` command that makes one LLM call using only `code_map` output to extract the project's business-domain map and write it to `.zap/understanding.md`. The domain section is wrapped in sentinel comments so it survives future `/understand` refreshes without destroying other content. Auto-staleness detection: if the top-level source module count drifts >10% from when the map was last generated, the system prompt includes a nudge to re-run `/understand`. 9 new tests cover section append, replace, trailing-content preservation, prompt content, and staleness threshold logic.
+Adds a `/understand` command that makes one LLM call using only `code_map` output to extract the project's business-domain map and write it to `.zap/understanding.md`. The domain section is wrapped in sentinel comments so it survives future `/understand` refreshes without destroying other content. Auto-staleness detection: if the top-level source module count drifts >10% from when the map was last generated, the system prompt includes a nudge to re-run `/understand`. 6 unit tests (domain_map.rs) + 1 E2E test (sdk_e2e b5) that spawns a real zap binary, sends the domain prompt, and asserts `code_map` was called and sentinels appear in the written file.
 
-- [src/project.rs](src/project.rs): `build_domain_extraction_prompt`, `save_domain_section_to`, `save_domain_section`, `has_domain_map`, `domain_map_is_stale`, `source_module_count`, `mark_domain_map_current`; `domain_module_count` field added to `ProjectMeta`
+- [src/domain_map.rs](src/domain_map.rs): `build_domain_extraction_prompt`, `save_domain_section_to`, `save_domain_section`, `has_domain_map`, `domain_map_is_stale`, `source_module_count`, `mark_domain_map_current`; 6 unit tests
+- [src/project.rs](src/project.rs): `domain_module_count` field added to `ProjectMeta`; re-exports from `domain_map`
 - [src/session/commands/code.rs](src/session/commands/code.rs): `cmd_understand` method
 - [src/session/mod.rs](src/session/mod.rs): `/understand` command dispatch with `mark_domain_map_current` on success
 - [src/context_manager.rs](src/context_manager.rs): staleness nudge section in system prompt
 - [src/tui/mod.rs](src/tui/mod.rs): `domain_module_count: None` in `ProjectMeta` initializer
+- [tests/sdk_e2e.rs](tests/sdk_e2e.rs): `b5_understand_writes_domain_map` E2E test (ignored, requires API key)
+- [website/docs.html](website/docs.html): `/understand` section, sidebar link, commands table entry
 
 ### ripple_analysis — BFS tests + closure injection (v0.15.50)
 
