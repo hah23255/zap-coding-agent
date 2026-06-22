@@ -93,61 +93,56 @@ pub fn mark_domain_map_current() {
 /// Build the LLM prompt that drives domain extraction.
 /// Pure function — testable without an LLM.
 pub fn build_domain_extraction_prompt() -> String {
-    "Map the business domains of this codebase from CODE STRUCTURE, not from documentation.\n\
+    "Map the business domains of this codebase from CODE STRUCTURE only.\n\
      \n\
-     STRICT RULES:\n\
-     - NEVER read README.md, CLAUDE.md, AGENTS.md, or any other markdown/doc files.\n\
-     - NEVER read package manifests for domain info (one manifest read for tech stack only).\n\
-     - All domain insights must come from actual source code structure.\n\
+     STRICT RULES — read before doing anything:\n\
+     - NEVER read .zap/understanding.md (do not recycle old output)\n\
+     - NEVER read README.md, CLAUDE.md, AGENTS.md, or any markdown/doc file\n\
+     - ONE manifest read allowed (Cargo.toml / package.json / go.mod / *.csproj) for tech stack only\n\
+     - Every claim in your output must be grounded in code_map results, not docs\n\
      \n\
-     Steps:\n\
-     1. `code_map '.'` — see the full project layout and top-level structure\n\
-     2. `code_map` on the main source directories (src/, app/, lib/, Services/, Controllers/, \
-        pages/, api/, etc.) — repeat for each major directory to get symbol-level detail\n\
-     3. One `read_file` on a package manifest (Cargo.toml / package.json / go.mod / \
-        *.csproj / pom.xml) for tech stack identification only\n\
+     Exploration — REQUIRED minimum 3 code_map calls:\n\
+     1. `code_map '.'` — top-level layout, identify the main source directories\n\
+     2. `code_map '<main-src-dir>'` — e.g. src/, lib/, Services/, Controllers/, app/, pages/, api/\n\
+     3. `code_map` on 1-2 more subdirectories that look like distinct domains\n\
+     Repeat for more directories if the codebase has multiple top-level areas.\n\
      \n\
-     Your job is to surface things the documentation does NOT say:\n\
-     - Which modules are the most connected (called from many places)?\n\
-     - What are the real entry points vs peripheral code?\n\
-     - Are there clusters of files that belong together as a domain?\n\
-     - What cross-cutting patterns appear repeatedly across the codebase?\n\
+     From the code_map output, extract:\n\
+     - Which directories/files own each business concern?\n\
+     - Which symbols (functions/classes) are the real entry points?\n\
+     - Which files appear in many call chains (hotspots)?\n\
+     - What layering pattern does the code enforce?\n\
      \n\
-     Write the result to `.zap/understanding.md` using `write_file`. Merge — do NOT overwrite \
-     the file. Only add or replace the Domain Map section using these exact sentinels:\n\
+     Output — write ONLY the domain section using edit_file on `.zap/understanding.md`.\n\
+     Replace the block between these exact sentinels (add them if absent):\n\
      \n\
      <!-- zap:domain-map:begin -->\n\
      ## Domain Map\n\
      ...\n\
      <!-- zap:domain-map:end -->\n\
      \n\
-     The Domain Map must contain:\n\
+     The section must contain these four sub-sections and nothing else:\n\
      \n\
      ### Tech Stack\n\
-     One line: language(s), framework(s), DB, key libraries.\n\
+     One line: language · framework · DB · key libraries (from manifest only).\n\
      \n\
      ### Business Domains\n\
-     Table: | Domain | Source paths | Key symbols |\n\
-     Each row = one distinct business concern (auth, billing, notifications, etc.) \
-     with the files/dirs that implement it and 2-3 real function/class names found in \
-     the code.\n\
+     Table: | Domain | Source path(s) | Key entry points |\n\
+     One row per distinct business concern. Key entry points = real function/class names \
+     seen in code_map output, not invented names.\n\
      \n\
      ### Cross-Cutting Concerns\n\
-     Bullet list of plumbing every domain touches (logging, error handling, config, DB \
-     access, serialization). Include the actual module/file that owns each concern.\n\
-     \n\
-     ### Dependency Direction\n\
-     One sentence: the layering rule observed in the code \
-     (e.g. 'Controllers → Services → Repositories → DB; no upward imports').\n\
+     Bullet list: each item = concern name + the file/module that owns it \
+     (e.g. '- Logging: src/log.rs'). Only include concerns actually visible in code_map.\n\
      \n\
      ### Hotspots\n\
-     Up to 5 files/modules that appear most connected or central based on code_map output. \
-     These are the highest-leverage files for understanding the system.\n\
+     Up to 5 files ranked by centrality (most symbols + most called). \
+     Format: `path/to/file.rs — reason it's central`.\n\
      \n\
-     Rules: ≤ 120 chars per table row. Facts and file paths only — no narrative prose. \
-     Every claim must be grounded in what code_map showed, not documentation.\n\
+     Formatting rules: ≤ 120 chars per table row. No narrative prose — file paths and \
+     symbol names only. Do not invent names not seen in code_map output.\n\
      \n\
-     Start your reply: 'Domain map via: [list the exact tool calls made]'."
+     Start your reply with: 'Domain map via: [list all code_map calls made]'."
         .to_string()
 }
 

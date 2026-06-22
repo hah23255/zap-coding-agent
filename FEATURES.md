@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `/understand` prompt v3: ban recycling old output, require 3+ code_map calls (v0.15.59)
+
+Second prompt fix pass. Root cause of still-poor output: model was reading `.zap/understanding.md` first and re-merging the old domain map rather than doing fresh analysis, even after the v0.15.58 doc-file prohibition.
+
+Changes:
+- **"NEVER read .zap/understanding.md"** added as rule #1 — closes the recycling loop
+- **Minimum 3 `code_map` calls required** — must explore top-level layout, main source dir, and 1-2 subdomain directories; repeat for multi-area codebases
+- **"Do not invent names"** rule — all symbols in output must be visible in code_map results
+- Simplified the write instruction to `edit_file` only (no merge language that tempted the model to read first)
+
+- [src/domain_map.rs](src/domain_map.rs): `build_domain_extraction_prompt()` updated; all 6 unit tests pass
+
 ### `/understand` prompt: block doc files, add Hotspots section (v0.15.58)
 
 Fixed the root cause of low-quality `/understand` output: the model was reading `CLAUDE.md`/`README.md` and paraphrasing them instead of analysing code structure. Two fixes:
