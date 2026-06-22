@@ -11,6 +11,7 @@ pub fn spec_for_language(lang: &str) -> Option<ServerSpec> {
         "javascript" => Some(ServerSpec { binary: "typescript-language-server", args: &["--stdio"], lang: "javascript" }),
         "python"     => Some(ServerSpec { binary: "pylsp",                      args: &[],         lang: "python" }),
         "go"         => Some(ServerSpec { binary: "gopls",                      args: &[],         lang: "go" }),
+        "java"       => Some(ServerSpec { binary: "jdtls",                      args: &[],         lang: "java" }),
         _            => None,
     }
 }
@@ -33,6 +34,7 @@ pub fn language_for_path(path: &str) -> &'static str {
         "js" | "jsx" | "mjs" => "javascript",
         "py"                  => "python",
         "go"                  => "go",
+        "java"                => "java",
         _                     => "unknown",
     }
 }
@@ -51,6 +53,7 @@ mod tests {
         assert_eq!(language_for_path("unknown.xyz"),  "unknown");
         assert_eq!(language_for_path("app.js"),       "javascript");
         assert_eq!(language_for_path("mod.mjs"),      "javascript");
+        assert_eq!(language_for_path("Main.java"),    "java");
     }
 
     #[test]
@@ -60,6 +63,7 @@ mod tests {
         assert!(spec_for_language("javascript").is_some());
         assert!(spec_for_language("python").is_some());
         assert!(spec_for_language("go").is_some());
+        assert!(spec_for_language("java").is_some());
         assert!(spec_for_language("cobol").is_none());
     }
 }

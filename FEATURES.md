@@ -20,6 +20,12 @@ BFS walk of the call graph to show who calls a symbol, who calls those callers, 
 - [src/tools/ripple.rs](src/tools/ripple.rs): `RippleAnalysisTool`, `ripple_bfs`, `format_ripple`, `extract_fn_name`, `shorten_path` — 14 unit tests
 - [src/tools/mod.rs](src/tools/mod.rs): registered `RippleAnalysisTool`
 
+### LSP Java support via jdtls (v0.15.51)
+
+Added Java to the LSP language map. `.java` files now map to `jdtls` (Eclipse JDT Language Server), installable via `brew install jdtls`. Tests cover both the extension-to-language mapping and the spec lookup.
+
+- [src/lsp/servers.rs](src/lsp/servers.rs): added `"java" → jdtls` in `spec_for_language`, `"java"` extension in `language_for_path`, and two test assertions
+
 ### LSP client module skeleton (Task 1 of lsp-integration) + code-review fixes
 
 Adds `src/lsp/` — a thin async-lsp wrapper that will back future LSP tools (go-to-definition, hover, diagnostics). No tools are wired yet; this task establishes the module structure and verifies it compiles. A follow-up code-review pass fixed child-process leaks, URL encoding, dead code, and mutex-poison panics.
