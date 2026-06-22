@@ -76,6 +76,12 @@ The LSP fallback in `find_definition` had a race condition: `has_client_for()` c
 - [src/lsp/mod.rs](src/lsp/mod.rs): new `get_client_if_alive()` method atomically checks client liveness and returns a mutable reference, or None if dead (and silently evicts it); never spawns a new server
 - [src/tools/search/mod.rs](src/tools/search/mod.rs): LSP fallback block now uses `get_client_if_alive()` instead of the `has_client_for()` + `client_for()` pattern; simplified nested-if chain as a result
 
+### LSP vs AST tool guidance in system prompt (Task 8 of lsp-integration)
+
+Added a new "LSP tools (semantic, live)" section to the system prompt in `src/context_manager.rs` explaining when to use each of the three new LSP tools (`get_diagnostics`, `lsp_definition`, `lsp_type_at`) vs the existing AST tools. Provides decision guidance: structural questions → AST tools; post-edit correctness → `get_diagnostics`; cross-crate resolution → `lsp_definition`; expression types → `lsp_type_at`.
+
+- [src/context_manager.rs](src/context_manager.rs): added ~27-line LSP tool guidance section after Code Navigation Strategy
+
 ### Background index errors no longer block the TUI (v0.15.37)
 
 Background index WARN/ERROR logs now display as warning bubbles instead of hijacking the streaming state. Previously, a background indexer error sent `LlmChunk` to the TUI channel, which unconditionally set `state = AppState::Thinking` — trapping the user because Ctrl+C in Thinking state mapped to `Cancel` (a no-op in the idle path). The indexer also now reads files via `read()` + `from_utf8_lossy` so files with invalid UTF-8 index with replacement chars instead of failing; and the file path is included in error messages so the culprit is identifiable in logs.
