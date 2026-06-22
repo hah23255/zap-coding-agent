@@ -287,7 +287,7 @@ api_key = <span class="c-str">"sk-..."</span></div>
             <thead><tr><th>File</th><th>What it contains</th><th>Loaded when</th></tr></thead>
             <tbody>
               <tr><td><code>ZAP.md</code></td><td>Project overview, build/test commands, architecture, do-not-touch list</td><td>Every session</td></tr>
-              <tr><td><code>.zap/understanding.md</code></td><td>Module map, data flows, non-obvious patterns, constraints</td><td>Every session</td></tr>
+              <tr><td><code>.zap/understanding.md</code></td><td>Navigation map (module layout, entry points, constraints) + business-domain map (added by <code>/understand</code>)</td><td>Every session</td></tr>
               <tr><td><code>.zap/context.md</code></td><td>Last session: goal, files touched, what's next (auto-updated on exit)</td><td>Session start</td></tr>
               <tr><td><code>.zap/session_log.md</code></td><td>History of all past sessions indexed by date</td><td>On request</td></tr>
             </tbody>
@@ -343,22 +343,29 @@ mvn clean install &amp;&amp; mvn test
           </div>
         </div>
 
-        <div class="subsection-title">Example output in .zap/understanding.md</div>
+        <div class="subsection-title">Real output — run on the zap repo itself</div>
+        <p style="color:var(--text-2);font-size:0.875rem;margin-bottom:10px;">Two <code>code_map</code> calls, zero source-file reads, one <code>edit_file</code> write. Total: ~80 seconds including LLM round-trip.</p>
         <div class="code-block"><span class="c-dim">## Domain Map</span>
 
 <span class="c-dim">### Business Domains</span>
-| Domain        | Owns                                    | Key entry points           |
-|---------------|-----------------------------------------|----------------------------|
-| Auth          | src/auth.rs, src/session/mod.rs         | `authenticate`, `Session::new` |
-| Code indexing | src/code_index/                         | `index_dir`, `global_callers_of` |
-| LLM I/O       | src/llm_client/                         | `send`, `stream`           |
-| Tool dispatch | src/tools/mod.rs                        | `ToolRegistry::execute`    |
-| Agent loop    | src/session/mod.rs, src/agent_core.rs   | `handle_user_turn`         |
+
+| Domain                   | Owns                                      | Key entry points               |
+|--------------------------|-------------------------------------------|-------------------------------|
+| Agent runtime            | agent_core, cli, main, lib                | authenticate, Session::new    |
+| LLM provider integration | llm_client/*, http                        | send, stream                  |
+| Tool execution + safety  | tools/*, permission_manager, shell_runner | ToolRegistry::execute         |
+| Project context + prompt | context_manager, project, plan_execution  | build_system_prompt           |
+| Code intelligence        | code_index/*                              | index_dir, global_callers_of  |
+| MCP integration          | mcp                                       | mcp_connect, list_tools       |
+| Persistence + memory     | persistence, project                      | init, save_session_context    |
+| Skills + workflow        | skill_manager, default_skills/*           | detect_domain_scope           |
+| Remote session sharing   | remote, remote_channel                    | spawn_tunnel, broadcast       |
 
 <span class="c-dim">### Cross-Cutting Concerns</span>
-- Error handling: `anyhow::Result` everywhere; tool errors surfaced as text responses
-- Logging: `crate::log::write` (file-only, never stdout)
-- Config: `Config` struct in src/config.rs, loaded once at startup
+- Error handling: anyhow::Result everywhere; tool errors surfaced as text responses
+- Logging: crate::log::write (file-only, never stdout)
+- Config: Config struct in src/config.rs, loaded once at startup
+- Security: permission_manager, secret_scanner, audit enforce approval + logging
 
 <span class="c-dim">### Dependency Direction</span>
 tools → session → agent_core; llm_client ← session only; nothing imports session from tools</div>

@@ -79,7 +79,7 @@ zap maintains four project context files, each updated at a specific time to kee
 | File | Updated when | What it contains | Loaded when |
 |---|---|---|---|
 | `ZAP.md` | `/init` (manual, once) | Project overview, build commands, architecture, do-not-touch list | Every session (on-demand) |
-| `.zap/understanding.md` | `/init` (manual, once) | Deep technical map: modules, data flows, patterns, constraints | Every session (on-demand) |
+| `.zap/understanding.md` | `/init` + `/understand` | Navigation map + business-domain map | Every session (on-demand) |
 | `.zap/context.md` | End of every session (auto) | Last session: goal, files touched, what's next | Session start (on-demand) |
 | `.zap/session_log.md` | Every session (auto) | History of all past sessions, indexed by date | On request (on-demand) |
 
@@ -88,8 +88,51 @@ These files are never pre-loaded into the context window — the model reads the
 ### The result
 
 - **First session:** `/init` analyses your repo and bootstraps all project knowledge in ~30 seconds
+- **Run `/understand`:** One LLM call maps every business domain to the files that own it — the agent navigates straight to the right module with no guessing
 - **Returning sessions:** The agent already knows what you were working on, which files changed, and what was left unfinished
 - **Every turn:** Skills inject only what's relevant, the index tells the agent what exists, and casual messages skip the overhead entirely
+
+### Real output: `/understand` run on the zap repo itself
+
+```
+You: /understand
+zap: ⚡ Extracting business domain map (one LLM call)…
+
+  ↳ code_map '.'     → 2000 symbols  (6ms)
+  ↳ code_map 'src'   → 1356 symbols  (3ms)
+  ↳ edit_file '.zap/understanding.md'  ← domain map written
+```
+
+What it wrote into `.zap/understanding.md`:
+
+```markdown
+## Domain Map
+
+### Business Domains
+
+| Domain                   | Owns                                     | Key entry points                    |
+|--------------------------|------------------------------------------|-------------------------------------|
+| Agent runtime            | agent_core, cli, main, lib               | authenticate, Session::new          |
+| LLM provider integration | llm_client/*, http                       | send, stream                        |
+| Tool execution + safety  | tools/*, permission_manager, shell_runner| ToolRegistry::execute               |
+| Project context + prompt | context_manager, project, plan_execution | build_system_prompt, handle_user_turn|
+| Code intelligence        | code_index/*                             | index_dir, global_callers_of        |
+| MCP integration          | mcp                                      | mcp_connect, list_tools             |
+| Persistence + memory     | persistence, project                     | init, save_session_context          |
+| Skills + workflow        | skill_manager, default_skills/*          | detect_domain_scope                 |
+| Remote session sharing   | remote, remote_channel                   | spawn_tunnel, broadcast             |
+
+### Cross-Cutting Concerns
+- Error handling: `anyhow::Result` everywhere; tool errors surfaced as text responses
+- Logging: `crate::log::write` (file-only, never stdout)
+- Config: `Config` struct in src/config.rs, loaded once at startup
+- Security: `permission_manager`, `secret_scanner`, `audit` enforce approval and logging
+
+### Dependency Direction
+tools → session → agent_core; llm_client ← session only; nothing imports session from tools
+```
+
+Two `code_map` calls, zero source file reads, one `edit_file`. The domain map is injected into every future session automatically.
 
 ---
 

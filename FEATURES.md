@@ -7,6 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `/understand` — real examples in README + website (v0.15.54)
+
+Added real output from running `/understand` on the zap repo itself (the domain map the agent actually wrote during E2E testing) to both README.md and website/docs.html. The example shows the exact tool calls (2× code_map, 1× edit_file), timing, and the full domain map table.
+
+- [README.md](README.md): "Real output: /understand run on the zap repo itself" section with terminal trace + rendered domain map
+- [website/docs.html](website/docs.html): "Real output — run on the zap repo itself" code block replacing the placeholder example
+
 ### `/understand` — domain extraction + website docs + E2E test (v0.15.53)
 
 Adds a `/understand` command that makes one LLM call using only `code_map` output to extract the project's business-domain map and write it to `.zap/understanding.md`. The domain section is wrapped in sentinel comments so it survives future `/understand` refreshes without destroying other content. Auto-staleness detection: if the top-level source module count drifts >10% from when the map was last generated, the system prompt includes a nudge to re-run `/understand`. 6 unit tests (domain_map.rs) + 1 E2E test (sdk_e2e b5) that spawns a real zap binary, sends the domain prompt, and asserts `code_map` was called and sentinels appear in the written file.
