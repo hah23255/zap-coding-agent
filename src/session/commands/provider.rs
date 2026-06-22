@@ -75,10 +75,33 @@ impl Session {
             ProviderDef { slug: "custom",     name: "Custom (OpenAI-compatible)", hint: "any OpenAI-compatible endpoint",               kind: ProviderKind::OpenAi,    models: vec!["Other…".into()],                                                                base_url: None,                                                                                needs_key: false, coming_soon: false, auth_header: None,       ready: false },
         ];
 
-        let labels: Vec<String> = providers.iter().map(|p| {
+        let mut labels: Vec<String> = providers.iter().map(|p| {
             if p.coming_soon { format!("{:<26}· {}  ◷ coming 16 Jun 2026", p.name, p.hint) }
             else             { format!("{:<26}· {}", p.name, p.hint) }
         }).collect();
+
+        // Append user-configured providers not already in the known list.
+        let known_slugs: std::collections::HashSet<&str> = provider_slugs().iter().copied().collect();
+        let user_entries: Vec<(String, String)> = {
+            let mut v: Vec<(String, String)> = config.all_providers
+                .iter()
+                .filter(|(slug, _)| !known_slugs.contains(slug.as_str()))
+                .map(|(slug, entry)| {
+                    let model = entry.model.as_deref().unwrap_or("?");
+                    let base = entry.base_url.as_deref()
+                        .unwrap_or("custom")
+                        .trim_end_matches("/chat/completions")
+                        .trim_end_matches('/');
+                    let active = if slug == &config.provider_slug { " ✓" } else { "" };
+                    (slug.clone(), format!("{:<26}· {} — {}{}", slug, model, base, active))
+                })
+                .collect();
+            v.sort_by(|a, b| a.0.cmp(&b.0));
+            v
+        };
+        for (_, label) in &user_entries {
+            labels.push(label.clone());
+        }
 
         let cfg = crate::ui::inquire_render_config();
 
@@ -94,6 +117,32 @@ impl Session {
         };
 
         let idx = labels.iter().position(|l| l == &chosen).unwrap_or(0);
+
+        // User-configured provider selected (beyond the hardcoded list).
+        if idx >= providers.len() {
+            let (slug, _) = &user_entries[idx - providers.len()];
+            let entry = config.all_providers.get(slug);
+            let current_model = entry.and_then(|e| e.model.clone()).unwrap_or_default();
+            let model_input = match Text::new("Model:")
+                .with_initial_value(&current_model)
+                .with_render_config(cfg)
+                .prompt_skippable()
+            {
+                Ok(Some(m)) if !m.trim().is_empty() => m.trim().to_string(),
+                _ => return,
+            };
+            let mut new_config = config.clone();
+            new_config.provider_slug = slug.clone();
+            if let Some(e) = new_config.all_providers.get_mut(slug) {
+                e.model = Some(model_input.clone());
+            }
+            match new_config.save() {
+                Ok(_)  => println!("  {} Switched to {} · {}  {}", "✓".green(), slug.cyan().bold(), model_input.cyan(), "(saved to ~/.agent.toml)".dimmed()),
+                Err(e) => println!("  {} Switched to {} · {}  {} {}", "✓".green(), slug.cyan().bold(), model_input.cyan(), "warn: could not save:".yellow(), e),
+            }
+            return;
+        }
+
         let def = &providers[idx];
 
         if def.coming_soon {
@@ -232,8 +281,22 @@ impl Session {
                 return;
             }
         };
+        // Build an authenticated request — pass the same API key and extra_headers
+        // that chat completions use, so gated /v1/models endpoints don't 401.
+        let entry = self.config.all_providers.get(&self.config.provider_slug);
         let client = crate::http::client();
-        match client.get(&url).send().await {
+        let mut req = client.get(&url);
+        if let Some(e) = entry {
+            if let Some(key) = &e.api_key {
+                if !key.is_empty() && !e.extra_headers.contains_key("Authorization") {
+                    req = req.header("Authorization", format!("Bearer {}", key));
+                }
+            }
+            for (k, v) in &e.extra_headers {
+                req = req.header(k, v);
+            }
+        }
+        match req.send().await {
             Ok(resp) if resp.status().is_success() => {
                 match resp.json::<serde_json::Value>().await {
                     Ok(json) => {

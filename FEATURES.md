@@ -7,6 +7,16 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### `/models` auth + `/provider` shows user-configured providers (v0.15.61)
+
+Two gaps reported by a gateway user (issue #2):
+
+**`/models` 401 fix** — `cmd_models` was sending a bare GET with no auth. Now it reads the current provider's `api_key` and `extra_headers` from config and adds them to the request, exactly like chat completion calls. If the user has set `Authorization` in `extra_headers`, the default Bearer header is skipped to avoid conflicts.
+
+**`/provider` shows user-configured providers** — The picker was a hardcoded list; any provider configured in `~/.agent.toml` under a non-standard slug (e.g. `[providers.gomodel]`) was invisible. Now, user-configured providers not in the built-in list are appended at the bottom of the picker with a `✓` badge if currently active. Selecting one prompts for model (pre-filled from config) and saves.
+
+- [src/session/commands/provider.rs](src/session/commands/provider.rs): `cmd_models` adds auth + extra_headers to the `/models` request; `cmd_provider` appends user-configured entries from `config.all_providers`
+
 ### `/understand` trailing blank lines trimmed after LLM write (v0.15.60)
 
 The LLM sometimes wrote dozens of trailing blank lines to `.zap/understanding.md` via `edit_file`. The session handler only called `mark_domain_map_current()` after the turn — no normalization. Fix: after the turn succeeds, read the file and `trim_end_matches('\n')` before writing it back.
