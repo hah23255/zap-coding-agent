@@ -24,7 +24,7 @@ X-GoModel-User-Path = "my/user/path"
 - [src/config.rs](src/config.rs): `extra_headers: HashMap<String, String>` field on `ProviderEntry` (`#[serde(default)]`)
 - [src/llm_client/openai.rs](src/llm_client/openai.rs): `extra_headers: Vec<(String, String)>` applied in request builder
 - [src/llm_client/anthropic.rs](src/llm_client/anthropic.rs): same, applied after auth header
-- [src/llm_client/mod.rs](src/llm_client/mod.rs): threads extra_headers from entry into both clients
+- [src/llm_client/mod.rs](src/llm_client/mod.rs): threads extra_headers from entry into both clients; 3 HTTP-layer tests using axum mock server (OpenAI path, Anthropic path, control/no-headers)
 
 ### `/understand` — real examples in README + website (v0.15.54)
 

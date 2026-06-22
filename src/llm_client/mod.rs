@@ -507,3 +507,7 @@ mod credential_tests {
         assert_eq!(openai.auth_header, "Authorization");
     }
 }
+
+#[cfg(test)]
+mod extra_headers_http_tests;
+
