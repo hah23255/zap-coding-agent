@@ -633,6 +633,15 @@ impl Session {
                     }
                 }
             }
+            "/understand" => {
+                if let Some(prompt) = self.cmd_understand() {
+                    if let Err(e) = self.handle_user_turn(&prompt).await {
+                        println!("  {} agent error: {}", "✗".red(), e);
+                    } else {
+                        crate::project::mark_domain_map_current();
+                    }
+                }
+            }
             "/permissions" => self.cmd_permissions(arg),
             "/model"       => {
                 if arg.is_empty() { println!("  Usage: /model <model-id>"); }

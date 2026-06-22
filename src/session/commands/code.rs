@@ -46,6 +46,7 @@ impl Session {
             indexed: do_index,
             indexed_at: if do_index { Some(chrono::Utc::now().to_rfc3339()) } else { None },
             initialized_at: Some(chrono::Utc::now().to_rfc3339()),
+            domain_module_count: None,
         };
         if let Err(e) = crate::project::save_project_meta(&meta) {
             println!("  {} Could not write project.json: {}", "✗".red(), e);
@@ -84,6 +85,34 @@ impl Session {
             }
             Err(e) => { println!("  {} Could not write ZAP.md: {}", "✗".red(), e); None }
         }
+    }
+}
+
+impl Session {
+    /// `/understand` — ask the LLM to map business domains using only code_map output.
+    /// Returns the LLM prompt to dispatch, or None if nothing to do.
+    pub fn cmd_understand(&self) -> Option<String> {
+        let stale = crate::project::domain_map_is_stale();
+        let has_map = crate::project::has_domain_map();
+        if has_map && !stale {
+            println!(
+                "  {} Domain map is up to date. Run /understand --force to refresh.",
+                "◌".dimmed(),
+            );
+            return None;
+        }
+        if !std::path::Path::new(".zap/code.db").exists() {
+            println!(
+                "  {} Code index not built — run /index first, then /understand.",
+                "✗".red(),
+            );
+            return None;
+        }
+        println!(
+            "  {} Extracting business domain map (one LLM call)…",
+            "⚡".bright_yellow(),
+        );
+        Some(crate::project::build_domain_extraction_prompt())
     }
 }
 
@@ -166,11 +195,12 @@ impl Session {
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_else(|| "project".to_string());
         let meta = crate::project::ProjectMeta {
-            name:           cwd_name.clone(),
-            language:       languages,
-            indexed:        do_index,
-            indexed_at:     if do_index { Some(chrono::Utc::now().to_rfc3339()) } else { None },
-            initialized_at: Some(chrono::Utc::now().to_rfc3339()),
+            name:                cwd_name.clone(),
+            language:            languages,
+            indexed:             do_index,
+            indexed_at:          if do_index { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+            initialized_at:      Some(chrono::Utc::now().to_rfc3339()),
+            domain_module_count: None,
         };
         if let Err(e) = crate::project::save_project_meta(&meta) {
             sections.push(format!("✗ Could not write project.json: {}", e));

@@ -32,6 +32,10 @@ pub struct ProjectMeta {
     pub indexed_at: Option<String>,
     #[serde(default)]
     pub initialized_at: Option<String>,
+    /// Number of top-level source modules at the time `/understand` last ran.
+    /// Used to detect structural drift and prompt a refresh.
+    #[serde(default)]
+    pub domain_module_count: Option<usize>,
 }
 
 pub fn load_project_meta() -> Option<ProjectMeta> {
@@ -53,6 +57,16 @@ pub fn mark_indexed() {
     meta.indexed_at = Some(Utc::now().to_rfc3339());
     let _ = save_project_meta(&meta);
 }
+
+// Re-export domain_map functions so callers use crate::project::* unchanged.
+pub use crate::domain_map::{
+    build_domain_extraction_prompt,
+    domain_map_is_stale,
+    has_domain_map,
+    mark_domain_map_current,
+    save_domain_section,
+    source_module_count,
+};
 
 // ── context.md ────────────────────────────────────────────────────────────────
 
@@ -560,4 +574,5 @@ goal
         let r = extract_whats_next(&s).unwrap();
         assert_eq!(r.lines().count(), 3);
     }
+
 }

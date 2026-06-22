@@ -14,6 +14,7 @@ pub mod context_utils;
 pub mod llm_client;
 pub mod mcp;
 pub mod permission_manager;
+pub mod domain_map;
 pub mod persistence;
 pub mod project;
 pub mod secret_scanner;

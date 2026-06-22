@@ -487,6 +487,17 @@ pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Re
         );
     }
 
+    // ── Domain map staleness nudge ───────────────────────────────────────────
+    if db_exists && crate::project::domain_map_is_stale() && !crate::project::has_domain_map() {
+        sections.push(
+            "## Domain Map\n\
+             No business-domain map exists for this project yet. \
+             Run `/understand` to generate one — it takes one LLM call and tells you \
+             which modules own which business concerns (auth, billing, storage, etc.)."
+                .to_string(),
+        );
+    }
+
     // ── Git status ────────────────────────────────────────────────────────────
     if std::path::Path::new(".git").exists() {
         if let Some(status) = git_status_summary() {

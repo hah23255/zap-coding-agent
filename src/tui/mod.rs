@@ -80,7 +80,7 @@ pub async fn run_tui(config: &Config) -> Result<()> {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
-        let meta = crate::project::ProjectMeta { name, language, indexed: false, indexed_at: None, initialized_at: None };
+        let meta = crate::project::ProjectMeta { name, language, indexed: false, indexed_at: None, initialized_at: None, domain_module_count: None };
         let _ = crate::project::save_project_meta(&meta);
     }
 
