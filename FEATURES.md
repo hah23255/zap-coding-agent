@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### UX: /model picker, XDG config, grouped commands (v0.15.66)
+
+Three UX improvements inspired by ndaidong's issue #2 feedback:
+
+**1. `/model` → interactive picker**
+`/model` with no args now opens the model picker overlay (same UI as `/provider`'s model-selection step) instead of requiring you to type the model ID. Reuses `PendingProviderSwitch { picking_model: true }` — no new overlay needed.
+
+**2. XDG config path (`~/.config/zap/agent.toml`)**
+`config_path()` in `config/mod.rs` now prefers `~/.config/zap/agent.toml` (XDG standard) over `~/.agent.toml`. Read priority: XDG if it exists → legacy `~/.agent.toml` → default to XDG for new installs. `Config::save()` creates parent dirs with `create_dir_all`.
+
+**3. Command picker: grouped with section headers**
+`SLASH_COMMANDS` in `commands/mod.rs` is now organized into 5 sections (Actions, Browse, Tools, View, Session) using a `\x00` sentinel for non-selectable header entries. Headers render as italic dim labels in the picker. Navigation (up/down) skips headers. Headers only shown on full `/` list — hidden during prefix filtering.
+
 ### Image paste: clear errors for non-vision models/providers (v0.15.64)
 
 Previously, pasting an image gave "✓ Image attached" but the model responded "I don't have access to the image" because the image was silently dropped.

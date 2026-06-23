@@ -8,42 +8,58 @@ mod text;
 use crate::config::{Config, PermissionMode};
 use crate::session::Session;
 
-/// Full list of slash commands shown in the command picker.
+/// Section header sentinel — entries whose description starts with this are rendered
+/// as non-selectable group dividers in the command picker.
+pub const SECTION_PREFIX: &str = "\x00";
+
+/// Full list of slash commands shown in the command picker, grouped by function.
+/// Entries whose description starts with SECTION_PREFIX are non-selectable headers.
 pub const SLASH_COMMANDS: &[(&str, &str)] = &[
-    ("/help",              "show help"),
-    ("/config",            "provider, model, URL"),
-    ("/cost",              "token usage & estimated cost"),
-    ("/history",           "message count"),
-    ("/context",           "view and manage context — navigate turns, drop, compact, clear"),
-    ("/clear",             "clear conversation history"),
-    ("/compact",           "summarize and compress history"),
-    ("/new",               "start a fresh session (clear history)"),
-    ("/sessions",          "browse and resume old sessions"),
-    ("/cd",                "change working directory"),
-    ("/model",             "switch model for this session"),
-    ("/models",            "list available models"),
-    ("/provider",          "switch provider interactively"),
-    ("/permissions",       "change permission mode"),
-    ("/tasks",             "browse & execute task sessions"),
-    ("/think",             "toggle extended thinking (on/off/N tokens)"),
-    ("/attach",            "attach an image file to the next message"),
-    ("/paste",             "attach an image from the clipboard to the next message"),
-    ("/goal",              "run autonomously until condition met"),
-    ("/index [quality]",   "reindex AST symbols · /index quality = health report"),
-    ("/undo",              "undo last file edit"),
+    // ── Actions ─────────────────────────────────────────────────────────────
+    ("\x00 Actions",         "\x00"),
     ("/init",              "set up project (ZAP.md, index, project.json)"),
+    ("/provider",          "switch provider interactively"),
+    ("/model",             "pick model for this session"),
+    ("/permissions",       "change permission mode  ask|auto|deny"),
+    ("/think",             "toggle extended thinking  on|off|N tokens"),
+    ("/compact",           "summarise and compress history"),
+    ("/new",               "start a fresh session"),
+    ("/clear",             "clear conversation history"),
+    ("/undo",              "undo last file edit"),
+    ("/cd",                "change working directory"),
+    ("/goal",              "run autonomously until condition met"),
     ("/run",               "run a workflow"),
-    ("/memory",            "manage memory entries"),
-    ("/skill",             "list, use, show skills"),
-    ("/audit",             "show last N audit log lines"),
-    ("/hooks",             "list configured hooks"),
-    ("/mcp",               "view/edit MCP server configs"),
-    ("/remote [port]",     "start remote control — get a URL to code from anywhere"),
-    ("/remote stop",       "stop the remote control server and tunnel"),
-    ("/branch",            "create a conversation branch"),
+    // ── Browse ──────────────────────────────────────────────────────────────
+    ("\x00 Browse",          "\x00"),
+    ("/sessions",          "browse and resume old sessions"),
+    ("/context",           "navigate turns, drop, compact, clear"),
+    ("/diff",              "view staged/unstaged git diff"),
     ("/branches",          "list conversation branches"),
+    ("/branch",            "create a conversation branch"),
     ("/switch",            "switch conversation branch"),
     ("/merge",             "merge a conversation branch"),
+    ("/tasks",             "browse & execute task sessions"),
+    // ── Tools ───────────────────────────────────────────────────────────────
+    ("\x00 Tools",           "\x00"),
+    ("/skill",             "list, pin, show skills"),
+    ("/memory",            "manage memory entries"),
+    ("/index [quality]",   "reindex AST symbols  ·  quality = health report"),
+    ("/mcp",               "view/edit MCP server configs"),
+    ("/hooks",             "list configured hooks"),
+    ("/attach",            "attach an image file to the next message"),
+    ("/paste",             "attach clipboard image to the next message"),
+    ("/remote [port]",     "start remote control server"),
+    ("/remote stop",       "stop the remote control server"),
+    // ── View ────────────────────────────────────────────────────────────────
+    ("\x00 View",            "\x00"),
+    ("/help",              "show help"),
+    ("/config",            "show provider, model, URL"),
+    ("/cost",              "token usage & estimated cost"),
+    ("/history",           "message count"),
+    ("/models",            "list available models"),
+    ("/audit",             "show last N audit log lines"),
+    // ── Session ─────────────────────────────────────────────────────────────
+    ("\x00 Session",         "\x00"),
     ("/exit",              "quit zap"),
 ];
 
@@ -82,10 +98,17 @@ pub fn filter_commands(input: &str, skill_names: &[String]) -> Vec<(String, Stri
         .collect();
     }
 
-    // Default: built-in commands filtered by prefix
+    // Default: built-in commands filtered by prefix.
+    // Section headers (desc starts with SECTION_PREFIX) are included only when
+    // showing the full list (input == "/"); hidden during prefix filtering.
+    let show_all = lower == "/";
     let mut results: Vec<(String, String)> = SLASH_COMMANDS
         .iter()
-        .filter(|(cmd, _)| cmd.starts_with(lower.as_str()))
+        .filter(|(cmd, desc)| {
+            let is_header = desc.starts_with(SECTION_PREFIX);
+            if is_header { return show_all; }
+            cmd.starts_with(lower.as_str())
+        })
         .map(|(cmd, desc)| (cmd.to_string(), desc.to_string()))
         .collect();
 
@@ -122,8 +145,9 @@ pub fn could_be_skill_command(input: &str) -> bool {
 /// True if `name` (without leading '/') matches a built-in slash command.
 fn is_builtin_command(name: &str) -> bool {
     let slash = format!("/{}", name);
-    SLASH_COMMANDS.iter().any(|(cmd, _)| {
-        cmd.split_whitespace().next().unwrap_or(cmd) == slash.as_str()
+    SLASH_COMMANDS.iter().any(|(cmd, desc)| {
+        !desc.starts_with(SECTION_PREFIX)
+            && cmd.split_whitespace().next().unwrap_or(cmd) == slash.as_str()
     })
 }
 

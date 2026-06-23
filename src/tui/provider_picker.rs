@@ -1,6 +1,55 @@
 use super::app::{App, ProviderEntry, ProviderKind, ProviderPickerState};
 use crate::config::Config;
 
+/// Return the selectable model list for the currently active provider.
+/// Priority: live-fetch (local/gomodel) → TOML models map → static fallback per slug.
+pub(super) fn models_for_current_provider(config: &Config) -> Vec<String> {
+    let slug = &config.provider_slug;
+    if let Some(entry) = config.all_providers.get(slug) {
+        if let Some(ref url) = entry.base_url {
+            let fetched = crate::llm_client::fetch_openai_compatible_models_with_auth(
+                url, entry.api_key.as_deref(), &entry.extra_headers,
+            );
+            if !fetched.is_empty() {
+                let mut m = fetched;
+                m.push("Other…".into());
+                return m;
+            }
+        }
+        let mut m: Vec<String> = entry.models.keys().cloned().collect();
+        m.sort();
+        if !m.is_empty() {
+            m.push("Other…".into());
+            return m;
+        }
+        if let Some(ref model) = entry.model {
+            return vec![model.clone(), "Other…".into()];
+        }
+    }
+    // Static fallback keyed by slug
+    let mut m: Vec<String> = match slug.as_str() {
+        "anthropic"    => vec!["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5"],
+        "claude_code"  => vec!["claude-sonnet-4-6", "claude-opus-4-7"],
+        "openai"       => vec!["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
+        "codex"        => vec!["gpt-5.5"],
+        "gemini"       => vec!["gemini-2.0-flash", "gemini-2.5-pro", "gemini-2.5-flash"],
+        "deepseek"     => vec!["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner"],
+        "groq"         => vec!["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+        "mistral"      => vec!["mistral-large-latest", "codestral-latest", "mistral-small-latest"],
+        "xai"          => vec!["grok-3", "grok-3-mini", "grok-2"],
+        "together"     => vec!["meta-llama/Llama-3-70b-chat-hf", "Qwen/Qwen2.5-72B-Instruct-Turbo"],
+        "perplexity"   => vec!["sonar-pro", "sonar", "sonar-reasoning"],
+        "cohere"       => vec!["command-a-03-2025", "command-r7b-12-2024"],
+        "openrouter"   => vec!["anthropic/claude-opus-4.8", "anthropic/claude-sonnet-4.6", "openai/gpt-4.1", "google/gemini-2.5-pro", "deepseek/deepseek-r1"],
+        "lm_studio"    => vec!["qwen3-coder-30b", "devstral-small-2", "gemma-4-e4b"],
+        "ollama"       => vec!["llama3.2", "llama3.1:70b", "codellama", "qwen2.5-coder"],
+        "cerebras"     => vec!["gpt-oss-120b", "zai-glm-4.7"],
+        _              => vec![],
+    }.into_iter().map(String::from).collect();
+    m.push("Other…".into());
+    m
+}
+
 /// Build and open the provider picker overlay.
 pub(super) fn open_provider_picker(app: &mut App, config: &Config) {
     let gemini_ready = crate::llm_client::auth::check_gcloud_adc().is_some()

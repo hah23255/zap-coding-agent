@@ -73,6 +73,17 @@ pub(super) fn draw_picker_overlay(frame: &mut Frame, app: &App, area: Rect) {
             let idx = start + i;
             let is_sel = idx == sel;
 
+            // Section header — non-selectable, rendered as a dim label.
+            if desc.starts_with(super::super::commands::SECTION_PREFIX) {
+                let label: String = cmd.trim_start_matches('\x00').trim().to_string();
+                return Line::from(vec![
+                    Span::styled(
+                        format!(" {}", label),
+                        Style::default().fg(Color::Rgb(100, 95, 120)).italic(),
+                    ),
+                ]);
+            }
+
             let cmd_w = 18usize;
             let desc_max = (inner.width as usize).saturating_sub(cmd_w + 2);
             let desc_s: String = desc.chars().take(desc_max).collect();

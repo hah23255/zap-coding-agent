@@ -178,9 +178,28 @@ pub struct Config {
     pub all_providers: HashMap<String, ProviderEntry>,
 }
 
-// ── Config file (~/.agent.toml) ───────────────────────────────────────────────
+// ── Config file path ──────────────────────────────────────────────────────────
 
-/// Serde-deserialised view of ~/.agent.toml.
+/// Resolve the config file path.
+///
+/// Priority (first that exists wins):
+///   1. `~/.config/zap/agent.toml`  (XDG — preferred for new installs)
+///   2. `~/.agent.toml`             (legacy — kept for existing users)
+///
+/// If neither exists, returns the XDG path (used when saving for the first time).
+pub fn config_path() -> Option<std::path::PathBuf> {
+    let xdg  = dirs::config_dir().map(|d| d.join("zap").join("agent.toml"));
+    let home = dirs::home_dir().map(|h| h.join(".agent.toml"));
+    [xdg.clone(), home]
+        .into_iter()
+        .flatten()
+        .find(|p| p.exists())
+        .or(xdg)
+}
+
+// ── Config file (~/.agent.toml / ~/.config/zap/agent.toml) ───────────────────
+
+/// Serde-deserialised view of the config file.
 /// All fields are optional so a partial file is fine.
 #[derive(Debug, Deserialize, Default)]
 struct FileConfig {
@@ -210,19 +229,16 @@ struct FileConfig {
 
 impl FileConfig {
     fn load() -> Self {
-        let path = dirs::home_dir()
-            .map(|h| h.join(".agent.toml"))
-            .filter(|p| p.exists());
-
-        let Some(path) = path else { return Self::default() };
-
+        let Some(path) = config_path().filter(|p| p.exists()) else {
+            return Self::default();
+        };
         match std::fs::read_to_string(&path) {
             Ok(contents) => toml::from_str(&contents).unwrap_or_else(|e| {
-                crate::zap_warn!("could not parse ~/.agent.toml: {}", e);
+                crate::zap_warn!("could not parse {}: {}", path.display(), e);
                 Self::default()
             }),
             Err(e) => {
-                crate::zap_warn!("could not read ~/.agent.toml: {}", e);
+                crate::zap_warn!("could not read {}: {}", path.display(), e);
                 Self::default()
             }
         }
@@ -362,11 +378,13 @@ impl Config {
         })
     }
 
-    /// Write current config back to ~/.agent.toml.
+    /// Write config to the active config path (XDG or legacy), creating the directory if needed.
     pub fn save(&self) -> Result<()> {
-        let path = dirs::home_dir()
-            .map(|h| h.join(".agent.toml"))
-            .ok_or_else(|| anyhow::anyhow!("cannot locate home directory"))?;
+        let path = config_path()
+            .ok_or_else(|| anyhow::anyhow!("cannot locate config directory"))?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         self.save_to(&path)
     }
 
@@ -379,7 +397,7 @@ impl Config {
         };
 
         let mut f = std::fs::File::create(path)?;
-        writeln!(f, "# ~/.agent.toml — managed by zap /provider")?;
+        writeln!(f, "# agent.toml — managed by zap /provider")?;
         writeln!(f, "provider        = {:?}", self.provider_slug)?;
         writeln!(f, "permission_mode = {:?}", pm_str)?;
         let sb_str = match self.sandbox {

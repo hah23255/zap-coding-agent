@@ -363,15 +363,17 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         KeyCode::Enter => {
             if matches!(app.state, AppState::Idle) {
                 if picker_active(app) {
-                    // Submit the currently highlighted picker item.
+                    // Submit the currently highlighted picker item (skip headers).
                     let items = filter_commands(&app.input, &app.skill_names);
                     let sel = app.picker_sel.min(items.len().saturating_sub(1));
-                    if let Some((cmd, _)) = items.get(sel) {
-                        let text = command_text(cmd);
-                        app.input.clear();
-                        app.cursor = 0;
-                        app.picker_sel = 0;
-                        return InputAction::Slash(text);
+                    if let Some((cmd, desc)) = items.get(sel) {
+                        if !desc.starts_with(super::commands::SECTION_PREFIX) {
+                            let text = command_text(cmd);
+                            app.input.clear();
+                            app.cursor = 0;
+                            app.picker_sel = 0;
+                            return InputAction::Slash(text);
+                        }
                     }
                 }
                 // No picker match: submit raw typed text.
@@ -413,7 +415,15 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
 
         KeyCode::Up => {
             if picker_active(app) {
-                app.picker_sel = app.picker_sel.saturating_sub(1);
+                let items = filter_commands(&app.input, &app.skill_names);
+                // Skip section headers when navigating up.
+                let mut new_sel = app.picker_sel.saturating_sub(1);
+                while new_sel > 0
+                    && items.get(new_sel).map(|(_, d)| d.starts_with(super::commands::SECTION_PREFIX)).unwrap_or(false)
+                {
+                    new_sel = new_sel.saturating_sub(1);
+                }
+                app.picker_sel = new_sel;
                 InputAction::None
             } else if matches!(app.state, AppState::Idle)
                 && !app.input.is_empty()
@@ -436,9 +446,21 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
 
         KeyCode::Down => {
             if picker_active(app) {
-                let count = filter_commands(&app.input, &app.skill_names).len();
+                let items = filter_commands(&app.input, &app.skill_names);
+                let count = items.len();
                 if count > 0 {
-                    app.picker_sel = (app.picker_sel + 1).min(count - 1);
+                    // Skip section headers when navigating down.
+                    let mut new_sel = (app.picker_sel + 1).min(count - 1);
+                    while new_sel < count - 1
+                        && items.get(new_sel).map(|(_, d)| d.starts_with(super::commands::SECTION_PREFIX)).unwrap_or(false)
+                    {
+                        new_sel += 1;
+                    }
+                    // Don't land on a header even at the last position.
+                    if items.get(new_sel).map(|(_, d)| d.starts_with(super::commands::SECTION_PREFIX)).unwrap_or(false) {
+                        new_sel = app.picker_sel; // stay
+                    }
+                    app.picker_sel = new_sel;
                 }
                 InputAction::None
             } else if matches!(app.state, AppState::Idle)

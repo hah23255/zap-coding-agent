@@ -105,6 +105,33 @@ pub(super) async fn handle_tui_slash(
         return Ok(false);
     }
 
+    // /model without arg → interactive model picker (navigate/select, not type).
+    if cmd == "/model" {
+        let slug = session.config.provider_slug.clone();
+        let kind_str = match session.config.provider {
+            crate::config::Provider::Anthropic => "anthropic",
+            crate::config::Provider::OpenAi    => "openai",
+        };
+        let models = super::provider_picker::models_for_current_provider(config);
+        // Pre-select the current model if it's in the list.
+        let model_sel = models.iter().position(|m| m == &session.model).unwrap_or(0);
+        app.api_key_input = Some(super::app::PendingProviderSwitch {
+            slug:             slug.clone(),
+            name:             slug.clone(),
+            models,
+            kind_str,
+            provider:         session.config.provider.clone(),
+            base_url:         session.config.base_url.clone(),
+            auth_header:      None,
+            input:            String::new(),
+            has_existing_key: !session.config.api_key.is_empty(),
+            picking_model:    true,
+            model_sel,
+            resolved_key:     Some(session.config.api_key.clone()),
+        });
+        return Ok(false);
+    }
+
     // 1. Try native inline handler (output rendered in a popup).
     if let Some(text) = super::commands::handle_inline(session, input, config) {
         if !text.is_empty() {
