@@ -23,6 +23,8 @@ Previously, pasting an image gave "✓ Image attached" but the model responded "
 
 **New public helper:** `local_model_supports_vision(model: &str) -> bool`
 
+Also added `!cfg!(test)` guard to the clipboard auto-paste in `handle_user_turn` to prevent test flakiness when the OS clipboard contains a large PNG.
+
 ### GoModel built-in in `/provider` picker; live model fetch with auth (v0.15.63)
 
 GoModel is now a first-class provider in the `/provider` picker — no manual `~/.agent.toml` editing required to see it. Appears alongside OpenAI, Anthropic, Groq, etc.

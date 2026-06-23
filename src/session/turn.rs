@@ -235,6 +235,7 @@ impl Session {
         // forwarding it to the app (e.g. iTerm2 rendering inline).
         if self.staged_images.is_empty()
             && crate::llm_client::provider_supports_vision(&self.config)
+            && !cfg!(test)
         {
             let tmp = "/tmp/zap_auto_paste.png";
             if crate::session::commands::paste_clipboard_image(tmp)
