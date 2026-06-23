@@ -61,9 +61,18 @@ pub fn untrusted_hint() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    // Cargo runs tests in parallel by default. All three tests below mutate the
+    // process-wide ZAP_TRUST_PROJECT env var, so they must run one at a time.
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
 
     #[test]
     fn env_var_enables_trust() {
+        let _g = env_lock();
         std::env::set_var("ZAP_TRUST_PROJECT", "1");
         assert!(project_trusted());
         std::env::remove_var("ZAP_TRUST_PROJECT");
@@ -73,6 +82,7 @@ mod tests {
     fn env_var_false_value_does_not_trust_by_itself() {
         // Note: other signals (marker file / trustfile) could still trust this
         // dir, so we only assert the env parser rejects non-truthy values.
+        let _g = env_lock();
         std::env::set_var("ZAP_TRUST_PROJECT", "0");
         assert!(!env_opt_in());
         std::env::set_var("ZAP_TRUST_PROJECT", "nope");
@@ -82,6 +92,7 @@ mod tests {
 
     #[test]
     fn truthy_env_values_parse() {
+        let _g = env_lock();
         for v in ["1", "true", "yes", " true "] {
             std::env::set_var("ZAP_TRUST_PROJECT", v);
             assert!(env_opt_in(), "value {v:?} should opt in");

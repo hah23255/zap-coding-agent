@@ -87,12 +87,12 @@ fn provider_entry_empty_models_is_fine() {
     assert!(e.models.is_empty());
 }
 
-// ── Config::save round-trip with models ───────────────────────────────────
+// ── Config::save_to round-trip with models and extra_headers ─────────────
+// Calls the real Config::save_to() so that any change to the serialization
+// logic is caught here rather than drifting silently.
 
 #[test]
 fn save_round_trips_models_and_extra_headers() {
-    let mut config = Config { provider_slug: "gomodel".to_string(), ..Default::default() };
-
     let mut models = HashMap::new();
     models.insert("xiaomi/mimo-v2.5".to_string(), ModelEntry {
         name: Some("mimo-v2.5".to_string()),
@@ -110,6 +110,7 @@ fn save_round_trips_models_and_extra_headers() {
     let mut extra_headers = HashMap::new();
     extra_headers.insert("X-Path".to_string(), "/zapagent".to_string());
 
+    let mut config = Config { provider_slug: "gomodel".to_string(), ..Default::default() };
     config.all_providers.insert("gomodel".to_string(), ProviderEntry {
         kind: Some("openai".to_string()),
         api_key: Some("sk-test".to_string()),
@@ -122,55 +123,53 @@ fn save_round_trips_models_and_extra_headers() {
         models,
     });
 
+    // Write via the real Config::save_to().
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("agent.toml");
-    let mut f = std::fs::File::create(&path).unwrap();
-    use std::io::Write;
+    config.save_to(&path).expect("save_to failed");
 
-    writeln!(f, "provider = \"gomodel\"").unwrap();
-    writeln!(f, "permission_mode = \"ask\"").unwrap();
-    writeln!(f).unwrap();
-
-    let entry = config.all_providers.get("gomodel").unwrap();
-    writeln!(f, "[providers.gomodel]").unwrap();
-    writeln!(f, "kind     = {:?}", entry.kind.as_deref().unwrap()).unwrap();
-    writeln!(f, "model    = {:?}", entry.model.as_deref().unwrap()).unwrap();
-    writeln!(f, "api_key  = {:?}", entry.api_key.as_deref().unwrap()).unwrap();
-    writeln!(f, "base_url = {:?}", entry.base_url.as_deref().unwrap()).unwrap();
-    writeln!(f).unwrap();
-
-    writeln!(f, "[providers.gomodel.extra_headers]").unwrap();
-    writeln!(f, "X-Path = {:?}", "/zapagent").unwrap();
-    writeln!(f).unwrap();
-
-    let mut model_ids: Vec<&String> = entry.models.keys().collect();
-    model_ids.sort();
-    for mid in model_ids {
-        let m = &entry.models[mid];
-        writeln!(f, r#"[providers.gomodel.models."{mid}"]"#).unwrap();
-        if let Some(ref n) = m.name { writeln!(f, "name = {:?}", n).unwrap(); }
-        if m.reasoning { writeln!(f, "reasoning = true").unwrap(); }
-        if let Some(c) = m.context { writeln!(f, "context = {c}").unwrap(); }
-        if let Some(o) = m.output { writeln!(f, "output = {o}").unwrap(); }
-        writeln!(f).unwrap();
-    }
-
+    // Parse back and assert round-trip fidelity.
     let contents = std::fs::read_to_string(&path).unwrap();
     #[derive(serde::Deserialize)]
     struct Outer { providers: HashMap<String, ProviderEntry> }
-    let parsed: Outer = toml::from_str(&contents).unwrap();
+    let parsed: Outer = toml::from_str(&contents)
+        .unwrap_or_else(|e| panic!("TOML parse failed:\n{contents}\nError: {e}"));
     let restored = parsed.providers.get("gomodel").unwrap();
 
+    assert_eq!(restored.api_key.as_deref(), Some("sk-test"));
+    assert_eq!(restored.model.as_deref(), Some("xiaomi/mimo-v2.5"));
+    assert_eq!(restored.base_url.as_deref(), Some("https://gw.example.com/v1/chat/completions"));
     assert_eq!(restored.extra_headers.get("X-Path").map(|s| s.as_str()), Some("/zapagent"));
     assert_eq!(restored.models.len(), 2);
+
     let m1 = restored.models.get("xiaomi/mimo-v2.5").unwrap();
     assert!(m1.reasoning);
     assert_eq!(m1.context, Some(1_000_000));
     assert_eq!(m1.output, Some(128_000));
+    assert_eq!(m1.name.as_deref(), Some("mimo-v2.5"));
+
     let m2 = restored.models.get("xiaomi/mimo-v2.5-pro").unwrap();
     assert!(!m2.reasoning);
     assert_eq!(m2.context, Some(500_000));
     assert!(m2.output.is_none());
+    assert_eq!(m2.name.as_deref(), Some("mimo-v2.5-pro"));
+}
+
+#[test]
+fn save_round_trips_provider_slug_and_permission_mode() {
+    // Verifies the top-level fields are written correctly by save_to().
+    let config = Config {
+        provider_slug: "my-gw".to_string(),
+        permission_mode: PermissionMode::Auto,
+        ..Default::default()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("agent.toml");
+    config.save_to(&path).expect("save_to failed");
+
+    let contents = std::fs::read_to_string(&path).unwrap();
+    assert!(contents.contains("provider        = \"my-gw\""), "slug missing:\n{contents}");
+    assert!(contents.contains("permission_mode = \"auto\""), "permission_mode missing:\n{contents}");
 }
 
 // ── configured_context_limit priority ────────────────────────────────────

@@ -134,9 +134,13 @@ pub(super) async fn run_task_planning_tui(session: &crate::session::Session) -> 
 }
 
 /// Paste clipboard image into the current message as a staged attachment.
+/// When `skip_text_fallback` is true, only image extraction is attempted
+/// (caller handles text separately). When false, text paste is also
+/// attempted as a fallback.
 pub(super) fn handle_paste_image(
     app: &mut super::app::App,
     session: &mut crate::session::Session,
+    skip_text_fallback: bool,
 ) {
     use super::app::{MsgRole, UiBlock, UiMessage};
     let tmp = "/tmp/zap_clipboard_paste.png";
@@ -175,6 +179,9 @@ pub(super) fn handle_paste_image(
     }
 
     // Image paste failed (or produced a tiny corrupt file) — try text paste.
+    if skip_text_fallback {
+        return; // caller will handle text separately
+    }
     if let Some(text) = crate::session::commands::paste_clipboard_text() {
         // Strip all trailing newlines/carriage-returns (clipboard tools often add one).
         let mut trimmed = text.as_str();
@@ -407,17 +414,31 @@ pub(super) fn apply_provider_switch(
         &slug,
         Some(kind_str),
     );
-    new_config.all_providers.insert(slug.clone(), crate::config::ProviderEntry {
-        kind: Some(kind_str.to_string()),
-        model: Some(model.clone()),
-        api_key: api_key.clone(),
-        context_window,
-        base_url: base_url.clone(),
-        credential_method: None,
-        auth_header,
-        extra_headers: Default::default(),
-        models: Default::default(),
-    });
+    // If this is an existing user-configured provider, preserve their extra_headers,
+    // models map, auth_header, etc. — only update the fields that changed (model, api_key).
+    let provider_entry = if let Some(existing) = base_config.all_providers.get(&slug) {
+        let mut e = existing.clone();
+        e.model = Some(model.clone());
+        if let Some(ref key) = api_key {
+            if !key.is_empty() {
+                e.api_key = api_key.clone();
+            }
+        }
+        e
+    } else {
+        crate::config::ProviderEntry {
+            kind: Some(kind_str.to_string()),
+            model: Some(model.clone()),
+            api_key: api_key.clone(),
+            context_window,
+            base_url: base_url.clone(),
+            credential_method: None,
+            auth_header,
+            extra_headers: Default::default(),
+            models: Default::default(),
+        }
+    };
+    new_config.all_providers.insert(slug.clone(), provider_entry);
     session.client = crate::llm_client::create_client(&new_config);
     session.model = model.clone();
     session.base_url = new_config.base_url.clone();

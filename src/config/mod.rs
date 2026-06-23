@@ -367,14 +367,18 @@ impl Config {
         let path = dirs::home_dir()
             .map(|h| h.join(".agent.toml"))
             .ok_or_else(|| anyhow::anyhow!("cannot locate home directory"))?;
+        self.save_to(&path)
+    }
 
+    /// Write config to an arbitrary path (used directly in tests).
+    pub(crate) fn save_to(&self, path: &std::path::Path) -> Result<()> {
         let pm_str = match self.permission_mode {
             PermissionMode::Ask  => "ask",
             PermissionMode::Auto => "auto",
             PermissionMode::Deny => "deny",
         };
 
-        let mut f = std::fs::File::create(&path)?;
+        let mut f = std::fs::File::create(path)?;
         writeln!(f, "# ~/.agent.toml — managed by zap /provider")?;
         writeln!(f, "provider        = {:?}", self.provider_slug)?;
         writeln!(f, "permission_mode = {:?}", pm_str)?;
@@ -457,7 +461,6 @@ impl Config {
                 model_ids.sort();
                 for model_id in model_ids {
                     let m = &entry.models[model_id];
-                    // Quote model IDs that contain characters needing TOML quoting (e.g. "/")
                     writeln!(f, r#"[providers.{}.models."{}"]"#, slug, model_id)?;
                     if let Some(ref name) = m.name {
                         writeln!(f, "name      = {:?}", name)?;
@@ -480,7 +483,7 @@ impl Config {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
         }
 
         Ok(())

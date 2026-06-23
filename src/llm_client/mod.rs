@@ -299,6 +299,16 @@ pub fn normalize_openai_url(base_url: Option<&str>) -> String {
 /// `base_url` is a chat completions endpoint (e.g. `http://localhost:1234/v1/chat/completions`).
 /// Returns model IDs on success, or an empty vec if the request fails.
 pub fn fetch_openai_compatible_models(base_url: &str) -> Vec<String> {
+    fetch_openai_compatible_models_with_auth(base_url, None, &Default::default())
+}
+
+/// Same as `fetch_openai_compatible_models` but sends an Authorization Bearer
+/// header and any `extra_headers` — needed for gated /v1/models endpoints.
+pub fn fetch_openai_compatible_models_with_auth(
+    base_url: &str,
+    api_key: Option<&str>,
+    extra_headers: &std::collections::HashMap<String, String>,
+) -> Vec<String> {
     let base = base_url
         .trim_end_matches('/')
         .strip_suffix("/chat/completions")
@@ -309,7 +319,16 @@ pub fn fetch_openai_compatible_models(base_url: &str) -> Vec<String> {
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .unwrap_or_default();
-    match client.get(&url).send() {
+    let mut req = client.get(&url);
+    if let Some(key) = api_key {
+        if !key.is_empty() && !extra_headers.contains_key("Authorization") {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+    }
+    for (k, v) in extra_headers {
+        req = req.header(k, v);
+    }
+    match req.send() {
         Ok(resp) if resp.status().is_success() => {
             match resp.json::<serde_json::Value>() {
                 Ok(json) => {

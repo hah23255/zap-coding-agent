@@ -7,6 +7,28 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### GoModel built-in in `/provider` picker; live model fetch with auth (v0.15.63)
+
+GoModel is now a first-class provider in the `/provider` picker — no manual `~/.agent.toml` editing required to see it. Appears alongside OpenAI, Anthropic, Groq, etc.
+
+**Model list behavior (priority order):**
+1. Live fetch from the configured gateway endpoint (with `api_key` + `extra_headers` auth) — same auth as chat completions
+2. Fall back to models defined in `[providers.gomodel.models.*]` in TOML
+3. Fall back to `Other…` (free-text entry)
+
+Also adds `fetch_openai_compatible_models_with_auth()` — a variant of the LM Studio model-fetch helper that accepts an API key and extra headers for authenticated `/v1/models` endpoints.
+
+Other fixes bundled in this release:
+- `apply_provider_switch` now preserves `extra_headers` and `models` when saving a provider that was already configured (previously wiped them on every TUI provider selection)
+- Trust test race condition fixed via `OnceLock<Mutex<()>>`
+- `Config::save_to(path)` extracted for testability; config tests split to `tests.rs` with real round-trip coverage
+
+- [src/tui/provider_picker.rs](src/tui/provider_picker.rs): provider picker list extracted from `turn_handler.rs`; GoModel entry with dynamic model fetch
+- [src/llm_client/mod.rs](src/llm_client/mod.rs): `fetch_openai_compatible_models_with_auth()`
+- [src/tui/lifecycle.rs](src/tui/lifecycle.rs): `apply_provider_switch` preserves existing entry on save
+- [src/config/mod.rs](src/config/mod.rs), [src/config/tests.rs](src/config/tests.rs): `save_to(path)` + round-trip tests
+- [src/trust.rs](src/trust.rs): env-var test mutex
+
 ### Per-model config in `~/.agent.toml` (v0.15.62)
 
 Adds `[providers.<slug>.models."<model-id>"]` support — users can set per-model `name`, `reasoning`, `context`, and `output` directly in config, similar to opencode.

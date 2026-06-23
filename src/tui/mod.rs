@@ -15,6 +15,7 @@ mod actions;
 mod git_info;
 mod goal;
 mod lifecycle;
+mod provider_picker;
 mod startup;
 mod text_parse;
 mod turn_handler;
@@ -212,9 +213,14 @@ async fn tui_loop(
                     if text.is_empty() {
                         // Terminal sent an empty paste — likely an image.
                         // Try OS clipboard extraction (image then text fallback).
-                        lifecycle::handle_paste_image(app, session);
-                    } else if actions::handle_action(input::InputAction::PasteText(text), app, session, terminal, config).await? {
-                        break;
+                        lifecycle::handle_paste_image(app, session, false);
+                    } else {
+                        // Text paste from terminal buffer. Also try image
+                        // extraction from OS clipboard (common Cmd+V shortcut).
+                        lifecycle::handle_paste_image(app, session, true);
+                        if actions::handle_action(input::InputAction::PasteText(text), app, session, terminal, config).await? {
+                            break;
+                        }
                     }
                 }
                 Event::Mouse(mouse) => {

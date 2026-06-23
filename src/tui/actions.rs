@@ -390,7 +390,7 @@ pub(super) async fn handle_action(
         InputAction::CancelInit => {}
 
         InputAction::PasteImage => {
-            lifecycle::handle_paste_image(app, session);
+            lifecycle::handle_paste_image(app, session, false);
         }
 
         InputAction::OpenDiffViewer => {
