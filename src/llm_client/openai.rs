@@ -41,7 +41,12 @@ impl OpenAiClient {
         extra_headers: Vec<(String, String)>,
     ) -> Self {
         let url = normalize_openai_url(base_url.as_deref());
-        let image_support = !url.contains("deepseek.com");
+        let image_support = if url.contains("deepseek.com") {
+            false
+        } else {
+            let is_local = url.contains("localhost") || url.contains("127.0.0.1");
+            if is_local { super::local_model_supports_vision(&model) } else { true }
+        };
         let auth_header = auth_header.unwrap_or_else(|| "Authorization".to_string());
         Self {
             http: crate::http::client().clone(),
@@ -93,7 +98,16 @@ impl OpenAiClient {
                             let dropped = msg.content.iter()
                                 .filter(|b| matches!(b, ContentBlock::Image { .. }))
                                 .count();
-                            crate::zap_warn!("Dropping {dropped} image block(s): the model at '{}' does not support vision.", self.url);
+                            let warn = format!(
+                                "✗ Dropped {dropped} image block(s) — '{}' does not appear to \
+                                 support vision. Switch to a vision-capable model (Claude, GPT-4o, \
+                                 Gemini, LLaVA).", self.url);
+                            crate::zap_warn!("{}", warn);
+                            if crate::tui::channel::is_tui_mode() {
+                                crate::tui::channel::tui_send(
+                                    crate::tui::channel::TuiEvent::Warning(warn),
+                                );
+                            }
                         }
 
                         let content = if parts.len() == 1 {

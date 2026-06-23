@@ -7,6 +7,22 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### Image paste: clear errors for non-vision models/providers (v0.15.64)
+
+Previously, pasting an image gave "✓ Image attached" but the model responded "I don't have access to the image" because the image was silently dropped.
+
+**Root causes fixed:**
+1. `handle_paste_image` (lifecycle.rs) now checks `provider_supports_vision` first — shows a clear "✗ model does not support image input" TUI error instead of staging.
+2. `provider_supports_vision` (llm_client/mod.rs) is now smarter:
+   - **Codex** (`gpt-5.5` via `codex` backend): returns `false` — codex `encode_input` drops image blocks silently; now blocked upfront
+   - **Local models** (LM Studio/Ollama on localhost): uses model-name heuristic via `local_model_supports_vision` — known coding models (devstral, codestral, qwen-coder) → false; known vision models (llava, moondream, vision, -vl) → true
+   - deepseek.com: still false
+3. `OpenAiClient::new` (openai.rs): `image_support` now also applies model-name heuristic for localhost URLs — consistent with `provider_supports_vision`
+4. Drop warning in openai.rs now fires a `TuiEvent::Warning` (visible in TUI) instead of only writing to the log file
+5. Codex `encode_input` (codex.rs): logs a visible TUI warning when images are present but dropped
+
+**New public helper:** `local_model_supports_vision(model: &str) -> bool`
+
 ### GoModel built-in in `/provider` picker; live model fetch with auth (v0.15.63)
 
 GoModel is now a first-class provider in the `/provider` picker — no manual `~/.agent.toml` editing required to see it. Appears alongside OpenAI, Anthropic, Groq, etc.

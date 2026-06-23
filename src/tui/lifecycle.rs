@@ -143,6 +143,22 @@ pub(super) fn handle_paste_image(
     skip_text_fallback: bool,
 ) {
     use super::app::{MsgRole, UiBlock, UiMessage};
+
+    if !crate::llm_client::provider_supports_vision(&session.config) {
+        let model = &session.model;
+        app.messages.push(UiMessage {
+            role: MsgRole::Assistant,
+            blocks: vec![UiBlock::Text(format!(
+                "✗ {} does not appear to support image input.\n\
+                 Switch to a vision-capable provider first: Claude, GPT-4o, Gemini, or \
+                 a local model like LLaVA.",
+                model
+            ))],
+        });
+        app.auto_scroll = true;
+        return;
+    }
+
     let tmp = "/tmp/zap_clipboard_paste.png";
     let ok = crate::session::commands::paste_clipboard_image(tmp);
     if ok && std::path::Path::new(tmp).exists() {

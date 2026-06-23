@@ -152,6 +152,21 @@ fn encode_input(messages: &[Message]) -> Vec<serde_json::Value> {
                     if let ContentBlock::Text { text } = b { Some(text.as_str()) } else { None }
                 }).collect();
                 let joined = texts.join("\n");
+                let image_count = msg.content.iter()
+                    .filter(|b| matches!(b, ContentBlock::Image { .. }))
+                    .count();
+                if image_count > 0 {
+                    let warn = format!(
+                        "✗ Dropped {image_count} image block(s) — image input via the Codex \
+                         backend is not yet supported. Switch to Anthropic or OpenAI (direct) \
+                         to use images.");
+                    crate::zap_warn!("{}", warn);
+                    if crate::tui::channel::is_tui_mode() {
+                        crate::tui::channel::tui_send(
+                            crate::tui::channel::TuiEvent::Warning(warn),
+                        );
+                    }
+                }
                 if !joined.is_empty() {
                     out.push(serde_json::json!({ "role": "user", "content": joined }));
                 }

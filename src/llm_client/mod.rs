@@ -28,10 +28,44 @@ pub fn provider_supports_vision(config: &Config) -> bool {
     match config.provider {
         Provider::Anthropic => true,
         Provider::OpenAi => {
+            // Codex encode_input currently drops image blocks — mark as unsupported
+            // until the Responses API image format is verified and implemented.
+            if config.provider_slug == "codex" {
+                return false;
+            }
             let url = config.base_url.as_deref().unwrap_or("");
-            !url.contains("deepseek.com")
+            if url.contains("deepseek.com") {
+                return false;
+            }
+            // For local models (LM Studio, Ollama) vision depends on the loaded model.
+            let is_local = url.contains("localhost") || url.contains("127.0.0.1")
+                || url.contains("192.168.") || url.contains("10.0.");
+            if is_local {
+                return local_model_supports_vision(&config.model);
+            }
+            true
         }
     }
+}
+
+/// Heuristic: does the model name suggest vision capability?
+/// Used for local OpenAI-compatible providers where vision depends on the loaded model.
+pub fn local_model_supports_vision(model: &str) -> bool {
+    let m = model.to_lowercase();
+    // Vision-positive patterns (checked first — e.g. "llama-3.2-vision-instruct")
+    let vision_pos = ["llava", "moondream", "bakllava", "vision", "-vl", "_vl",
+                      "multimodal", "gpt-4o", "gpt-4v", "gemini", "pixtral"];
+    if vision_pos.iter().any(|p| m.contains(p)) {
+        return true;
+    }
+    // Known text-only / coding models
+    let vision_neg = ["coder", "devstral", "codestral", "deepseek-r1",
+                      "qwen2.5-coder", "qwen-coder"];
+    if vision_neg.iter().any(|p| m.contains(p)) {
+        return false;
+    }
+    // Unknown local model — default false (safer than silently uploading to a model that ignores it)
+    false
 }
 
 fn redact_token(token: &str) -> String {
