@@ -7,6 +7,11 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: command picker header navigation bugs (v0.15.66 patch)
+
+- **Up navigation**: while loop terminated at index 0 without checking if item 0 is a header — pressing Up from the first real command left `picker_sel` pointing at the "Actions" header with nothing visually selected. Fixed by adding the same guard present in Down navigation (stay at old position if final candidate is a header).
+- **Tab completion**: didn't check for section headers before doing `app.input = command_text(cmd)` — Tab when `picker_sel` pointed to a header would insert `\x00 Actions` into the input box. Fixed by skipping Tab if selected item starts with `SECTION_PREFIX`.
+
 ### UX: /model picker, XDG config, grouped commands (v0.15.66)
 
 Three UX improvements inspired by ndaidong's issue #2 feedback:

@@ -521,4 +521,29 @@ mod tests {
         assert_eq!(resolve_skill_command("/help", &skills), None);
         assert_eq!(resolve_skill_command("/index", &skills), None);
     }
+
+    #[test]
+    fn section_headers_excluded_during_prefix_filter() {
+        // When user has typed more than just "/", headers must be absent.
+        let cmds = filter_commands("/he", &[]);
+        assert!(cmds.iter().all(|(_, d)| !d.starts_with(SECTION_PREFIX)));
+    }
+
+    #[test]
+    fn section_headers_included_in_full_list() {
+        let cmds = filter_commands("/", &[]);
+        let headers: Vec<_> = cmds.iter().filter(|(_, d)| d.starts_with(SECTION_PREFIX)).collect();
+        assert!(!headers.is_empty(), "full list must contain section headers");
+    }
+
+    #[test]
+    fn section_headers_are_non_selectable_sentinels() {
+        // Every header entry must have a description that starts with SECTION_PREFIX,
+        // and a cmd that starts with SECTION_PREFIX (not a slash command).
+        for (cmd, desc) in SLASH_COMMANDS {
+            if desc.starts_with(SECTION_PREFIX) {
+                assert!(!cmd.starts_with('/'), "header cmd should not start with /: {cmd}");
+            }
+        }
+    }
 }

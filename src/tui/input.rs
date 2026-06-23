@@ -416,12 +416,17 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         KeyCode::Up => {
             if picker_active(app) {
                 let items = filter_commands(&app.input, &app.skill_names);
+                let old_sel = app.picker_sel;
                 // Skip section headers when navigating up.
-                let mut new_sel = app.picker_sel.saturating_sub(1);
+                let mut new_sel = old_sel.saturating_sub(1);
                 while new_sel > 0
                     && items.get(new_sel).map(|(_, d)| d.starts_with(super::commands::SECTION_PREFIX)).unwrap_or(false)
                 {
                     new_sel = new_sel.saturating_sub(1);
+                }
+                // If the final position is still a header (can happen at index 0), stay put.
+                if items.get(new_sel).map(|(_, d)| d.starts_with(super::commands::SECTION_PREFIX)).unwrap_or(false) {
+                    new_sel = old_sel;
                 }
                 app.picker_sel = new_sel;
                 InputAction::None
@@ -488,10 +493,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
             if picker_active(app) {
                 let items = filter_commands(&app.input, &app.skill_names);
                 let sel = app.picker_sel.min(items.len().saturating_sub(1));
-                if let Some((cmd, _)) = items.get(sel) {
-                    app.input = command_text(cmd);
-                    app.cursor = app.input.chars().count();
-                    app.picker_sel = 0;
+                if let Some((cmd, desc)) = items.get(sel) {
+                    if !desc.starts_with(super::commands::SECTION_PREFIX) {
+                        app.input = command_text(cmd);
+                        app.cursor = app.input.chars().count();
+                        app.picker_sel = 0;
+                    }
                 }
             }
             InputAction::None
