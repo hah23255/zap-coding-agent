@@ -16,6 +16,10 @@ pub(super) fn draw_messages(frame: &mut Frame, app: &App, area: Rect) {
         app.scroll.min(total.saturating_sub(viewport_h))
     };
 
+    // Record the true rendered position so scroll_up can sync from here
+    // instead of using a stale or approximated app.scroll value.
+    app.rendered_scroll.set(scroll);
+
     let para = Paragraph::new(all_lines)
         .scroll((scroll.min(u16::MAX as usize) as u16, 0));
     frame.render_widget(para, area);

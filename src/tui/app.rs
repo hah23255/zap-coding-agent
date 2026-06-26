@@ -238,13 +238,13 @@ pub struct App {
     // Scrolling
     pub scroll: usize,
     pub auto_scroll: bool,
+    /// Exact scroll offset from last draw_messages call; used by scroll_up to sync from the true position.
+    pub rendered_scroll: std::cell::Cell<usize>,
 
     // Session state
     pub state: AppState,
     pub spinner_frame: usize,
-    /// Monotonically increasing tick counter — never clamped, used for word rotation.
     pub word_tick: usize,
-    /// Tick counter reset to 0 each time a new turn starts — used for elapsed-time display.
     pub turn_tick: usize,
 
     // Header info
@@ -388,6 +388,7 @@ impl App {
             pending_input: None,
             scroll: 0,
             auto_scroll: true,
+            rendered_scroll: std::cell::Cell::new(0),
             state: AppState::Idle,
             spinner_frame: 0,
             word_tick: 0,
@@ -445,7 +446,6 @@ impl App {
         self.turn_tick = self.turn_tick.wrapping_add(1);
     }
 
-    /// Apply an incoming TUI event to App state.
     pub fn apply_event(&mut self, ev: TuiEvent) {
         match ev {
             TuiEvent::LlmChunk(text) => {
@@ -453,10 +453,7 @@ impl App {
                     self.turn_tick = 0;
                 }
                 self.state = AppState::Thinking;
-                // Re-enable auto-scroll so the viewport follows active streaming
-                // even if the user scrolled up earlier in the turn.
                 self.auto_scroll = true;
-                // Append to the last Text block, or create one if needed.
                 match self.streaming_blocks.last_mut() {
                     Some(StreamingBlock::Text(ref mut s)) => s.push_str(&text),
                     _ => self.streaming_blocks.push(StreamingBlock::Text(text)),
@@ -592,6 +589,10 @@ impl App {
     }
 
     pub fn scroll_up(&mut self, n: usize) {
+        // app.scroll is stale when auto_scroll=true; sync from the exact rendered position first.
+        if self.auto_scroll {
+            self.scroll = self.rendered_scroll.get();
+        }
         self.scroll = self.scroll.saturating_sub(n);
         self.auto_scroll = false;
     }

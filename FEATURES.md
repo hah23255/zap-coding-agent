@@ -7,6 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: Brave Search API + TUI scroll-jump-to-top (v0.15.69)
+
+**web_search**: replaced DuckDuckGo HTML scraping (broken — challenge/CAPTCHA pages on every request) with Brave Search API. Reads `BRAVE_SEARCH_API_KEY` env var or `brave_search_api_key` in `~/.config/zap/agent.toml`. If key is missing, returns a clear setup message with the link to get a free key (2000/month). No DDG fallback — it was never reliable.
+
+**web_fetch**: auto-rewrites `github.com/.../blob/branch/path` → `raw.githubusercontent.com` for direct file content. Bare repo URLs (`github.com/owner/repo`) hit the GitHub API to return the README as markdown. Makes "read this repo and follow the README" work seamlessly without HTML noise.
+
+**TUI scroll jump to top**: fixed the bug where the first scroll-up after a turn would jump to the very top (oldest messages) instead of scrolling smoothly from the bottom. Root cause: `app.scroll` was stale (often 0) when `auto_scroll=true`. Added `rendered_scroll: Cell<usize>` to `App`, written by `draw_messages` every frame. `scroll_up` now syncs from `rendered_scroll` when `auto_scroll=true`, so the first scroll-up moves exactly `n` lines from the actual rendered bottom — no layout approximation.
 
 ### feat: full Codex model list in /provider picker (v0.15.67)
 
