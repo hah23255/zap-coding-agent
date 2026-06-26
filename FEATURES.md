@@ -7,6 +7,11 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+
+### feat: full Codex model list in /provider picker (v0.15.67)
+
+Codex provider now shows all 7 models available via ChatGPT subscription, not just gpt-5.5: `gpt-5.5`, `gpt-5.4`, `gpt-5`, `gpt-4.1`, `o4-mini`, `o3`, `gpt-4o`. Both the static model list and provider picker entry updated in `src/tui/provider_picker.rs`.
+
 ### fix: command picker header navigation bugs (v0.15.66 patch)
 
 - **Up navigation**: while loop terminated at index 0 without checking if item 0 is a header — pressing Up from the first real command left `picker_sel` pointing at the "Actions" header with nothing visually selected. Fixed by adding the same guard present in Down navigation (stay at old position if final candidate is a header).
