@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+printf '\n'
+printf '  \033[38;5;220m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n'
+printf '\n'
+printf '  \033[1;36mScenario\033[0m  ·  "What calls make_response in Flask?"\n'
+printf '\n'
+printf '  \033[31m✗  Other agents:\033[0m  grep across 83 files  →  parse output  →  summarise\033[0m\n'
+printf '  \033[32m✓  zap:\033[0m           who_calls("make_response")  →  index lookup  →  done\033[0m\n'
+printf '\n'
+printf '  \033[2mwatch:  who_calls fires  →  INDEX hit  →  callers with file:line\033[0m\n'
+printf '\n'
+printf '  \033[38;5;220m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n'
+printf '\n'

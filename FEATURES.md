@@ -117,6 +117,12 @@ The LLM sometimes wrote dozens of trailing blank lines to `.zap/understanding.md
 
 - [src/session/mod.rs](src/session/mod.rs): `/understand` handler trims trailing newlines from `understanding.md` after the LLM turn
 
+### web_search HTML fallback + clearer DuckDuckGo challenge handling (v0.15.68)
+
+Zap's built-in `web_search` now parses DuckDuckGo's HTML results page instead of relying only on the instant-answer JSON endpoint, which often returned "No results found" for normal web queries. It also detects DuckDuckGo challenge pages more explicitly and includes parser tests for link/snippet alignment.
+
+- [src/tools/web.rs](src/tools/web.rs): switch search requests to `https://html.duckduckgo.com/html/`, parse result links/snippets, detect challenge pages, and add parser/live tests.
+
 ### `/understand` prompt v3: ban recycling old output, require 3+ code_map calls (v0.15.59)
 
 Second prompt fix pass. Root cause of still-poor output: model was reading `.zap/understanding.md` first and re-merging the old domain map rather than doing fresh analysis, even after the v0.15.58 doc-file prohibition.
@@ -318,6 +324,8 @@ Background index WARN/ERROR logs now display as warning bubbles instead of hijac
 Zap now enables narrow terminal mouse button/wheel reporting instead of crossterm's full mouse capture in TUI mode. This keeps mouse-wheel scrolling in the chat history while avoiding the drag-motion capture that commonly prevents normal terminal text selection.
 
 - [src/tui/mod.rs](src/tui/mod.rs): enters TUI with SGR/button mouse reporting (`?1000h`/`?1006h`) plus bracketed paste, and restores those modes on exit. Full `EnableMouseCapture` remains disabled so click-drag terminal selection has a better chance to work.
+
+Update: on macOS terminals, wheel events could still leak to terminal scrollback and appear to jump the UI to the top. Zap now also enables DECSET `?1002h` button-event tracking while in TUI mode, which keeps wheel scrolling inside the app; plain click events still remain no-ops in the TUI.
 
 ### Codex provider context and resumed tool history hardening (v0.15.35)
 

@@ -56,14 +56,17 @@ pub async fn run_tui(config: &Config) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
-    // Enable only wheel-button mouse reporting, not full mouse capture.
-    // This preserves in-app mouse-wheel scrolling while avoiding drag-motion
-    // reporting, which is what commonly breaks normal terminal text selection.
+    // Enable cell-level button-event mouse reporting (DECSET 1000 + 1002).
+    // DECSET 1002 is required on macOS terminals (Terminal.app, iTerm2) for
+    // scroll-wheel events to reach the application — without it, wheel events
+    // leak to the terminal scrollback buffer, causing a "jump to top" effect.
+    // Text selection still works by holding Option/Alt while dragging
+    // (standard convention across terminal apps: htop, btop, lazygit, etc.).
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
-        crossterm::style::Print("\x1b[?1007l\x1b[?1000h\x1b[?1006h"),
+        crossterm::style::Print("\x1b[?1007l\x1b[?1000h\x1b[?1002h\x1b[?1006h"),
         EnableBracketedPaste,
     )?;
     let backend = CrosstermBackend::new(stdout);
@@ -106,7 +109,7 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     let _ = crossterm::execute!(
         terminal.backend_mut(),
-        crossterm::style::Print("\x1b[?1006l\x1b[?1000l\x1b[?1007h"),
+        crossterm::style::Print("\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1007h"),
         DisableBracketedPaste,
         crossterm::terminal::LeaveAlternateScreen
     );
