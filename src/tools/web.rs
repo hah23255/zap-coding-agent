@@ -138,17 +138,18 @@ async fn try_github_readme(url: &str) -> Option<String> {
 
 // ── web_search ────────────────────────────────────────────────────────────────
 
-const BRAVE_SETUP_MSG: &str = "web_search requires a Brave Search API key.\n\
+const BRAVE_SETUP_MSG: &str = "ERROR: web_search is not configured — BRAVE_SEARCH_API_KEY is not set.\n\
 \n\
-Get a free key (2 000 searches/month) at: https://brave.com/search/api/\n\
-Then add it to your shell profile:\n\
+STOP: do not attempt shell commands or any other workaround to search the web.\n\
+Tell the user they need to set up a Brave Search API key to enable web search.\n\
 \n\
-  export BRAVE_SEARCH_API_KEY=\"your-key-here\"\n\
+How to fix (takes ~1 minute):\n\
+  1. Get a free key (2 000 searches/month): https://brave.com/search/api/\n\
+  2. Add to shell profile: export BRAVE_SEARCH_API_KEY=\"your-key\"\n\
+     Or add to ~/.config/zap/agent.toml: brave_search_api_key = \"your-key\"\n\
+  3. Restart zap\n\
 \n\
-Or add to ~/.config/zap/agent.toml (or ~/.agent.toml):\n\
-  brave_search_api_key = \"your-key-here\"\n\
-\n\
-Restart zap after setting the key.";
+Do not proceed with any search attempt until the key is configured.";
 
 pub(super) struct WebSearchTool;
 

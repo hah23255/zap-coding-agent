@@ -7,6 +7,10 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: harden web_search no-key error to stop LLM CLI fallbacks (v0.15.70 patch)
+
+When `BRAVE_SEARCH_API_KEY` is missing, the tool now returns an explicit `STOP` instruction so the LLM doesn't fall back to shell commands (`zap web-search`) instead of telling the user to configure the key.
+
 ### fix: Brave Search API + TUI scroll-jump-to-top (v0.15.69)
 
 **web_search**: replaced DuckDuckGo HTML scraping (broken — challenge/CAPTCHA pages on every request) with Brave Search API. Reads `BRAVE_SEARCH_API_KEY` env var or `brave_search_api_key` in `~/.config/zap/agent.toml`. If key is missing, returns a clear setup message with the link to get a free key (2000/month). No DDG fallback — it was never reliable.
