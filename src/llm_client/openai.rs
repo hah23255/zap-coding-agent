@@ -517,6 +517,48 @@ impl LlmProvider for OpenAiClient {
                 }
             }
 
+            // Ollama (and some other local servers) sometimes return a plain JSON body
+            // instead of SSE even when stream:true is requested.  Detect this by checking
+            // if the accumulator is still empty but buf holds a non-SSE JSON object.
+            if text_acc.is_empty() && reasoning_acc.is_empty() && tool_accums.is_empty() {
+                let trimmed = buf.trim();
+                if trimmed.starts_with('{') {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                        let message = &json["choices"][0]["message"];
+                        if let Some(text) = message["content"].as_str() {
+                            if !text.is_empty() {
+                                if !self.suppress_stream {
+                                    if let Some(cb) = before_output.take() { cb(); }
+                                    highlighter.push(text);
+                                }
+                                text_acc = text.to_string();
+                            }
+                        }
+                        let rc_text = message["reasoning"].as_str()
+                            .or_else(|| message["reasoning_content"].as_str());
+                        if let Some(rc) = rc_text {
+                            if !rc.is_empty() { reasoning_acc = rc.to_string(); }
+                        }
+                        if let Some(tc_arr) = message["tool_calls"].as_array() {
+                            for tc in tc_arr {
+                                let idx = tc["index"].as_u64().unwrap_or(0) as usize;
+                                let acc = tool_accums.entry(idx).or_default();
+                                if let Some(id) = tc["id"].as_str() { acc.id = id.to_string(); }
+                                if let Some(name) = tc["function"]["name"].as_str() { acc.name = name.to_string(); }
+                                if let Some(args) = tc["function"]["arguments"].as_str() { acc.arguments.push_str(args); }
+                            }
+                        }
+                        if let Some(fr) = json["choices"][0]["finish_reason"].as_str() {
+                            if !fr.is_empty() { finish_reason = fr.to_string(); }
+                        }
+                        if let Some(u) = json["usage"].as_object() {
+                            if let Some(v) = u.get("prompt_tokens").and_then(|v| v.as_u64()) { usage_acc.input_tokens = v as u32; }
+                            if let Some(v) = u.get("completion_tokens").and_then(|v| v.as_u64()) { usage_acc.output_tokens = v as u32; }
+                        }
+                    }
+                }
+            }
+
             if !text_acc.is_empty() && !self.suppress_stream {
                 highlighter.flush();
             }

@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: Ollama non-streaming JSON fallback in SSE parser (v0.15.73)
+
+Ollama sometimes returns a plain JSON body (`{"choices":[{"message":...}]}`) instead of SSE
+even when `stream:true` is requested (observed with Qwen3-based models like Ornith). The SSE
+parser found no `data:` prefix lines, left `streaming_blocks` empty, and `finalize_turn()`
+silently produced no output.
+
+Fix in `src/llm_client/openai.rs`: after the SSE loop exits, if all accumulators are still
+empty, check whether `buf` holds a complete non-streaming JSON object and parse it as a
+non-streaming response — firing a `LlmChunk` TUI event so the reply actually renders.
+Existing SSE providers (Anthropic, OpenAI, Codex) are unaffected: the fallback only triggers
+when zero SSE `data:` lines were found.
+
 ### fix: Ollama reasoning field + image paste E2E tests (v0.15.72)
 
 - `src/llm_client/openai.rs`: SSE parser now recognises both `reasoning_content` (DeepSeek) and `reasoning` (Ollama) delta fields — fixes empty responses from Qwen3-based models (e.g. Ornith) served via Ollama.
