@@ -290,6 +290,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
     if app.context_viewer.is_some() {
         context_viewer::draw_context_viewer(frame, app, size);
     }
+
+    if app.file_picker.is_some() {
+        overlays::draw_file_picker(frame, app, size);
+    }
 }
 
 #[cfg(test)]

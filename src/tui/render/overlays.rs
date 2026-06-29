@@ -589,3 +589,107 @@ fn draw_model_picker(frame: &mut Frame, pending: &crate::tui::app::PendingProvid
     frame.render_widget(Paragraph::new(rows), content_area);
 }
 
+// ── File picker popup ─────────────────────────────────────────────────────────
+
+pub(super) fn draw_file_picker(frame: &mut Frame, app: &App, area: Rect) {
+    let picker = match app.file_picker.as_ref() {
+        Some(p) => p,
+        None => return,
+    };
+
+    let filtered = picker.filtered();
+
+    // Popup dimensions: 60% width, up to 20 rows of files + 4 chrome rows.
+    let w = (area.width * 60 / 100).max(50).min(area.width);
+    let visible_rows = filtered.len().min(18);
+    let h = (visible_rows as u16 + 5).min(area.height);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let overlay = Rect { x, y, width: w, height: h };
+
+    frame.render_widget(Clear, overlay);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(Span::styled(
+            " @ add file to context   ↑↓ navigate   Enter select   Esc cancel ",
+            Style::default().fg(Color::Yellow).bold(),
+        ));
+
+    let inner = block.inner(overlay);
+    frame.render_widget(block, overlay);
+
+    // Split: search bar row, separator, file list.
+    let chunks = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Min(1),
+    ])
+    .split(inner);
+
+    // ── Search bar ────────────────────────────────────────────────────────────
+    let query_display = format!(" {} ", picker.query);
+    let cursor_col = (picker.query_cursor + 1) as u16; // +1 for leading space
+    let search_line = Line::from(vec![
+        Span::styled("  filter: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(query_display, Style::default().fg(Color::White)),
+    ]);
+    frame.render_widget(Paragraph::new(search_line), chunks[0]);
+
+    // Draw a blinking block cursor at the right position.
+    frame.set_cursor_position((chunks[0].x + 10 + cursor_col, chunks[0].y));
+
+    // ── Separator ─────────────────────────────────────────────────────────────
+    let sep = "─".repeat(inner.width as usize);
+    frame.render_widget(
+        Paragraph::new(sep).style(Style::default().fg(Color::DarkGray)),
+        chunks[1],
+    );
+
+    // ── File list ─────────────────────────────────────────────────────────────
+    if filtered.is_empty() {
+        frame.render_widget(
+            Paragraph::new("  (no files match)")
+                .style(Style::default().fg(Color::DarkGray)),
+            chunks[2],
+        );
+        return;
+    }
+
+    let sel = picker.selected.min(filtered.len().saturating_sub(1));
+    // Scroll so the selected item is visible.
+    let list_h = chunks[2].height as usize;
+    let start = if sel >= list_h { sel - list_h + 1 } else { 0 };
+    let end = (start + list_h).min(filtered.len());
+
+    let rows: Vec<Line> = filtered[start..end]
+        .iter()
+        .enumerate()
+        .map(|(i, path)| {
+            let is_sel = (start + i) == sel;
+            // Split into directory part and filename for visual emphasis.
+            let (dir_part, file_part) = match path.rfind('/').or_else(|| path.rfind('\\')) {
+                Some(idx) => (&path[..idx + 1], &path[idx + 1..]),
+                None      => ("", *path),
+            };
+            if is_sel {
+                Line::from(vec![
+                    Span::styled("  ", Style::default().bg(Color::DarkGray)),
+                    Span::styled(dir_part, Style::default().fg(Color::DarkGray).bg(Color::DarkGray)),
+                    Span::styled(file_part, Style::default().fg(Color::White).bg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+                ])
+            } else {
+                Line::from(vec![
+                    Span::styled("  ", Style::default()),
+                    Span::styled(dir_part, Style::default().fg(Color::DarkGray)),
+                    Span::styled(file_part, Style::default().fg(Color::White)),
+                ])
+            }
+        })
+        .collect();
+
+    frame.render_widget(Paragraph::new(rows), chunks[2]);
+}
+

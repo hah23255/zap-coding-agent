@@ -127,6 +127,7 @@ jobs:
           name: "zap v${{ steps.ver.outputs.version }}"
           prerelease: false
           make_latest: true
+          fail_on_unmatched_files: true
           body: |
             **Latest build** — automatically published on every push to `main`.
 

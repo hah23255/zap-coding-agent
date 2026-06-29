@@ -165,6 +165,33 @@ pub use crate::tui::context_viewer::{
     ContextTurnEntry, ContextViewerState, DetailBlock, TurnDetail,
 };
 
+// ── File picker ───────────────────────────────────────────────────────────────
+
+/// Popup that lets the user fuzzy-search the project tree and insert a
+/// `@path` reference into the input.
+pub struct FilePickerState {
+    /// Filter text typed inside the popup.
+    pub query: String,
+    /// Cursor position inside `query` (char index).
+    pub query_cursor: usize,
+    /// All file paths (relative to cwd) collected when the picker opened.
+    pub all_files: Vec<String>,
+    /// Selected index into the *filtered* list.
+    pub selected: usize,
+}
+
+impl FilePickerState {
+    /// Returns file paths that match the current query (case-insensitive substring).
+    pub fn filtered(&self) -> Vec<&str> {
+        let q = self.query.to_lowercase();
+        self.all_files
+            .iter()
+            .filter(|f| q.is_empty() || f.to_lowercase().contains(&q))
+            .map(|s| s.as_str())
+            .collect()
+    }
+}
+
 // ── Command output popup ──────────────────────────────────────────────────────
 
 /// A centered popup that displays textual output from inline slash commands
@@ -342,6 +369,9 @@ pub struct App {
     /// Context viewer overlay (None when closed).
     pub context_viewer: Option<ContextViewerState>,
 
+    /// File picker popup (None when closed). Opened by typing `@` in the input.
+    pub file_picker: Option<FilePickerState>,
+
     /// Previously sent user prompts (newest last), for Up/Down history navigation.
     pub prompt_history: Vec<String>,
     /// Index into prompt_history when navigating with Up/Down (None = not navigating).
@@ -433,6 +463,7 @@ impl App {
             gemini_reauth: false,
             api_key_input: None,
             context_viewer: None,
+            file_picker: None,
             prompt_history: Vec::new(),
             history_idx: None,
             topic_shift_confirm: None,

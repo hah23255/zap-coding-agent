@@ -298,3 +298,96 @@ async fn edit_ledger_persists_after_turns_slide_out_of_window() {
         "edit ledger should record turn 1 as first_turn, even after window slid"
     );
 }
+
+// ── Image paste E2E tests ─────────────────────────────────────────────────────
+
+/// A staged image must arrive in the LLM call as a `ContentBlock::Image` block
+/// inside the user message, with the correct MIME type and base64 payload.
+#[tokio::test]
+async fn staged_image_included_in_llm_request() {
+    use base64::Engine;
+
+    let mock = MockClient::with_script(vec![MockClient::text("I can see the image.")]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    // Synthetic payload — staged images are pre-encoded, so MIN_IMAGE_BYTES guard is irrelevant.
+    let fake_payload = vec![0u8; 256];
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&fake_payload);
+    session.staged_images.push(("image/png".to_string(), b64.clone()));
+
+    session.handle_user_turn("what is in this image?").await.expect("turn ran");
+
+    let calls = mock.recorded_calls();
+    assert_eq!(calls.len(), 1, "one LLM call expected");
+
+    // The most recent user message is the first message in the call (fresh session).
+    let user_msg = calls[0]
+        .messages
+        .iter()
+        .find(|m| m.role == "user")
+        .expect("user message must be present in LLM call");
+
+    let image_block = user_msg.content.iter().find_map(|b| {
+        if let ContentBlock::Image { media_type, data } = b {
+            Some((media_type, data))
+        } else {
+            None
+        }
+    });
+    let (media_type, data) = image_block.expect("Image content block must be present");
+    assert_eq!(media_type, "image/png");
+    assert_eq!(data, &b64, "base64 payload must be forwarded unchanged");
+
+    // Text block must also be present.
+    let has_text = user_msg.content.iter().any(|b| {
+        matches!(b, ContentBlock::Text { text } if text.contains("what is in this image?"))
+    });
+    assert!(has_text, "user text must accompany the image block");
+
+    // Image should precede text in the block ordering.
+    let image_pos = user_msg.content.iter().position(|b| matches!(b, ContentBlock::Image { .. }));
+    let text_pos  = user_msg.content.iter().position(|b| matches!(b, ContentBlock::Text { .. }));
+    assert!(
+        image_pos < text_pos,
+        "image block must come before the text block (image={image_pos:?} text={text_pos:?})"
+    );
+}
+
+/// After images are sent in turn N they must NOT be re-sent in turn N+1.
+#[tokio::test]
+async fn staged_images_not_resent_on_subsequent_turn() {
+    use base64::Engine;
+
+    let mock = MockClient::with_script(vec![
+        MockClient::text("got the image"),
+        MockClient::text("got no image"),
+    ]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    let fake_payload = vec![42u8; 256];
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&fake_payload);
+    session.staged_images.push(("image/png".to_string(), b64));
+
+    // Turn 1 — image staged
+    session.handle_user_turn("describe this").await.expect("turn 1");
+    assert!(session.staged_images.is_empty(), "staged_images must be cleared after the turn");
+
+    // Turn 2 — no new image staged
+    session.handle_user_turn("follow-up question").await.expect("turn 2");
+
+    let calls = mock.recorded_calls();
+    assert_eq!(calls.len(), 2);
+
+    // Turn 2's messages include everything in session history. The second user
+    // message is the "follow-up question" one — it must contain only a Text block.
+    let turn2_user_msgs: Vec<_> = calls[1]
+        .messages
+        .iter()
+        .filter(|m| m.role == "user")
+        .collect();
+    let last_user = turn2_user_msgs.last().expect("at least one user message in turn 2");
+    let has_image_in_turn2 = last_user.content.iter().any(|b| matches!(b, ContentBlock::Image { .. }));
+    assert!(!has_image_in_turn2, "turn 2 user message must NOT contain an image block");
+}

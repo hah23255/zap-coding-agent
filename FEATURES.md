@@ -7,6 +7,13 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: Ollama reasoning field + image paste E2E tests (v0.15.72)
+
+- `src/llm_client/openai.rs`: SSE parser now recognises both `reasoning_content` (DeepSeek) and `reasoning` (Ollama) delta fields — fixes empty responses from Qwen3-based models (e.g. Ornith) served via Ollama.
+- `src/session/agent_loop_tests.rs`: two E2E tests verify the full image-paste pipeline: staged images arrive as `ContentBlock::Image` in the first turn and are cleared afterwards.
+- `src/tui/commands/mod.rs`: three unit tests cover `/attach` format rejection, `/attach` vision-gate, and `/paste` vision-gate for non-vision providers.
+- `src/tui/input.rs`, `src/tui/actions.rs`, `src/tui/render/overlays.rs`, `src/tui/turn_handler.rs`: file-picker `@path` flow, context-viewer improvements, and general TUI polish landed alongside.
+
 ### fix: harden web_search no-key error to stop LLM CLI fallbacks (v0.15.70 patch)
 
 When `BRAVE_SEARCH_API_KEY` is missing, the tool now returns an explicit `STOP` instruction so the LLM doesn't fall back to shell commands (`zap web-search`) instead of telling the user to configure the key.

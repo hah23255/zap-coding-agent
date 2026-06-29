@@ -529,7 +529,75 @@ pub(super) async fn handle_action(
         InputAction::LaunchGeminiAuth => {
             lifecycle::handle_gemini_auth_launch(terminal, session, app, config)?;
         }
+
+        InputAction::OpenFilePicker => {
+            let files = collect_files_for_picker();
+            app.file_picker = Some(super::app::FilePickerState {
+                query: String::new(),
+                query_cursor: 0,
+                all_files: files,
+                selected: 0,
+            });
+        }
+
+        InputAction::FilePickerSelect(path) => {
+            // Insert `@path` at the current cursor position in the main input.
+            input::insert_text_at_cursor(app, &format!("@{}", path));
+        }
+
+        InputAction::FilePickerClose => {}
     }
 
     Ok(false)
+}
+
+/// Walk the current working directory and collect relative file paths for the
+/// file picker. Skips common build-output / VCS directories and hidden dirs
+/// below the root level. Capped at depth 8 and 2 000 files so opening the
+/// picker on a large mono-repo is instant.
+fn collect_files_for_picker() -> Vec<String> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let skip: &[&str] = &[
+        ".git", "target", "node_modules", "__pycache__", ".next",
+        "dist", "build", ".cache", ".venv", "venv", ".tox",
+    ];
+    let mut files: Vec<String> = Vec::new();
+    collect_recursive(&cwd, &cwd, 0, skip, &mut files);
+    files.sort();
+    files
+}
+
+fn collect_recursive(
+    base: &std::path::Path,
+    dir: &std::path::Path,
+    depth: usize,
+    skip: &[&str],
+    out: &mut Vec<String>,
+) {
+    if depth > 8 || out.len() >= 2_000 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut sorted: Vec<_> = entries.flatten().collect();
+    sorted.sort_by_key(|e| e.file_name());
+    for entry in sorted {
+        let name = entry.file_name().into_string().unwrap_or_default();
+        if skip.contains(&name.as_str()) {
+            continue;
+        }
+        let path = entry.path();
+        let Ok(ft) = entry.file_type() else { continue };
+        // Skip hidden directories at any depth; still surface hidden files
+        // (.gitignore, .env, .babelrc, etc.).
+        if name.starts_with('.') && ft.is_dir() {
+            continue;
+        }
+        if ft.is_dir() {
+            collect_recursive(base, &path, depth + 1, skip, out);
+        } else if ft.is_file() {
+            if let Ok(rel) = path.strip_prefix(base) {
+                out.push(rel.to_string_lossy().into_owned());
+            }
+        }
+    }
 }

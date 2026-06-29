@@ -84,8 +84,37 @@ else
     | head -1 \
     | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
 
-  [[ -n "$VERSION"      ]] || die "Could not determine latest release version"
-  [[ -n "$DOWNLOAD_URL" ]] || die "No download found for $ARTIFACT in release $VERSION"
+  [[ -n "$VERSION" ]] || die "Could not determine latest release version"
+
+  # If the latest release has no assets yet (e.g. build still in progress or
+  # upload failed), walk back through recent releases to find one that has
+  # the required artifact rather than failing silently.
+  if [[ -z "$DOWNLOAD_URL" ]]; then
+    warn "Release $VERSION has no assets for $ARTIFACT (build may still be uploading)"
+    info "Scanning recent releases for a working build…"
+    RELEASES_JSON=$($FETCH "https://api.github.com/repos/$REPO/releases?per_page=10" 2>/dev/null) \
+      || die "Failed to fetch release list from GitHub API"
+    # Split on tag_name boundaries and search each release block for the artifact.
+    FALLBACK_VERSION=""
+    FALLBACK_URL=""
+    while IFS= read -r block; do
+      v=$(printf '%s' "$block" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+      u=$(printf '%s' "$block" | grep '"browser_download_url"' | grep "$ARTIFACT" | head -1 \
+            | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
+      if [[ -n "$v" ]] && [[ -n "$u" ]]; then
+        FALLBACK_VERSION="$v"
+        FALLBACK_URL="$u"
+        break
+      fi
+    done < <(printf '%s' "$RELEASES_JSON" | tr '{' '\n' | grep '"tag_name"')
+    if [[ -n "$FALLBACK_URL" ]]; then
+      warn "Falling back to $FALLBACK_VERSION (most recent release with assets)"
+      VERSION="$FALLBACK_VERSION"
+      DOWNLOAD_URL="$FALLBACK_URL"
+    else
+      die "No release with assets for $ARTIFACT found. Try again in a few minutes."
+    fi
+  fi
 
   info "Found $VERSION ($ARTIFACT)"
 

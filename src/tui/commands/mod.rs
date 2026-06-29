@@ -546,4 +546,78 @@ mod tests {
             }
         }
     }
+
+    fn make_session() -> crate::session::Session {
+        let config = crate::config::Config::default();
+        crate::session::Session::new_for_test(
+            &config,
+            Box::new(crate::llm_client::mock::MockClient::with_script(vec![])),
+        ).unwrap()
+    }
+
+    fn non_vision_config() -> crate::config::Config {
+        // Codex provider is explicitly marked as non-vision in provider_supports_vision().
+        crate::config::Config {
+            provider_slug: "codex".to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn attach_rejects_unsupported_image_format() {
+        let config = crate::config::Config::default();
+        let mut session = make_session();
+        let path = std::env::temp_dir().join(format!("zap-test-{}.bmp", std::process::id()));
+        std::fs::write(&path, b"BM fake bitmap data").unwrap();
+
+        let response = handle_inline(&mut session, &format!("/attach {}", path.display()), &config)
+            .expect("/attach should be handled inline for unsupported format");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(
+            response.contains("Unsupported format"),
+            "expected 'Unsupported format', got: {response}"
+        );
+        assert!(session.staged_images.is_empty(), "no image should be staged for unsupported format");
+    }
+
+    #[test]
+    fn attach_rejected_for_non_vision_provider() {
+        let config = non_vision_config();
+        let mut session = crate::session::Session::new_for_test(
+            &config,
+            Box::new(crate::llm_client::mock::MockClient::with_script(vec![])),
+        ).unwrap();
+
+        let path = std::env::temp_dir().join(format!("zap-test-vision-gate-{}.png", std::process::id()));
+        std::fs::write(&path, b"fake-png").unwrap();
+
+        let response = handle_inline(&mut session, &format!("/attach {}", path.display()), &config)
+            .expect("/attach should be handled inline even for non-vision providers");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(
+            response.contains("does not support vision"),
+            "expected vision-gate message, got: {response}"
+        );
+        assert!(session.staged_images.is_empty(), "non-vision provider must not stage images");
+    }
+
+    #[test]
+    fn paste_rejected_for_non_vision_provider() {
+        let config = non_vision_config();
+        let mut session = crate::session::Session::new_for_test(
+            &config,
+            Box::new(crate::llm_client::mock::MockClient::with_script(vec![])),
+        ).unwrap();
+
+        let response = handle_inline(&mut session, "/paste", &config)
+            .expect("/paste should be handled inline even for non-vision providers");
+
+        assert!(
+            response.contains("does not support vision"),
+            "expected vision-gate message, got: {response}"
+        );
+        assert!(session.staged_images.is_empty(), "non-vision provider must not stage images via /paste");
+    }
 }

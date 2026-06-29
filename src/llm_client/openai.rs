@@ -322,7 +322,10 @@ impl LlmProvider for OpenAiClient {
             let finish_reason = choice["finish_reason"].as_str().unwrap_or("stop").to_string();
 
             let mut content: Vec<ContentBlock> = Vec::new();
-            if let Some(rc) = message["reasoning_content"].as_str() {
+            // "reasoning_content" = DeepSeek/OpenRouter; "reasoning" = Ollama thinking models
+            let reasoning_text = message["reasoning_content"].as_str()
+                .or_else(|| message["reasoning"].as_str());
+            if let Some(rc) = reasoning_text {
                 if !rc.is_empty() {
                     content.push(ContentBlock::Reasoning { content: rc.to_string() });
                 }
@@ -468,7 +471,10 @@ impl LlmProvider for OpenAiClient {
                             let choice = &event["choices"][0];
                             let delta = &choice["delta"];
 
-                            if let Some(rc) = delta["reasoning_content"].as_str() {
+                            // "reasoning_content" = DeepSeek/OpenRouter; "reasoning" = Ollama thinking models
+                            let rc_text = delta["reasoning_content"].as_str()
+                                .or_else(|| delta["reasoning"].as_str());
+                            if let Some(rc) = rc_text {
                                 if !rc.is_empty() { reasoning_acc.push_str(rc); }
                             }
 

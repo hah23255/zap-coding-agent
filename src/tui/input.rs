@@ -98,6 +98,13 @@ pub enum InputAction {
     /// Context viewer overlay actions.
     ContextViewerDrop,
     ContextViewerCompact,
+
+    /// File picker popup actions.
+    OpenFilePicker,
+    /// User confirmed a file from the picker; path is relative to cwd.
+    FilePickerSelect(String),
+    FilePickerClose,
+
     /// true = confirmed clear, false = cancelled.
     ContextViewerClearConfirm(bool),
 }
@@ -272,6 +279,11 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
     // If file browser is open, handle its keys first
     if app.file_browser.is_some() {
         return handle_file_browser_key(app, key);
+    }
+
+    // File picker popup — open when user types `@`, closed by Enter/Esc.
+    if app.file_picker.is_some() {
+        return handle_file_picker_key(app, key);
     }
     
     // Ctrl+C: cancel during a turn; quit-confirm when idle.
@@ -561,6 +573,15 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         KeyCode::PageUp => InputAction::ScrollUp(10),
 
         KeyCode::PageDown => InputAction::ScrollDown(10),
+
+        // `@` opens the file picker (idle only); the `@` char itself is NOT
+        // inserted — when the user selects a file, `@path` is inserted instead.
+        KeyCode::Char('@') if matches!(app.state, AppState::Idle)
+                           && !key.modifiers.contains(KeyModifiers::CONTROL)
+                           && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            InputAction::OpenFilePicker
+        }
 
         KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
                          && !key.modifiers.contains(KeyModifiers::ALT) =>
@@ -1004,6 +1025,64 @@ fn handle_context_viewer_key(app: &mut App, key: KeyEvent) -> InputAction {
             }
             _ => InputAction::None,
         }
+    }
+}
+
+/// Handle keys when the file picker popup is open.
+fn handle_file_picker_key(app: &mut App, key: KeyEvent) -> InputAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.file_picker = None;
+            InputAction::FilePickerClose
+        }
+        KeyCode::Enter => {
+            let path = app.file_picker.as_ref().and_then(|p| {
+                let filtered = p.filtered();
+                filtered.get(p.selected).map(|s| s.to_string())
+            });
+            app.file_picker = None;
+            match path {
+                Some(p) => InputAction::FilePickerSelect(p),
+                None    => InputAction::FilePickerClose,
+            }
+        }
+        KeyCode::Up | KeyCode::Char('k') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if let Some(p) = app.file_picker.as_mut() {
+                p.selected = p.selected.saturating_sub(1);
+            }
+            InputAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if let Some(p) = app.file_picker.as_mut() {
+                let count = p.filtered().len();
+                p.selected = (p.selected + 1).min(count.saturating_sub(1));
+            }
+            InputAction::None
+        }
+        KeyCode::Backspace => {
+            if let Some(p) = app.file_picker.as_mut() {
+                if p.query_cursor > 0 {
+                    let byte = char_to_byte_idx(&p.query, p.query_cursor - 1);
+                    let end  = char_to_byte_idx(&p.query, p.query_cursor);
+                    p.query.drain(byte..end);
+                    p.query_cursor -= 1;
+                    p.selected = 0;
+                }
+            }
+            InputAction::None
+        }
+        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
+                          && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            if let Some(p) = app.file_picker.as_mut() {
+                let byte = char_to_byte_idx(&p.query, p.query_cursor);
+                p.query.insert(byte, c);
+                p.query_cursor += 1;
+                p.selected = 0;
+            }
+            InputAction::None
+        }
+        _ => InputAction::None,
     }
 }
 
