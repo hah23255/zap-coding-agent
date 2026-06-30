@@ -461,7 +461,13 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
           </tbody>
         </table>
       </div>
-      <p class="table-note">Implementation and tests saved to <a href="https://github.com/zap-coding-agent/zap-coding-agent/tree/main/evals/tasks/slm-standalone" target="_blank" rel="noopener">evals/tasks/slm-standalone ↗</a>. Devstral via Ollama on Apple Silicon, <code>tier = "slm"</code> config, v0.15.74.</p>
+      <p class="table-note">
+        View the code:
+        <a href="https://github.com/zap-coding-agent/zap-coding-agent/blob/main/evals/tasks/slm-standalone/expr.py" target="_blank" rel="noopener">expr.py ↗</a> ·
+        <a href="https://github.com/zap-coding-agent/zap-coding-agent/blob/main/evals/tasks/slm-standalone/tests_expr.py" target="_blank" rel="noopener">tests_expr.py ↗</a> ·
+        <a href="https://github.com/zap-coding-agent/zap-coding-agent/blob/main/evals/tasks/slm-standalone/lrucache.py" target="_blank" rel="noopener">lrucache.py ↗</a>
+        — Devstral's code committed verbatim. Ollama on Apple Silicon, <code>tier = "slm"</code>, v0.15.74.
+      </p>
     </div>
   </section>
 
@@ -508,7 +514,44 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
         <strong>The takeaway:</strong> Devstral independently chose the right architecture — <code>Condition</code>-variable Future, sentinel-based shutdown, per-task exception isolation. A single wrapping mistake caused the deadlock; everything compositional was correct. This is what "good architecture, one bug" looks like from a 24B local model with no frontier hand-holding.
       </div>
 
-      <p class="table-note">Implementation and tests saved to <a href="https://github.com/zap-coding-agent/zap-coding-agent/tree/main/evals/tasks/slm-taskqueue" target="_blank" rel="noopener">evals/tasks/slm-taskqueue ↗</a>. Devstral via Ollama on Apple Silicon, <code>tier = "slm"</code>, v0.15.75.</p>
+      <!-- Devstral's Future class — the hard part, written verbatim -->
+      <p style="font-size:.85rem;font-weight:600;margin-bottom:8px;opacity:.8;">Devstral's <code>Future</code> class — written verbatim, no edits:</p>
+      <pre class="code-block" style="text-align:left;white-space:pre;overflow-x:auto;padding:20px;font-size:.78rem;line-height:1.6;border-radius:8px;"><code>class Future:
+    def __init__(self):
+        self._result = None
+        self._exception = None
+        self._done = False
+        self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+
+    def set_result(self, result):
+        with self._condition:
+            self._result = result
+            self._done = True
+            self._condition.notify_all()
+
+    def set_exception(self, exception):
+        with self._condition:
+            self._exception = exception
+            self._done = True
+            self._condition.notify_all()
+
+    def result(self, timeout=None):
+        with self._condition:
+            if not self._done:
+                self._condition.wait(timeout)
+            if self._exception:
+                raise self._exception
+            return self._result</code></pre>
+
+      <p style="font-size:.82rem;opacity:.7;margin:16px 0 24px;">Condition variable, notify_all, timeout-aware wait, exception re-raise — all correct, first attempt. The concurrency primitive knowledge is there.</p>
+
+      <p class="table-note">
+        View the code:
+        <a href="https://github.com/zap-coding-agent/zap-coding-agent/blob/main/evals/tasks/slm-taskqueue/task_queue.py" target="_blank" rel="noopener">task_queue.py ↗</a> ·
+        <a href="https://github.com/zap-coding-agent/zap-coding-agent/blob/main/evals/tasks/slm-taskqueue/tests.py" target="_blank" rel="noopener">tests.py ↗</a>
+        (Devstral's implementation with the 15-line ThreadSafeQueue fix applied; Ollama on Apple Silicon, <code>tier = "slm"</code>, v0.15.75)
+      </p>
     </div>
   </section>
 
