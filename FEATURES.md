@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix: wire context_window to Ollama num_ctx + deny.toml wit-bindgen skip (v0.15.77)
+
+`num_ctx` for Ollama was hardcoded to 8192 regardless of `context_window` in the
+provider config. Added `ollama_num_ctx` field to `OpenAiClient` and plumbed it from
+`create_client` so a `context_window = 32768` entry in `agent.toml` actually takes
+effect. Also suppressed the `cargo-deny` duplicate-version warning for `wit-bindgen`
+(two versions pulled in by incompatible getrandom 0.3 / 0.4 major versions via wasip2
+and wasip3 — unresolvable without upstream changes).
+
+**Files:** `src/llm_client/openai.rs`, `src/llm_client/mod.rs`, `deny.toml`
+
 ### feat: SLM write_file literal-content rule (v0.15.76)
 
 Adds a harness rule to the SLM system prompt: `write_file` content must be the

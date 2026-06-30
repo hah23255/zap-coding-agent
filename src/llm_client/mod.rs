@@ -259,6 +259,7 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
                 config.disable_stream,
                 auth_header,
                 extra_headers,
+                entry.and_then(|e| e.context_window).map(|w| w as u32),
             ))
         }
     }

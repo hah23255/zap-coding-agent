@@ -31,9 +31,12 @@ pub(super) struct OpenAiClient {
     /// True when the endpoint is Ollama (port 11434 or explicit "ollama" in URL).
     /// Enables num_ctx injection and message-alternation collapsing.
     is_ollama: bool,
+    /// num_ctx to inject for Ollama — defaults to 8192, overridden by context_window config.
+    ollama_num_ctx: u32,
 }
 
 impl OpenAiClient {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         credential: super::CredentialProvider,
         model: String,
@@ -42,6 +45,7 @@ impl OpenAiClient {
         disable_stream: bool,
         auth_header: Option<String>,
         extra_headers: Vec<(String, String)>,
+        ollama_num_ctx: Option<u32>,
     ) -> Self {
         let url = normalize_openai_url(base_url.as_deref());
         let image_support = if url.contains("deepseek.com") {
@@ -63,6 +67,7 @@ impl OpenAiClient {
             auth_header,
             extra_headers,
             is_ollama,
+            ollama_num_ctx: ollama_num_ctx.unwrap_or(8192),
         }
     }
 
@@ -287,7 +292,7 @@ impl LlmProvider for OpenAiClient {
         // is less than zap's system prompt alone. Set num_ctx to 8192 so the model
         // actually has room for a useful conversation.
         if self.is_ollama {
-            body["num_ctx"] = serde_json::json!(8192);
+            body["num_ctx"] = serde_json::json!(self.ollama_num_ctx);
         }
         let body_bytes = serde_json::to_vec(&body).context("failed to serialize request")?;
 
