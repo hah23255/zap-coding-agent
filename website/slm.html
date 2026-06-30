@@ -555,6 +555,124 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
     </div>
   </section>
 
+  <!-- HARNESS USP -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="badge badge-purple" style="margin-bottom:12px;">v0.15.76 · Harness engineering</div>
+        <h2>What we built for local models that no other agent has</h2>
+        <p>Running a 24B model reliably in an agentic loop required five specific pieces of engineering. We audited every major open-source agent — OpenCode, Gemini CLI, Goose, Aider, Continue, Claude Code. None has all five. Most have none of the first four.</p>
+      </div>
+
+      <div class="comparison-table-wrap" style="max-width:960px;">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>OpenCode</th>
+              <th>Gemini CLI</th>
+              <th>Goose</th>
+              <th>Aider</th>
+              <th class="col-zap">zap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>SLM auto-detection</strong><br><small style="opacity:.7;">≤13B local → switch prompt + tools</small></td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Compact SLM prompt</strong><br><small style="opacity:.7;">~400 tok vs ~3 000 tok for frontier</small></td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Reduced tool set</strong><br><small style="opacity:.7;">6 core tools only, not 20+</small></td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Chat-without-tools nudge</strong><br><small style="opacity:.7;">Fires when model returns ``` but makes no tool call</small></td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Identical-call loop detector</strong><br><small style="opacity:.7;">(tool, args) fingerprint, fires on consecutive match</small></td>
+              <td style="font-size:.82rem;">Partial<br><small style="opacity:.7;">count only, not args</small></td>
+              <td style="font-size:.82rem;">Partial<br><small style="opacity:.7;">false positives on legitimate repetition</small></td>
+              <td class="good">Yes<br><small style="opacity:.7;">MD5 hash, 20-call window</small></td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td><strong>write_file content rule</strong><br><small style="opacity:.7;">Prevents variable-name placeholders in tool content arg</small></td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">Sources: OpenCode <code>DOOM_LOOP_THRESHOLD=3</code> (issues <a href="https://github.com/sst/opencode/issues/1034" target="_blank" rel="noopener">#1034</a>, <a href="https://github.com/sst/opencode/issues/1068" target="_blank" rel="noopener">#1068</a>); Gemini CLI <code>LoopDetectionService</code> (issues <a href="https://github.com/google-gemini/gemini-cli/issues/5276" target="_blank" rel="noopener">#5276</a>, <a href="https://github.com/google-gemini/gemini-cli/issues/11002" target="_blank" rel="noopener">#11002</a> — known false-positive problem); Goose MD5 fingerprinting (20-call window, 3-hit threshold); Aider <code>--weak-model</code> for summarization only; Claude Code identical-call detection feature request <a href="https://github.com/anthropics/claude-code/issues/4277" target="_blank" rel="noopener">#4277</a> — closed as not planned.</p>
+
+      <div class="section-header" style="margin-top:52px;">
+        <h3 style="font-size:1.3rem;">Five layers of SLM reliability — what each one does</h3>
+      </div>
+
+      <div class="feature-grid" style="max-width:960px;margin:0 auto;">
+        <div class="feature-card">
+          <div class="feature-icon-wrap">🏷️</div>
+          <h3>SLM tier auto-detection</h3>
+          <p>No config needed. Hit a <code>localhost</code> URL with a model whose name contains a ≤13B size suffix (<code>7b</code>, <code>8b</code>, <code>9b</code>, <code>13b</code>…) and zap switches to SLM mode automatically. Or set <code>tier = "slm"</code> in <code>~/.agent.toml</code> for any model. Frontier model paths: zero changes — all five features are gated on <code>is_slm_tier()</code>.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap">📏</div>
+          <h3>400-token SLM prompt</h3>
+          <p>The frontier system prompt is ~3 000 tokens of scaffolding a strong model needs. Small models read it as noise. zap's SLM prompt strips to ~400 tokens: identity + navigation rules + tool rules + git. Every saved token is context the model can use for actual code. Context window injection (<code>num_ctx: 8192</code>) also happens automatically for Ollama models.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap">🔧</div>
+          <h3>6-tool core profile</h3>
+          <p>Small models hallucinate tool names and mix arguments when handed 20+ schemas. zap sends only 6 in SLM mode: <code>read_file</code>, <code>edit_file</code>, <code>write_file</code>, <code>shell</code>, <code>search_code</code>, <code>list_directory</code>. These cover the full agentic coding loop. The schema surface the model has to reason about drops by ~70%.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap">💬→🔧</div>
+          <h3>Chat-without-tools nudge</h3>
+          <p>The most common SLM failure: the model describes what it <em>would</em> do — markdown code block, explanation, plan — but makes zero tool calls. No other agent catches this pattern. zap detects a ``` block with no <code>tool_calls</code> and fires: <em>"Call write_file NOW — do not write explanatory text first."</em> A second stronger nudge fires if the model chats again. Counter resets on every successful tool-call round.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap">🔁→🛑</div>
+          <h3>Identical-call loop detector</h3>
+          <p>When an SLM calls the same tool with the same arguments twice in a row, the results won't change — but small models keep trying anyway. zap fingerprints <code>(tool_name, args_json)</code> per round and fires when consecutive rounds match: <em>"The results will not change. Draw a conclusion and act on it."</em> This broke the 7B's 16-turn infinite loop — the shell-failure watchdog missed it entirely because no shell command was failing.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap">📝✓</div>
+          <h3>write_file content rule</h3>
+          <p>An observed failure unique to agentic small models: the model plans code in chat, names it as a variable, then passes the variable name — not the code — as the <code>content</code> argument to <code>write_file</code>. The call succeeds, the file is wrong. zap's SLM prompt explicitly rules this out: <em>"content must be the COMPLETE, LITERAL file text. Never pass a variable name or placeholder."</em> Discovered across three Devstral retries before we named the pattern.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-neutral" style="margin-top:32px;">
+        <strong>These are not model improvements — they are harness improvements.</strong> The model doesn't change. The SLM tier runs the same weights via Ollama. What changes is the environment the model operates in: smaller prompt, fewer tools, runtime nudges that fire at exactly the right moment. That's what makes a 24B local model produce 5/5 on a concurrent threading task.
+      </div>
+    </div>
+  </section>
+
   <!-- GETTING STARTED -->
   <section class="section">
     <div class="container container-sm">
