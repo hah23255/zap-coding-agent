@@ -217,9 +217,10 @@ impl Session {
         };
 
         // SLM tier: use a compact ~400-token prompt and force the core tool profile.
-        // is_slm_tier() checks explicit `tier = "slm"` first, then auto-detects from
-        // localhost URL + model name size suffix (≤13B).
+        // is_slm_tier() checks explicit `tier = "slm"` / `tier = "qwen3_8b"` first,
+        // then auto-detects from localhost URL + model name size suffix (≤13B).
         let slm_mode = crate::config::is_slm_tier(config);
+        let qwen3_8b_mode = crate::config::is_qwen3_8b_tier(config);
         let mut config = config.clone();
         if slm_mode && config.tool_profile != "core" {
             config.tool_profile = "core".to_string();
@@ -233,10 +234,11 @@ impl Session {
         let mut tools = ToolRegistry::new(config.sandbox.clone());
 
         // MCP: load config into pending_mcp — servers connect on first use via mcp_connect tool.
+        // Qwen3 8B tier skips MCP entirely to remove connector/schema overhead for that model.
         let mcp_cfg = crate::mcp::load_config();
         let mcp_had_config = mcp_cfg.had_config;
-        let mcp_server_count = mcp_cfg.servers.len();
-        if mcp_server_count > 0 {
+        let mcp_server_count = if qwen3_8b_mode { 0 } else { mcp_cfg.servers.len() };
+        if !qwen3_8b_mode && mcp_server_count > 0 {
             tools.load_mcp_lazy(mcp_cfg);
         }
 

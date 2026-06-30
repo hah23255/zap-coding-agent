@@ -45,6 +45,7 @@ pub fn build_slm_system_prompt(config: &Config) -> Result<String> {
 
     let tool_rules =
         "**Tool rules:**\n\
+         - Act immediately. Call write_file to create files, shell to run them. Never describe a tool call in a code block — make the actual call.\n\
          - Always read_file before edit_file. Never assume file contents.\n\
          - old_string in edit_file must match exactly (whitespace included).\n\
          - Prefer edit_file over write_file for existing files.\n\
@@ -54,7 +55,7 @@ pub fn build_slm_system_prompt(config: &Config) -> Result<String> {
     let mut parts: Vec<String> = vec![
         format!(
             "You are a precise AI coding agent{lang_hint} (model: {}).\n\
-             Complete coding tasks using tools. Be concise. Never fabricate file contents.\n\
+             Complete coding tasks by calling tools — not by describing what you would do.\n\
              CWD: {cwd}  |  Platform: {}",
             config.model,
             std::env::consts::OS,

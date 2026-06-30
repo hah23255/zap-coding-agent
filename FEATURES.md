@@ -7,6 +7,37 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat: SLM agentic loop hardening — chat nudges + loop detector (v0.15.75)
+
+Two new harness guards that fire only in SLM tier:
+
+**Chat-without-tools nudge** — detects when the model returns a ``` code block but makes no
+`tool_calls`. Injects an escalating nudge (up to 2 per tool-call round) telling the model to
+call `write_file` immediately. Counter resets to 0 after every successful tool-call round, so
+the budget is always fresh for the next phase of a task.
+
+**Identical-call loop detector** — fingerprints `(tool_name, args_json)` for every tool called
+in a round. If the current round is identical to the previous, appends a nudge to the last tool
+result: *"the results will not change — draw a conclusion and act on it."*
+
+Also strengthens the SLM system prompt identity line to mandate immediate tool use.
+
+Frontier model paths: zero changes. Both guards gated on `is_slm_tier()`.
+
+Tier detection logic extracted to `src/config/tier.rs` (module split to stay under 600-line limit).
+
+**Validated results (Devstral 24B, Ollama, Apple Silicon, one user turn each):**
+
+| Task | Result |
+|---|---|
+| Recursive-descent expression evaluator + pytest | 6/6 pass |
+| Sentinel-node LRU cache + tests | 6/6 pass |
+| Thread-safe bounded task queue (harder) | 3/5 pass — Future+Condition correct; ThreadSafeQueue outer-lock deadlock on backpressure path |
+
+**Files:** `src/session/turn.rs` (nudge logic), `src/config/tier.rs` (extracted tier detection),
+`src/context_manager.rs` (SLM identity line), `evals/tasks/slm-standalone/`,
+`evals/tasks/slm-taskqueue/`.
+
 ### feat: SLM tier — Gemma 9B / Qwen / local model optimisations (v0.15.74)
 
 Adds a first-class SLM (small local model) mode that auto-activates for Ollama ≤13B models

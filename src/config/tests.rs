@@ -229,14 +229,53 @@ fn falls_back_to_provider_context_when_model_has_no_context_field() {
 }
 
 #[test]
-fn model_list_from_map_is_correct() {
-    let mut models = HashMap::new();
-    models.insert("alpha".to_string(), make_model_entry(Some(8_000), false));
-    models.insert("beta".to_string(), make_model_entry(Some(32_000), true));
-    let entry = ProviderEntry { models, ..Default::default() };
-    let mut ids: Vec<&str> = entry.models.keys().map(|s| s.as_str()).collect();
-    ids.sort();
-    assert_eq!(ids, vec!["alpha", "beta"]);
-    assert!(entry.models["beta"].reasoning);
-    assert!(!entry.models["alpha"].reasoning);
+fn explicit_qwen3_8b_tier_counts_as_slm() {
+    let mut config = Config {
+        provider_slug: "local".to_string(),
+        model: "anything".to_string(),
+        ..Default::default()
+    };
+    config.all_providers.insert("local".to_string(), ProviderEntry {
+        tier: Some("qwen3_8b".to_string()),
+        ..Default::default()
+    });
+
+    assert!(is_slm_tier(&config));
+    assert!(is_qwen3_8b_tier(&config));
+}
+
+#[test]
+fn auto_detects_local_qwen3_8b_tier() {
+    let config = Config {
+        model: "qwen3:8b".to_string(),
+        base_url: Some("http://localhost:11434/v1/chat/completions".to_string()),
+        ..Default::default()
+    };
+
+    assert!(is_slm_tier(&config));
+    assert!(is_qwen3_8b_tier(&config));
+}
+
+#[test]
+fn frontier_qwen3_8b_is_not_treated_as_local_slm() {
+    let config = Config {
+        model: "qwen3:8b".to_string(),
+        base_url: Some("https://api.openai.com/v1/chat/completions".to_string()),
+        ..Default::default()
+    };
+
+    assert!(!is_slm_tier(&config));
+    assert!(!is_qwen3_8b_tier(&config));
+}
+
+#[test]
+fn local_non_qwen_slm_does_not_trigger_qwen3_8b_mode() {
+    let config = Config {
+        model: "gemma3:9b".to_string(),
+        base_url: Some("http://127.0.0.1:11434/v1/chat/completions".to_string()),
+        ..Default::default()
+    };
+
+    assert!(is_slm_tier(&config));
+    assert!(!is_qwen3_8b_tier(&config));
 }

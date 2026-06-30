@@ -143,7 +143,7 @@ impl Session {
             self.maybe_summarize_dropped_turns().await;
         }
 
-        let matched_skills: Vec<&crate::skill_manager::Skill> = if is_casual {
+        let matched_skills: Vec<&crate::skill_manager::Skill> = if is_casual || crate::config::is_qwen3_8b_tier(&self.config) {
             Vec::new()
         } else {
             let mut ms = crate::skill_manager::match_skills_scoped(input, &self.skills, &self.domain_scope);
@@ -284,6 +284,9 @@ impl Session {
         }
 
         let mut stream_drops: u32 = 0;
+        let slm_mode = crate::config::is_slm_tier(&self.config);
+        let mut slm_chat_nudges: u8 = 0;
+        let mut prev_call_fingerprints: std::collections::HashSet<String> = std::collections::HashSet::new();
         for turn in 0..MAX_TURNS {
             tracing::info!(turn = turn, "calling LLM");
             self.agentic_round = turn;
@@ -498,8 +501,44 @@ impl Session {
                          the Anthropic wire format. Check ~/.zap/llm.log for the raw response."
                     );
                 }
+                // SLM models sometimes chat code instead of writing files.
+                // Allow up to 2 escalating nudges before giving up.
+                if slm_mode && slm_chat_nudges < 2 {
+                    let has_code = response.content.iter().any(|b| {
+                        matches!(b, ContentBlock::Text { text } if text.contains("```"))
+                    });
+                    if has_code {
+                        let nudge = if slm_chat_nudges == 0 {
+                            "[zap] You described code but didn't write any files. \
+                             Call write_file NOW with the full file content — do not write \
+                             any more explanatory text first."
+                        } else {
+                            "[zap] Still no tool call. Stop all planning text. \
+                             Your very next action must be a write_file tool call with \
+                             the complete file content. Nothing else."
+                        };
+                        slm_chat_nudges += 1;
+                        self.messages.push(Message::user_text(nudge));
+                        continue;
+                    }
+                }
                 break;
             }
+
+            // SLM loop detection: if every call in this round duplicates the previous
+            // round exactly, the model is stuck — it won't get new information by
+            // repeating. Append a one-shot nudge to the last tool result.
+            let current_fingerprints: std::collections::HashSet<String> = tool_calls.iter()
+                .filter_map(|b| {
+                    if let ContentBlock::ToolUse { name, input, .. } = b {
+                        Some(format!("{name}:{input}"))
+                    } else { None }
+                })
+                .collect();
+            let is_repeat_round = slm_mode
+                && !prev_call_fingerprints.is_empty()
+                && current_fingerprints == prev_call_fingerprints;
+            prev_call_fingerprints = current_fingerprints;
 
             // Extract owned call data to pass across the async boundary.
             let calls: Vec<(String, String, serde_json::Value)> = tool_calls.iter()
@@ -512,7 +551,22 @@ impl Session {
 
             match self.execute_tool_round(calls).await? {
                 None => return Ok(()),   // secrets abort
-                Some(tool_msg) => self.messages.push(tool_msg),
+                Some(mut tool_msg) => {
+                    // Reset chat-nudge counter: model is now using tools correctly.
+                    slm_chat_nudges = 0;
+                    if is_repeat_round {
+                        if let Some(ContentBlock::ToolResult { content, .. }) =
+                            tool_msg.content.last_mut()
+                        {
+                            content.push_str(
+                                "\n\n[zap] You called the same tools with the same arguments \
+                                 as last round. The results will not change. Stop repeating — \
+                                 draw a conclusion from what you already know and act on it."
+                            );
+                        }
+                    }
+                    self.messages.push(tool_msg);
+                }
             }
 
             // If memory_set / memory_delete ran this round, patch self.system so
