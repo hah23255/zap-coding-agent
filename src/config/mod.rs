@@ -92,9 +92,49 @@ pub struct ProviderEntry {
     /// ```
     #[serde(default)]
     pub models: std::collections::HashMap<String, ModelEntry>,
+    /// Model tier: "slm" for small local models, "frontier" for cloud/large models.
+    /// When "slm": forces core tool profile, minimal system prompt, and Ollama num_ctx.
+    /// Omit to auto-detect from URL + model name (localhost + ≤13B → slm).
+    pub tier: Option<String>,
 }
 
 pub const CODEX_CONTEXT_WINDOW: usize = 400_000;
+
+/// Returns true when the active provider should use SLM-optimised behaviour:
+/// minimal system prompt, core-only tool set, Ollama num_ctx injection, and
+/// message-alternation collapsing.
+///
+/// Priority: explicit `tier = "slm"` in provider config > auto-detection.
+/// Auto-detection: localhost URL + model name containing a small-size suffix (≤13B).
+pub fn is_slm_tier(config: &Config) -> bool {
+    // 1. Explicit tier field in the active provider entry wins.
+    if let Some(entry) = config.all_providers.get(&config.provider_slug) {
+        if let Some(tier) = &entry.tier {
+            return tier.eq_ignore_ascii_case("slm");
+        }
+    }
+    // 2. Auto-detect: local URL + small model size suffix.
+    let url = config.base_url.as_deref().unwrap_or("");
+    let is_local = url.contains("localhost") || url.contains("127.0.0.1")
+        || url.contains("::1") || url.contains("0.0.0.0");
+    if !is_local {
+        return false;
+    }
+    let model = config.model.to_lowercase();
+    // Match size suffixes that indicate ≤13B params.  Anchored to avoid matching
+    // "109b" as "9b" — require a non-digit before the suffix or start-of-token.
+    let small_sizes = ["0.5b","1b","1.5b","2b","3b","3.8b","4b","7b","8b","9b","11b","12b","13b"];
+    small_sizes.iter().any(|sz| {
+        // The suffix must appear at the end or be followed by a non-digit
+        // (e.g. "gemma3:9b" or "gemma-9b-instruct" match; "90b" does not).
+        if let Some(pos) = model.find(sz) {
+            let after = model[pos + sz.len()..].chars().next();
+            matches!(after, None | Some('-') | Some('_') | Some(':') | Some('.') | Some('q') | Some('i'))
+        } else {
+            false
+        }
+    })
+}
 
 pub fn default_context_window_for_provider(slug: &str, kind: Option<&str>) -> Option<usize> {
     if slug == "codex" || kind.is_some_and(|k| k.eq_ignore_ascii_case("codex")) {
@@ -459,6 +499,9 @@ impl Config {
             }
             if let Some(ref hdr) = entry.auth_header {
                 writeln!(f, "auth_header = {:?}", hdr)?;
+            }
+            if let Some(ref tier) = entry.tier {
+                writeln!(f, "tier     = {:?}", tier)?;
             }
             writeln!(f)?;
 

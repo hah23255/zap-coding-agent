@@ -7,6 +7,37 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat: SLM tier — Gemma 9B / Qwen / local model optimisations (v0.15.74)
+
+Adds a first-class SLM (small local model) mode that auto-activates for Ollama ≤13B models
+and can be set explicitly via `tier = "slm"` in `~/.agent.toml`.
+
+**What changes in SLM mode:**
+
+| Aspect | Before | After |
+|---|---|---|
+| System prompt | ~3 000 tokens (full) | ~400 tokens (identity + nav rules + tool rules + git + ZAP.md) |
+| Tool set | Full (~20 tools) | Core 6: `read_file`, `edit_file`, `write_file`, `shell`, `search_code`, `list_directory` |
+| Ollama `num_ctx` | not sent (defaults to 2 048) | injected as `8 192` — fixes truncated prompts on all Gemma/Qwen Ollama models |
+| Message alternation | not done | consecutive same-role turns collapsed — prevents Gemma/Mistral chat-template crash |
+
+**Auto-detection:** localhost URL + model name containing a ≤13B size suffix (`7b`, `8b`, `9b`,
+`11b`, `13b`, etc.) triggers SLM mode with zero config. A 70B local model does not trigger it.
+
+**Explicit opt-in:**
+```toml
+[providers.ollama_gemma]
+kind     = "openai"
+base_url = "http://localhost:11434/v1/chat/completions"
+model    = "gemma3:9b"
+tier     = "slm"
+```
+
+**Files:** `src/config/mod.rs` (`ProviderEntry.tier`, `is_slm_tier()`),
+`src/context_manager.rs` (`build_slm_system_prompt()`),
+`src/session/mod.rs` (SLM branch in `Session::new`),
+`src/llm_client/openai.rs` (`is_ollama`, `num_ctx` injection, `collapse_consecutive_roles`).
+
 ### fix: Ollama non-streaming JSON fallback in SSE parser (v0.15.73)
 
 Ollama sometimes returns a plain JSON body (`{"choices":[{"message":...}]}`) instead of SSE

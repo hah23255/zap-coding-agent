@@ -492,6 +492,7 @@ mod credential_tests {
             context_window: None,
             extra_headers: Default::default(),
             models: Default::default(),
+            tier: None,
         }
     }
 

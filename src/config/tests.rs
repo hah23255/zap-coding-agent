@@ -121,6 +121,7 @@ fn save_round_trips_models_and_extra_headers() {
         auth_header: None,
         extra_headers,
         models,
+        tier: None,
     });
 
     // Write via the real Config::save_to().

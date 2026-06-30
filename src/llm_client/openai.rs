@@ -28,6 +28,9 @@ pub(super) struct OpenAiClient {
     pub(super) auth_header: String,
     /// Arbitrary extra headers sent on every request (e.g. gateway routing headers).
     extra_headers: Vec<(String, String)>,
+    /// True when the endpoint is Ollama (port 11434 or explicit "ollama" in URL).
+    /// Enables num_ctx injection and message-alternation collapsing.
+    is_ollama: bool,
 }
 
 impl OpenAiClient {
@@ -47,6 +50,7 @@ impl OpenAiClient {
             let is_local = url.contains("localhost") || url.contains("127.0.0.1");
             if is_local { super::local_model_supports_vision(&model) } else { true }
         };
+        let is_ollama = url.contains(":11434") || url.contains("ollama");
         let auth_header = auth_header.unwrap_or_else(|| "Authorization".to_string());
         Self {
             http: crate::http::client().clone(),
@@ -58,6 +62,49 @@ impl OpenAiClient {
             image_support,
             auth_header,
             extra_headers,
+            is_ollama,
+        }
+    }
+
+    /// Collapse consecutive messages with the same role into one.
+    ///
+    /// Gemma and Mistral-family chat templates require strictly alternating
+    /// user/assistant turns. When tool results or user messages stack up back-to-back
+    /// (e.g. after a mid-session provider switch), the model's Jinja template raises
+    /// "conversation roles must alternate". Merging keeps the token ordering intact.
+    fn collapse_consecutive_roles(msgs: &mut Vec<serde_json::Value>) {
+        let mut i = 0;
+        while i + 1 < msgs.len() {
+            let role_cur  = msgs[i]["role"].as_str().unwrap_or("").to_string();
+            let role_next = msgs[i + 1]["role"].as_str().unwrap_or("").to_string();
+            if role_cur == role_next && (role_cur == "user" || role_cur == "assistant") {
+                // Merge content arrays / strings.
+                let next_content = msgs[i + 1]["content"].clone();
+                let cur_content  = msgs[i]["content"].clone();
+                let merged = match (cur_content, next_content) {
+                    (serde_json::Value::Array(mut a), serde_json::Value::Array(b)) => {
+                        a.extend(b);
+                        serde_json::Value::Array(a)
+                    }
+                    (serde_json::Value::String(a), serde_json::Value::String(b)) => {
+                        serde_json::Value::String(format!("{a}\n{b}"))
+                    }
+                    (serde_json::Value::Array(mut a), serde_json::Value::String(s)) => {
+                        a.push(serde_json::json!({"type": "text", "text": s}));
+                        serde_json::Value::Array(a)
+                    }
+                    (serde_json::Value::String(s), serde_json::Value::Array(mut b)) => {
+                        b.insert(0, serde_json::json!({"type": "text", "text": s}));
+                        serde_json::Value::Array(b)
+                    }
+                    (a, _) => a, // fallback: keep current
+                };
+                msgs[i]["content"] = merged;
+                msgs.remove(i + 1);
+                // Don't advance i — the merged message may now collide with the next one.
+            } else {
+                i += 1;
+            }
         }
     }
 
@@ -208,7 +255,15 @@ impl LlmProvider for OpenAiClient {
         let mut before_output = before_output;
         let mut highlighter = crate::stream_highlighter::StreamHighlighter::new();
         highlighter.suppress_print = crate::tui::channel::is_tui_mode();
-        let oai_messages = self.encode_messages(system, messages);
+        let mut oai_messages = self.encode_messages(system, messages);
+
+        // Gemma / Mistral-family chat templates require strictly alternating
+        // user/assistant turns. Collapse any consecutive same-role messages that
+        // can arise from mid-session provider switches or multi-message tool rounds.
+        if self.is_ollama {
+            Self::collapse_consecutive_roles(&mut oai_messages);
+        }
+
         let oai_tools = Self::encode_tools(tools);
 
         let mut body = if self.disable_stream {
@@ -227,6 +282,12 @@ impl LlmProvider for OpenAiClient {
         };
         if !oai_tools.is_empty() {
             body["tools"] = serde_json::json!(oai_tools);
+        }
+        // Ollama defaults to a very small context window (often 2048 tokens) which
+        // is less than zap's system prompt alone. Set num_ctx to 8192 so the model
+        // actually has room for a useful conversation.
+        if self.is_ollama {
+            body["num_ctx"] = serde_json::json!(8192);
         }
         let body_bytes = serde_json::to_vec(&body).context("failed to serialize request")?;
 

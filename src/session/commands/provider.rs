@@ -283,6 +283,7 @@ impl Session {
             auth_header: def.auth_header.map(|h| h.to_string()),
             extra_headers: Default::default(),
             models: Default::default(),
+            tier: None,
         });
 
         self.client   = crate::llm_client::create_client(&new_config);

@@ -15,6 +15,85 @@ pub fn build_casual_system_prompt(config: &Config) -> String {
     )
 }
 
+/// Compact system prompt for SLM (small local model) mode.
+///
+/// Targets ~400 tokens vs the ~3 000-token full prompt. Drops: LSP section,
+/// sub-agent docs, security prose, reasoning/investigation sections, and the
+/// domain-map staleness nudge. Keeps everything the agent loop *requires*:
+/// identity, CWD, core tool rules, code-nav order, and ZAP.md project context.
+pub fn build_slm_system_prompt(config: &Config) -> Result<String> {
+    use crate::context_utils::git_status_summary;
+
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+
+    let lang_hint = crate::project::load_project_meta()
+        .and_then(|m| if m.language.is_empty() { None } else { Some(m.language.join(", ")) })
+        .map(|l| format!(" ({l})"))
+        .unwrap_or_default();
+
+    let db_exists = std::path::Path::new(".zap/code.db").exists();
+
+    let nav = if db_exists {
+        "**Code nav order:** code_map → find_definition → search_code → read_file (offset+limit).\n\
+         Never read_file a large source file without code_map first."
+    } else {
+        "**Code nav order (no index):** list_directory '.' → search_code → read_file.\n\
+         Do NOT call code_map or find_definition — they return empty without an index."
+    };
+
+    let tool_rules =
+        "**Tool rules:**\n\
+         - Always read_file before edit_file. Never assume file contents.\n\
+         - old_string in edit_file must match exactly (whitespace included).\n\
+         - Prefer edit_file over write_file for existing files.\n\
+         - Use shell for git and build commands; always include a description.\n\
+         - Do not list directories with shell; use list_directory instead.";
+
+    let mut parts: Vec<String> = vec![
+        format!(
+            "You are a precise AI coding agent{lang_hint} (model: {}).\n\
+             Complete coding tasks using tools. Be concise. Never fabricate file contents.\n\
+             CWD: {cwd}  |  Platform: {}",
+            config.model,
+            std::env::consts::OS,
+        ),
+        nav.to_string(),
+        tool_rules.to_string(),
+    ];
+
+    // Git status — small but high signal for the model.
+    if std::path::Path::new(".git").exists() {
+        if let Some(status) = git_status_summary() {
+            parts.push(format!("**Git status:**\n```\n{status}\n```"));
+        }
+    }
+
+    // ZAP.md / CLAUDE.md project context (already has its own size cap).
+    if let Some(mut zap_md) = load_zap_md(&config.context_paths) {
+        let hits = crate::secret_scanner::scan(&zap_md);
+        if !hits.is_empty() {
+            crate::secret_scanner::redact(&mut zap_md, &hits);
+        }
+        parts.push(format!("**Project context:**\n{zap_md}"));
+    }
+
+    // understanding.md — only when a real /init analysis exists (capped 2k chars).
+    let understanding = crate::project::load_understanding(2000);
+    let has_real_analysis = understanding.as_deref().map(|u| {
+        !u.contains("Run `/init`")
+            && (u.contains("## Analysis")
+                || u.contains("## Architecture")
+                || u.contains("## Overview"))
+    }).unwrap_or(false);
+    if has_real_analysis {
+        parts.push(format!("**Project reference:**\n{}", understanding.unwrap()));
+    }
+
+    Ok(parts.join("\n\n"))
+}
+
 /// Build the system prompt, optionally injecting pre-matched skill content.
 pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Result<String> {
 

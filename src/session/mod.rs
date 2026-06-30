@@ -216,7 +216,20 @@ impl Session {
             store.save_session("(repl)", &config.model, &cwd_str)?
         };
 
-        let mut system = context_manager::build_system_prompt(config)?;
+        // SLM tier: use a compact ~400-token prompt and force the core tool profile.
+        // is_slm_tier() checks explicit `tier = "slm"` first, then auto-detects from
+        // localhost URL + model name size suffix (≤13B).
+        let slm_mode = crate::config::is_slm_tier(config);
+        let mut config = config.clone();
+        if slm_mode && config.tool_profile != "core" {
+            config.tool_profile = "core".to_string();
+        }
+        let config = &config;
+        let mut system = if slm_mode {
+            context_manager::build_slm_system_prompt(config)?
+        } else {
+            context_manager::build_system_prompt(config)?
+        };
         let mut tools = ToolRegistry::new(config.sandbox.clone());
 
         // MCP: load config into pending_mcp — servers connect on first use via mcp_connect tool.
