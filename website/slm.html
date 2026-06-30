@@ -429,6 +429,74 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
       </div>
 
       <div class="section-header" style="margin-top:52px;">
+        <h3 style="font-size:1.3rem;">How this compares to other agents</h3>
+        <p>We checked every major open-source coding agent. The chat-without-tools nudge and write_file content rule are absent from all of them. The loop detector is the most differentiated — Gemini CLI has a broad version with known false-positive issues; Goose has a solid MD5-based version; no one else.</p>
+      </div>
+
+      <div class="comparison-table-wrap" style="max-width:940px;">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>OpenCode</th>
+              <th>Gemini CLI</th>
+              <th>Goose</th>
+              <th>Aider</th>
+              <th class="col-zap">zap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SLM auto-detection + compact prompt</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td>6-tool core profile for small models</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td>Chat-without-tools nudge (``` block, no tool call)</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td>Identical-call loop detector</td>
+              <td style="font-size:.82rem;">Partial <small style="opacity:.65;">(count only)</small></td>
+              <td style="font-size:.82rem;">Partial <small style="opacity:.65;">(false positives <a href="https://github.com/google-gemini/gemini-cli/issues/11002" target="_blank" rel="noopener">#11002</a>)</small></td>
+              <td class="good" style="font-size:.82rem;">Yes <small style="opacity:.65;">(MD5 hash)</small></td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+            <tr>
+              <td>write_file literal-content rule</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="bad">No</td>
+              <td class="good col-zap">Yes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note" style="max-width:940px;">
+        Sources: OpenCode tool-calling failures with Ollama (<a href="https://github.com/sst/opencode/issues/1034" target="_blank" rel="noopener">#1034</a>, <a href="https://github.com/sst/opencode/issues/1068" target="_blank" rel="noopener">#1068</a>);
+        Gemini CLI <code>LoopDetectionService</code> (<a href="https://github.com/google-gemini/gemini-cli/issues/5276" target="_blank" rel="noopener">#5276</a>, <a href="https://github.com/google-gemini/gemini-cli/issues/11002" target="_blank" rel="noopener">#11002</a>);
+        Goose MD5 fingerprinting, 20-call window;
+        Claude Code identical-call detection feature request <a href="https://github.com/anthropics/claude-code/issues/4277" target="_blank" rel="noopener">#4277</a> — closed as not planned.
+      </p>
+
+      <div class="section-header" style="margin-top:52px;">
         <h3 style="font-size:1.3rem;">Devstral expression evaluator — full agentic trace</h3>
         <p>Single user turn. No plan, no hints. The model chose recursive descent parsing, installed its own missing dependencies, and self-corrected until tests passed.</p>
       </div>
