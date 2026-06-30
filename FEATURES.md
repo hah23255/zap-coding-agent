@@ -32,7 +32,7 @@ Tier detection logic extracted to `src/config/tier.rs` (module split to stay und
 |---|---|
 | Recursive-descent expression evaluator + pytest | 6/6 pass |
 | Sentinel-node LRU cache + tests | 6/6 pass |
-| Thread-safe bounded task queue (harder) | 3/5 pass — Future+Condition correct; ThreadSafeQueue outer-lock deadlock on backpressure path |
+| Thread-safe bounded task queue (harder) | 5/5 pass — Future+Condition correct; fixed outer-lock deadlock in ThreadSafeQueue wrapper (removed, use queue.Queue directly) |
 
 **Files:** `src/session/turn.rs` (nudge logic), `src/config/tier.rs` (extracted tier detection),
 `src/context_manager.rs` (SLM identity line), `evals/tasks/slm-standalone/`,

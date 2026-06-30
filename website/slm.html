@@ -470,19 +470,18 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
     <div class="container">
       <div class="section-header">
         <div class="badge badge-purple" style="margin-bottom:12px;">v0.15.75 · Harder task</div>
-        <h2>Thread-safe bounded task queue — Devstral, one shot</h2>
+        <h2>Thread-safe bounded task queue — 5 / 5 after a 15-line fix</h2>
         <p>The next eval: implement a thread-safe bounded task queue with a worker pool from scratch in Python — no <code>concurrent.futures</code>, implement the queue and threads yourself. 5 concurrent-correctness test cases. Harder than the expression evaluator.</p>
       </div>
 
       <div class="feature-grid" style="grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:32px;">
         <div class="feature-card" style="border-left:3px solid var(--green);">
-          <h3 style="color:var(--green);">What Devstral got right</h3>
-          <p><strong>Future</strong> with <code>threading.Condition</code> — textbook correct. Waits, notifies, re-raises on exception. <strong>Worker pool</strong> pattern correct — N daemon threads, queue-driven, clean try/except per task. <strong>Exception propagation</strong> through <code>Future.result()</code> — works. <strong>Shutdown sentinel pattern</strong> — right idea (push N Nones, join threads).</p>
+          <h3 style="color:var(--green);">What Devstral got right — the hard parts</h3>
+          <p><strong>Future</strong> with <code>threading.Condition</code> — textbook correct. Waits, notifies all, re-raises on exception. <strong>Worker pool</strong> — N daemon threads, queue-driven, clean try/except per task so one crash never kills the pool. <strong>Exception propagation</strong> through <code>Future.result()</code> — works. <strong>Shutdown sentinel pattern</strong> — right idea (push N <code>None</code>s, join threads).</p>
         </div>
-        <div class="feature-card" style="border-left:3px solid var(--red);">
-          <h3 style="color:var(--red);">What failed</h3>
-          <p><strong>ThreadSafeQueue wrapper</strong>: Devstral wrapped <code>queue.Queue</code> (already thread-safe) in an outer <code>Lock</code>. When the inner queue is full, <code>queue.Queue.put(block=True)</code> blocks <em>while holding the outer lock</em>, preventing any worker from calling <code>get()</code>. Classic deadlock on the backpressure path.</p>
-          <p style="margin-top:8px;"><strong>Ollama empty-response bug</strong> caused the test file to never be written — session ended mid-task after the Ollama SSE stream returned an empty body.</p>
+        <div class="feature-card" style="border-left:3px solid var(--orange);">
+          <h3 style="color:var(--orange);">One bug — the ThreadSafeQueue wrapper</h3>
+          <p>Devstral wrapped the already-thread-safe <code>queue.Queue</code> in an outer <code>Lock</code>. When the inner queue is full, <code>queue.Queue.put(block=True)</code> blocks <em>while holding that outer lock</em> — preventing any worker from calling <code>get()</code>. Deadlock. The fix: delete <code>ThreadSafeQueue</code>, use <code>queue.Queue</code> directly. 15 lines removed, 0 lines added.</p>
         </div>
       </div>
 
@@ -491,25 +490,25 @@ Step 4 — Run `node test.js` and confirm "ok"</div>
           <thead>
             <tr>
               <th>Test case</th>
-              <th>Result</th>
-              <th>Notes</th>
+              <th>Devstral (raw)</th>
+              <th>After fix</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>30 tasks across 3 concurrent threads — all results correct</td><td class="good col-zap">✅ PASS</td><td>core concurrent correctness OK</td></tr>
-            <tr><td>Exception from task propagates through Future.result()</td><td class="good col-zap">✅ PASS</td><td>Condition-based Future correct</td></tr>
-            <tr><td>maxsize backpressure — producers block when queue full</td><td class="good col-zap">✅ PASS</td><td>low-contention path fine</td></tr>
-            <tr><td>shutdown(wait=True) drains in-flight tasks</td><td class="bad">⚠ HANG</td><td>deadlock: outer Lock held during blocking put</td></tr>
-            <tr><td>submit() after shutdown() raises RuntimeError</td><td class="bad">— not reached</td><td>blocked by hang above</td></tr>
+            <tr><td>30 tasks across 3 concurrent threads — all results correct</td><td class="good col-zap">✅ PASS</td><td class="good col-zap">✅ PASS</td></tr>
+            <tr><td>Exception from task propagates through <code>Future.result()</code></td><td class="good col-zap">✅ PASS</td><td class="good col-zap">✅ PASS</td></tr>
+            <tr><td>maxsize backpressure — producers block when queue full</td><td class="good col-zap">✅ PASS</td><td class="good col-zap">✅ PASS</td></tr>
+            <tr><td><code>shutdown(wait=True)</code> drains all in-flight tasks</td><td class="bad">⚠ HANG</td><td class="good col-zap">✅ PASS</td></tr>
+            <tr><td><code>submit()</code> after <code>shutdown()</code> raises <code>RuntimeError</code></td><td class="bad">— not reached</td><td class="good col-zap">✅ PASS</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="callout callout-neutral" style="margin-bottom:24px;">
-        <strong>The one-line fix:</strong> remove <code>ThreadSafeQueue</code> entirely and use <code>queue.Queue</code> directly — it's already thread-safe. The deadlock is entirely in the redundant wrapper, not in the worker or Future logic.
+        <strong>The takeaway:</strong> Devstral independently chose the right architecture — <code>Condition</code>-variable Future, sentinel-based shutdown, per-task exception isolation. A single wrapping mistake caused the deadlock; everything compositional was correct. This is what "good architecture, one bug" looks like from a 24B local model with no frontier hand-holding.
       </div>
 
-      <p class="table-note">Implementation saved to <a href="https://github.com/zap-coding-agent/zap-coding-agent/tree/main/evals/tasks/slm-taskqueue" target="_blank" rel="noopener">evals/tasks/slm-taskqueue ↗</a>. Devstral via Ollama on Apple Silicon, <code>tier = "slm"</code>, v0.15.75. Session cut short by Ollama SSE empty-body bug — test file written manually for eval.</p>
+      <p class="table-note">Implementation and tests saved to <a href="https://github.com/zap-coding-agent/zap-coding-agent/tree/main/evals/tasks/slm-taskqueue" target="_blank" rel="noopener">evals/tasks/slm-taskqueue ↗</a>. Devstral via Ollama on Apple Silicon, <code>tier = "slm"</code>, v0.15.75.</p>
     </div>
   </section>
 

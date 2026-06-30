@@ -64,27 +64,27 @@ class TestTaskQueue(unittest.TestCase):
             tq.submit(test_task, 5)
 
     def test_maxsize_backpressure(self):
-        tq = TaskQueue(workers=1, maxsize=2)  # Only allow 2 tasks in queue
+        # 1 worker, maxsize=2. Pin the worker with a slow task so the queue
+        # stays full and the 4th submit actually blocks.
+        tq = TaskQueue(workers=1, maxsize=2)
 
-        # Submit first two tasks
-        tq.submit(test_task, 1)
-        future = tq.submit(test_task, 2)
+        tq.submit(test_task, 1, wait_time=0.6)  # occupies the single worker
+        tq.submit(test_task, 2)                  # queued (1/2)
+        tq.submit(test_task, 3)                  # queued (2/2) — full
 
-        # At this point the queue is full; third task should block
         start_time = time.time()
 
-        def submit_third():
-            tq.submit(test_task, 3)
+        def submit_fourth():
+            tq.submit(test_task, 4)  # must block until a slot opens
 
-        thread = threading.Thread(target=submit_third)
+        thread = threading.Thread(target=submit_fourth)
         thread.start()
-        thread.join(timeout=0.5)  # Check if it's actually blocking
+        thread.join(timeout=0.5)  # should still be blocking after 0.5 s
+        self.assertTrue(thread.is_alive(), "submit() should have blocked")
 
-        # Now let the queue clear
-        future.result()
-        thread.join()
-
+        thread.join()  # let it complete naturally
         end_time = time.time()
+        tq.shutdown(wait=True)
         self.assertGreaterEqual(end_time - start_time, 0.5)
 
 if __name__ == "__main__":

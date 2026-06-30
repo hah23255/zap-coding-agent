@@ -1,3 +1,27 @@
+## Session #462 — 2026-06-30
+Goal: hi
+Files: (no files modified)
+
+## Session #442 — 2026-06-26
+Goal: fetch latest news
+Files: (no files modified)
+
+## Session #441 — 2026-06-26
+Goal: find latest news from internet
+Files: (no files modified)
+
+## Session #440 — 2026-06-26
+Goal: can you reearch on interent of deepseek 4 flash has vision capability
+Files: src/tui/actions.rs, src/tui/mod.rs, /Users/sanjeevgulati/.zap/mcp.json, src/tools/web.rs, FEATURES.md, Cargo.toml
+
+## Session #438 — 2026-06-26
+Goal: in provider , codex only shows gpt 5.5 , but has more in the public site , gpt 5
+Files: src/tui/provider_picker.rs, FEATURES.md, Cargo.toml
+
+## Session #425 — 2026-06-26
+Goal: understand
+Files: src/tui/mod.rs, src/tui/lifecycle.rs, src/tui, src/tui/actions.rs, src/session/turn.rs
+
 ## Session #424 — 2026-06-22
 Goal: understand
 Files: .zap/understanding.md
