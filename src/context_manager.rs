@@ -46,6 +46,7 @@ pub fn build_slm_system_prompt(config: &Config) -> Result<String> {
     let tool_rules =
         "**Tool rules:**\n\
          - Act immediately. Call write_file to create files, shell to run them. Never describe a tool call in a code block — make the actual call.\n\
+         - write_file content must be the COMPLETE, LITERAL file text with correct indentation. Never pass a variable name or placeholder — paste the full code directly into the content argument.\n\
          - Always read_file before edit_file. Never assume file contents.\n\
          - old_string in edit_file must match exactly (whitespace included).\n\
          - Prefer edit_file over write_file for existing files.\n\

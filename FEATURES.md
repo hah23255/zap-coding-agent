@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat: SLM write_file literal-content rule (v0.15.76)
+
+Adds a harness rule to the SLM system prompt: `write_file` content must be the
+**complete, literal file text** with correct indentation — never a variable name
+or placeholder. Addresses a recurring failure mode where Devstral passed a variable
+reference (e.g. `content=corrected_code`) in the tool call instead of the actual text.
+
+**Files:** `src/context_manager.rs` (tool_rules in `build_slm_system_prompt`),
+`evals/tasks/slm-taskqueue/` (refreshed eval: queue.Queue directly, sentinel shutdown,
+queue.Empty handled in worker — 5/5 pass).
+
+---
+
 ### feat: SLM agentic loop hardening — chat nudges + loop detector (v0.15.75)
 
 Two new harness guards that fire only in SLM tier:
