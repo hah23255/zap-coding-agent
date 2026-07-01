@@ -61,4 +61,26 @@ else
     fail "T07 session_log has >= 2 entries" "only $entry_count entries: $(cat "$TMP/.zap/session_log.md" 2>/dev/null | head -5)"
 fi
 
+info "T08: CLI shows topic-shift nudge after 3 turns on different subject"
+TMP_T08=$(make_project)
+trap "rm -rf $TMP_T08" EXIT
+
+# 3 turns about Rust/files, then 1 cooking question (>=40 chars, zero word overlap).
+# The nudge fires at the start of the 4th handle_user_turn (before the LLM call),
+# so T08 passes even when no LLM is configured.
+OUT_T08=$(cd "$TMP_T08" && printf '%s\n' \
+  "list all the files in the src directory please" \
+  "show me the files in the src directory again" \
+  "display those src directory files one final time" \
+  "what ingredients do I need to make fresh pasta dough at home" \
+  "/exit" | \
+  timeout "$TIMEOUT" "$ZAP" --auto --cli 2>&1) || true
+
+if echo "$OUT_T08" | grep -qi "new topic\|fork\|branch"; then
+    pass "T08 CLI shows topic-shift nudge on subject change"
+else
+    fail "T08 CLI shows topic-shift nudge on subject change" \
+         "$(echo "$OUT_T08" | grep -i "topic\|fork\|branch\|nudge" | head -5)"
+fi
+
 summary
