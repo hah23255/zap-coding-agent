@@ -177,7 +177,11 @@
           </tbody>
         </table>
       </div>
-      <p class="table-note">Gemini CLI sends the same 4,096-token prompt for both tasks. The word "java" does not appear anywhere in its 68,410-character prompt file.</p>
+      <p class="table-note">Gemini CLI sends the same 4,096-token prompt for both tasks. The word "java" does not appear anywhere in its 68,410-character prompt file. OpenCode also ships a static provider-specific prompt. Zap changes the prompt itself based on the job — which means less prompt waste, faster turns, and more room for your actual code, logs, stack traces, and diff context.</p>
+
+      <div class="callout" style="margin-top:18px;">
+        <strong>What this means in practice:</strong> if you're fixing a Spring Boot outage, zap can load Java/project-specific guidance and code-index tools instead of dragging along unrelated generic instructions. If you're reviewing a React diff, it can bias toward frontend conventions and relevant files instead of sending the exact same generic prompt Gemini CLI or OpenCode would have sent for a backend task.
+      </div>
     </div>
   </section>
 
@@ -195,6 +199,7 @@
           <div class="feature-icon-wrap">🎯</div>
           <h3>Skill-First Context</h3>
           <p>Skills are markdown files injected surgically only when your message triggers them. A Rust question gets the Rust skill. A greeting costs 31 tokens, not 2,000.</p>
+          <div class="feature-callout">This is the core usability win: less time fighting prompt bloat, less context dilution, and more reliable answers on real repo-specific work.</div>
           <a href="docs.html#skills" class="feature-link">Learn more →</a>
         </div>
 
@@ -230,6 +235,7 @@
           <div class="feature-icon-wrap">🌐</div>
           <h3>Multi-Provider</h3>
           <p>Works with Claude, Gemini, OpenAI, DeepSeek, and local models via LM Studio or Ollama. Switch providers mid-session with <code>/provider</code>.</p>
+          <div class="feature-callout">You keep Zap's tools, memory, indexing, and workflows even when you switch models — so you're not locked into Gemini CLI, OpenCode, or any single-vendor UX.</div>
           <a href="docs.html#providers" class="feature-link">Learn more →</a>
         </div>
 
@@ -245,6 +251,7 @@
           <div class="feature-icon-wrap">⏰</div>
           <h3>Recurring Scheduler</h3>
           <p>Use TUI scheduler commands like <code>/schedule 1h ...</code> or <code>/schedule 17:30 ...</code> to run recurring goals, inspect active jobs, and cancel them when you're done.</p>
+          <div class="feature-callout">Example: every hour, run tests, summarize failures, and update your task plan. Or every evening, ask Zap to review open diffs and draft tomorrow's next steps.</div>
           <a href="docs.html#scheduler" class="feature-link">Learn more →</a>
         </div>
 
@@ -383,7 +390,7 @@ cd your-project; zap   <span class="c-dim"># start the REPL</span></div>
   <section class="cta-section">
     <div class="container">
       <h2>Ready to try it?</h2>
-      <p>Open source, MIT licensed. Zero telemetry.</p>
+      <p>Open source, MIT licensed. Zero telemetry. Powerful enough for real multi-step engineering work — but still easy to install, inspect, and control.</p>
       <div class="cta-actions">
         <a href="https://github.com/zap-coding-agent/zap-coding-agent" target="_blank" rel="noopener" class="btn-primary">View on GitHub</a>
         <a href="docs.html" class="btn-secondary">Read the Docs</a>

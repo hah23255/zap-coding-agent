@@ -528,7 +528,7 @@ trigger: ["rust", "cargo", "tokio", "async"]
         </div>
 
         <div class="subsection-title">Cross-agent compatibility</div>
-        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:12px;">Skills created for Claude Code or Gemini work in zap. Point <code>skill_paths</code> at <code>~/.claude/skills</code> to share them automatically.</p>
+        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.7;margin-bottom:12px;">Skills created for Claude Code or Gemini work in zap. Point <code>skill_paths</code> at <code>~/.claude/skills</code> to share them automatically. This means you can keep the prompts and workflows you like while gaining Zap's code index, memory, context controls, and multi-provider runtime.</p>
         <div class="code-block"><span class="c-dim"># ~/.agent.toml</span>
 skill_paths = [<span class="c-str">"~/.claude/skills"</span>, <span class="c-str">"~/.zap/skills"</span>]</div>
 
@@ -1005,7 +1005,7 @@ WHERE name = 'write' AND qualifier = 'crate::log';</div>
       <!-- ── Multi-Provider ────────────────────────────────────────────── -->
       <section class="doc-section" id="providers">
         <h2>Multi-Provider</h2>
-        <p class="doc-lead">Zap works with every major AI provider — and local models. Switch mid-session without restarting.</p>
+        <p class="doc-lead">Zap works with every major AI provider — and local models. Switch mid-session without restarting. The important part is that the surrounding agent stays the same: memory, tooling, indexing, permissions, and workflows do not disappear just because you changed models.</p>
 
         <div class="provider-grid">
           <div class="provider-card">
@@ -1040,6 +1040,35 @@ WHERE name = 'write' AND qualifier = 'crate::log';</div>
 
 <span class="c-dim"># Or set a default in config</span>
 model = "gemini-2.5-flash"   <span class="c-dim"># ~/.agent.toml</span></div>
+
+        <div class="subsection-title">Why this matters</div>
+        <div class="feature-row">
+          <div class="feature-row-item">
+            <h4>Not locked to Gemini CLI or OpenCode</h4>
+            <p>If you like Gemini models but want stronger repo navigation, memory, and context control, you can use Gemini inside Zap instead of adopting a separate tool stack.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Keep one workflow across models</h4>
+            <p>Teams can standardize on one set of slash commands, skills, and review habits even when different developers prefer Claude, Gemini, OpenAI, or local models.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Power without extra friction</h4>
+            <p>Switching providers does not require reinstalling a new agent or relearning how it edits files, asks permission, searches code, or resumes past work.</p>
+          </div>
+        </div>
+
+        <div class="subsection-title">Concrete examples</div>
+        <div class="code-block"><span class="c-dim"># Use Gemini for broad reasoning on a planning task</span>
+/model gemini-2.5-pro
+
+<span class="c-dim"># Later switch to Claude or DeepSeek for implementation</span>
+/model claude-sonnet-4-6
+
+<span class="c-dim"># Your skills, memory, code index, and tool workflow stay the same</span></div>
+
+        <div class="callout callout-tip">
+          <strong>Usability advantage:</strong> with Gemini CLI or OpenCode, the model choice and the agent experience are bundled together. Zap separates them, so you can choose the model you want without giving up the agent features you rely on.
+        </div>
 
         <div class="subsection-title">Local models (LM Studio / Ollama)</div>
         <div class="code-block"><span class="c-dim"># ~/.agent.toml — point at any OpenAI-compatible server</span>
@@ -1154,7 +1183,7 @@ Tests use testcontainers — don't mock the database.</div>
       <!-- ── Scheduler ─────────────────────────────────────────────────── -->
       <section class="doc-section" id="scheduler">
         <h2>Scheduler</h2>
-        <p class="doc-lead">Zap can run recurring goals on a schedule inside the TUI. Use it for background maintenance tasks like dependency checks, inbox triage, changelog drafting, or periodic repo health scans.</p>
+        <p class="doc-lead">Zap can run recurring goals on a schedule inside the TUI. Use it for background maintenance tasks like dependency checks, inbox triage, changelog drafting, or periodic repo health scans. It's one of the clearest examples of Zap being powerful in day-to-day use, not just in one-shot prompts.</p>
 
         <div class="feature-row-grid">
           <div class="feature-row-item">
