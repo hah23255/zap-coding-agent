@@ -69,6 +69,12 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): /schedule and /unschedule entries in /help; e2e smoke tests (v0.15.96)
+
+- v0.15.96: scheduler: /schedule and /unschedule entries in /help; e2e smoke tests
+
+---
+
 ### feat(scheduler): show active job count in status bar (v0.15.95)
 
 - v0.15.95: scheduler: show active scheduled job count in status bar

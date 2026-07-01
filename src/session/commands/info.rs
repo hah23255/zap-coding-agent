@@ -64,6 +64,11 @@ impl Session {
                 ("/mcp [list|edit|path]",    "view/edit MCP server configs"),
                 ("/tools",                   "list active built-in and MCP tools"),
             ]),
+            ("scheduler (TUI only)", &[
+                ("/schedule <interval> <goal>", "run goal every interval (30m, 1h, 17:30)"),
+                ("/schedule list",              "show active scheduled jobs"),
+                ("/unschedule <name>",          "cancel a scheduled job"),
+            ]),
         ];
         for (group, cmds) in groups {
             println!();
