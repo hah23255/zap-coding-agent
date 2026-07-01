@@ -7,6 +7,28 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(config): add model_routes config for per-task model assignment
+
+Adds `model_routes: HashMap<String, String>` to `FileConfig`, `Config`, and the
+`Config::load` builder. Users can map task types to specific model slugs via a
+`[model_routes]` table in `~/.agent.toml`:
+
+```toml
+[model_routes]
+coding = "codex/gpt-5.5"
+review = "claude-opus-4-7"
+explain = "claude-sonnet-4-6"
+search  = "gemma-4-e4b-it"
+```
+
+The field defaults to an empty map (`#[serde(default)]`) so existing configs
+parse without changes. This is the foundation for Task 1 of the model-routing plan;
+the routing lookup will be wired in subsequent tasks.
+
+**Files:** `src/config/mod.rs`, `src/config/tests.rs`, `tests/provider_e2e.rs`
+
+---
+
 ### feat(tui): show active tool count in startup notice (v0.15.87)
 
 At TUI startup, a notice line "Tools: N loaded — /tools to list all" is added to
