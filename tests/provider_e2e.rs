@@ -38,6 +38,7 @@ fn minimal_config(provider_slug: &str, model: &str) -> Config {
         all_providers: HashMap::new(),
         disabled_tools: vec![],
         disabled_skills: vec![],
+        model_routes: HashMap::new(),
     }
 }
 

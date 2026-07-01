@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod task_classifier;
 mod casual;
 mod history;
 mod memory_refresh;

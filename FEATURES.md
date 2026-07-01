@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(session): keyword-heuristic task type classifier
+
+Adds `src/session/task_classifier.rs` with a `TaskType` enum (Coding, Review, Explain,
+Search, Default) and a `classify(input: &str) -> TaskType` function using keyword heuristics.
+Priority order: Review > Explain > Search > Coding > Default. Zero allocations beyond the
+lowercase copy — no LLM call. 6 unit tests cover each type and priority ordering.
+
+**Files:** `src/session/task_classifier.rs`, `src/session/mod.rs`
+
+---
+
 ### feat(config): add model_routes config for per-task model assignment
 
 Adds `model_routes: HashMap<String, String>` to `FileConfig`, `Config`, and the

@@ -302,3 +302,26 @@ fn disabled_tools_and_skills_default_to_empty() {
     assert!(file.disabled_tools.is_empty());
     assert!(file.disabled_skills.is_empty());
 }
+
+// ── model_routes ──────────────────────────────────────────────────────────
+
+#[test]
+fn model_routes_parsed_from_toml() {
+    let toml_str = r#"
+        api_key = "test"
+        model = "claude-sonnet-4-6"
+        [model_routes]
+        coding = "codex/gpt-5.5"
+        review = "claude-opus-4-7"
+    "#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(file.model_routes.get("coding").map(|s| s.as_str()), Some("codex/gpt-5.5"));
+    assert_eq!(file.model_routes.get("review").map(|s| s.as_str()), Some("claude-opus-4-7"));
+}
+
+#[test]
+fn model_routes_default_to_empty() {
+    let toml_str = r#"api_key = "test""#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert!(file.model_routes.is_empty());
+}

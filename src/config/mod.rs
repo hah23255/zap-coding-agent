@@ -189,6 +189,11 @@ pub struct Config {
     /// Skill names to exclude from every session. Set in ~/.agent.toml as:
     /// disabled_skills = ["deploy", "ship"]
     pub disabled_skills: Vec<String>,
+    /// Per-task-type model overrides. Keys: "coding", "review", "explain", "search".
+    /// Values: model slugs. Set in ~/.agent.toml as:
+    /// [model_routes]
+    /// coding = "codex/gpt-5.5"
+    pub model_routes: HashMap<String, String>,
 }
 
 // ── Config file path ──────────────────────────────────────────────────────────
@@ -242,6 +247,8 @@ struct FileConfig {
     disabled_tools:  Vec<String>,
     #[serde(default)]
     disabled_skills: Vec<String>,
+    #[serde(default)]
+    model_routes:    HashMap<String, String>,
 }
 
 impl FileConfig {
@@ -388,6 +395,7 @@ impl Config {
 
         let disabled_tools  = file.disabled_tools;
         let disabled_skills = file.disabled_skills;
+        let model_routes    = file.model_routes;
 
         Ok(Self {
             permission_mode, sandbox, api_key, model, provider, base_url,
@@ -395,7 +403,7 @@ impl Config {
             proxy, no_proxy, ca_bundle, tls_skip_verify, timeout_secs,
             budget: None, skill_paths, skill_token_budget, context_paths, allowed_paths, additional_dirs, disable_stream, skip_domain_prompt: false, tui_mode: false,
             tool_profile, provider_slug, all_providers,
-            disabled_tools, disabled_skills,
+            disabled_tools, disabled_skills, model_routes,
         })
     }
 
@@ -566,6 +574,7 @@ impl Default for Config {
             all_providers: HashMap::new(),
             disabled_tools: vec![],
             disabled_skills: vec![],
+            model_routes: HashMap::new(),
         }
     }
 }
