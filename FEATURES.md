@@ -69,6 +69,12 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): ScheduledFire TuiEvent, App fields, apply_event handler (v0.15.92)
+
+- v0.15.92: scheduler: TuiEvent::ScheduledFire, App::scheduled_jobs, App::scheduled_queue, apply_event handler
+
+---
+
 ### feat(scheduler): in-session scheduler data model and parsers (v0.15.91)
 
 `src/session/scheduler.rs` adds the `ScheduledJob` struct (name, goal, interval_str,

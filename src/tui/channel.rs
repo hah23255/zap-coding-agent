@@ -90,6 +90,9 @@ pub enum TuiEvent {
     Notice(String),
     /// A red warning banner — used for secret redaction notices and similar.
     Warning(String),
+    /// A scheduled job fired — submit `goal` as the next user turn.
+    /// `name` is used for display only (shown as the bubble label).
+    ScheduledFire { name: String, goal: String },
 }
 
 static TUI_TX: OnceLock<mpsc::UnboundedSender<TuiEvent>> = OnceLock::new();

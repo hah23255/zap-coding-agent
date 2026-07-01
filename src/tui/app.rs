@@ -393,6 +393,11 @@ pub struct App {
     /// Message queued while a turn is in progress.
     /// Typed and submitted (Enter) during a busy turn; auto-fired when the turn ends.
     pub queued_input: Option<String>,
+    /// Active scheduled jobs. Each holds a Tokio JoinHandle; abort to cancel.
+    pub scheduled_jobs: Vec<crate::session::scheduler::ScheduledJob>,
+    /// Goals queued by the scheduler while a turn was in progress.
+    /// Drained one-at-a-time after each turn completes.
+    pub scheduled_queue: std::collections::VecDeque<(String, String)>,
 }
 
 /// Holds all state needed to complete a provider switch once the user types their API key.
@@ -479,6 +484,8 @@ impl App {
             topic_shift_flash: 0,
             model_switch_confirm: None,
             queued_input: None,
+            scheduled_jobs:  Vec::new(),
+            scheduled_queue: std::collections::VecDeque::new(),
         }
     }
 
@@ -585,6 +592,24 @@ impl App {
                     blocks: vec![UiBlock::Warning(text)],
                 });
                 self.auto_scroll = true;
+            }
+            TuiEvent::ScheduledFire { name, goal } => {
+                if matches!(self.state, AppState::Idle) && self.pending_input.is_none() {
+                    // Session is free — submit immediately as a user turn.
+                    self.messages.push(UiMessage {
+                        role:   MsgRole::User,
+                        blocks: vec![UiBlock::Text(format!("⏰ [scheduled: {name}] {goal}"))],
+                    });
+                    self.pending_input = Some(goal);
+                    self.auto_scroll   = true;
+                    // Increment fire_count on the matching job.
+                    for job in &mut self.scheduled_jobs {
+                        if job.name == name { job.fire_count += 1; break; }
+                    }
+                } else {
+                    // Busy — queue for after the current turn finishes.
+                    self.scheduled_queue.push_back((name, goal));
+                }
             }
         }
     }
