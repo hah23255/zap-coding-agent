@@ -485,6 +485,15 @@ pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     if !goal_badge.is_empty() {
         spans.push(Span::styled(goal_badge, Style::default().fg(Color::Rgb(120, 220, 180)).bold()));
     }
+    if app.branch != "main" && !app.branch.is_empty() {
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(
+            format!("⎇ {}", app.branch),
+            Style::default()
+                .fg(Color::Rgb(140, 220, 180))
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
     spans.push(Span::styled(keybinds, Style::default().fg(Color::DarkGray)));
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }

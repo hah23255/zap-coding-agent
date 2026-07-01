@@ -7,6 +7,15 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): show current branch name in status bar when not on main (v0.15.84)
+
+When the active git branch is not "main" (and not empty), the status bar now shows
+`⎇ <branch-name>` in green bold text, making it immediately visible that the session
+is running on a fork/feature branch. The branch is cached at startup and refreshed
+after slash commands (existing behaviour from `App::branch`).
+
+**Files:** `src/tui/render/layout.rs`
+
 ### feat(tui): replace status-bar topic-shift hint with full-width highlighted banner (v0.15.83)
 
 When a topic shift is detected, a 3-line highlighted banner now appears above the input
