@@ -69,6 +69,12 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): drain scheduled_queue after each turn (v0.15.94)
+
+- v0.15.94: scheduler: drain scheduled_queue after each turn (busy-queue support)
+
+---
+
 ### feat(scheduler): /schedule and /unschedule TUI slash commands (v0.15.93)
 
 - v0.15.93: scheduler: /schedule and /unschedule TUI slash commands

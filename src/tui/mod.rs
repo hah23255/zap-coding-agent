@@ -191,9 +191,20 @@ async fn tui_loop(
             }
 
             // Auto-fire any prompt queued while the turn was in progress.
+            // Priority: queued_input (user btw) > scheduled_queue (background jobs).
             if app.pending_input.is_none() {
                 if let Some(queued) = app.queued_input.take() {
                     app.pending_input = Some(queued);
+                } else if let Some((name, goal)) = app.scheduled_queue.pop_front() {
+                    app.messages.push(UiMessage {
+                        role:   MsgRole::User,
+                        blocks: vec![UiBlock::Text(format!("⏰ [scheduled: {name}] {goal}"))],
+                    });
+                    app.pending_input = Some(goal);
+                    app.auto_scroll   = true;
+                    for job in &mut app.scheduled_jobs {
+                        if job.name == name { job.fire_count += 1; break; }
+                    }
                 }
             }
             continue;
