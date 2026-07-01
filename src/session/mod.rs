@@ -246,7 +246,7 @@ impl Session {
             tools.register(std::sync::Arc::new(SpawnAgentTool::new(config.clone())));
         }
 
-        let tool_defs  = tools.tool_definitions();
+        let tool_defs  = tools.tool_definitions_filtered(&config.disabled_tools);
         let tool_count = tool_defs.len();
 
         let _bootstrapped = crate::skill_manager::bootstrap_bundled_skills();
@@ -607,6 +607,7 @@ impl Session {
                 }
             }
             "/hooks"       => crate::hooks::print_hooks_list(&self.hooks),
+            "/tools" | "/tool" => self.cmd_tools(),
             "/mcp"         => self.cmd_mcp(arg),
             "/remote"      => {
                 // Token-gated (see src/remote.rs); refused in Auto mode where a

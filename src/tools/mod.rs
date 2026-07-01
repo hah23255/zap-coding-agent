@@ -262,9 +262,44 @@ impl ToolRegistry {
 
         defs
     }
+
+    /// Like `tool_definitions` but skips any tool whose name is in `disabled`.
+    pub fn tool_definitions_filtered(&self, disabled: &[String]) -> Vec<serde_json::Value> {
+        self.tool_definitions()
+            .into_iter()
+            .filter(|def| {
+                def["name"].as_str()
+                    .map(|n| !disabled.iter().any(|d| d == n))
+                    .unwrap_or(true)
+            })
+            .collect()
+    }
+
+    /// Sorted names of all registered tools (built-in + connected MCP).
+    pub fn active_tool_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.tools.keys().cloned().collect();
+        names.sort();
+        names
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tool_filter_tests {
+    use super::*;
+
+    #[test]
+    fn tool_definitions_filtered_excludes_disabled() {
+        let registry = ToolRegistry::new(crate::config::SandboxMode::Off);
+        let disabled = vec!["shell".to_string()];
+        let defs = registry.tool_definitions_filtered(&disabled);
+        assert!(!defs.iter().any(|d| d["name"] == "shell"),
+            "shell should be filtered out");
+        assert!(defs.iter().any(|d| d["name"] == "read_file"),
+            "read_file should still be present");
+    }
+}
 
 #[cfg(test)]
 mod mcp_lazy_tests {

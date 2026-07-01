@@ -186,7 +186,7 @@ impl Session {
             } else {
                 match self.tools.connect_mcp(&server_name).await {
                     Ok(msg) => {
-                        self.tool_defs = self.tools.tool_definitions();
+                        self.tool_defs = self.tools.tool_definitions_filtered(&self.config.disabled_tools);
                         msg
                     }
                     Err(e) => format!("Failed to connect to '{}': {}", server_name, e),

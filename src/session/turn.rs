@@ -88,6 +88,7 @@ impl Session {
                     injected.push(skill);
                 }
             }
+            injected.retain(|s| !self.config.disabled_skills.iter().any(|d| d == &s.name));
             crate::skill_manager::rank_and_truncate_skills(injected, self.config.skill_token_budget, &self.pinned_skills)
                 .iter().map(|s| s.tokens()).sum()
         };
@@ -154,6 +155,7 @@ impl Session {
                     ms.push(skill);
                 }
             }
+            ms.retain(|s| !self.config.disabled_skills.iter().any(|d| d == &s.name));
             // Apply token budget: rank + truncate if total exceeds config.skill_token_budget
             crate::skill_manager::rank_and_truncate_skills(ms, self.config.skill_token_budget, &self.pinned_skills)
         };

@@ -7,6 +7,25 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tools): filter disabled_tools and disabled_skills from session (v0.15.86)
+
+`ToolRegistry` gains two new methods: `tool_definitions_filtered(disabled: &[String])` which
+returns tool definitions excluding any whose name appears in the disabled list, and
+`active_tool_names()` which returns a sorted list of all registered tool names (built-in +
+connected MCP). Both the session initialisation path (`Session::new`) and the `mcp_connect`
+tool handler (which refreshes `self.tool_defs` after connecting a server) now call
+`tool_definitions_filtered(&config.disabled_tools)` instead of `tool_definitions()`.
+
+Skill injection in `turn.rs` calls `retain` after the match-skills + pinned-skills merge —
+in both the projected-token calculation block and the actual `matched_skills` block — to drop
+any skill whose name is in `config.disabled_skills`.
+
+A new `/tools` slash command lists all built-in tools, connected MCP tools, pending MCP
+servers, and disabled tools.
+
+**Files:** `src/tools/mod.rs`, `src/session/mod.rs`, `src/session/tools.rs`,
+`src/session/turn.rs`, `src/session/commands/info.rs`
+
 ### feat(tui): show current branch name in status bar when not on main (v0.15.84)
 
 When the active git branch is not "main" (and not empty), the status bar now shows

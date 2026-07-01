@@ -62,6 +62,7 @@ impl Session {
                 ("/audit [N]",               "show last N audit log lines"),
                 ("/hooks",                   "list configured hooks"),
                 ("/mcp [list|edit|path]",    "view/edit MCP server configs"),
+                ("/tools",                   "list active built-in and MCP tools"),
             ]),
         ];
         for (group, cmds) in groups {
@@ -159,6 +160,79 @@ impl Session {
                        / 1_000_000.0;
             println!("  {:<18} ${:.4}", "est. cost".dimmed(), total);
         }
+        println!();
+    }
+
+    pub fn cmd_tools(&self) {
+        let all_names = self.tools.active_tool_names();
+        let (mcp_names, builtin_names): (Vec<_>, Vec<_>) = all_names
+            .iter()
+            .partition(|n| self.tools.is_mcp_tool(n));
+        let disabled = &self.config.disabled_tools;
+
+        println!();
+        println!("  {} {}", "◆".truecolor(255, 210, 50), "Active tools".truecolor(150, 140, 170).bold());
+        println!("  {}", "─".repeat(52).truecolor(60, 55, 80));
+
+        // Built-in tools
+        println!("  {} {} built-in",
+            "built-in".truecolor(100, 95, 130),
+            builtin_names.len().to_string().truecolor(100, 210, 255).bold(),
+        );
+        // Print 4 per line for readability
+        for chunk in builtin_names.chunks(4) {
+            let line = chunk.iter()
+                .map(|n| n.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("    {}", line.truecolor(100, 210, 255));
+        }
+
+        // MCP tools (connected)
+        if !mcp_names.is_empty() {
+            println!();
+            println!("  {} {} connected MCP",
+                "mcp".truecolor(100, 95, 130),
+                mcp_names.len().to_string().truecolor(100, 210, 255).bold(),
+            );
+            for chunk in mcp_names.chunks(4) {
+                let line = chunk.iter()
+                    .map(|n| n.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("    {}", line.truecolor(100, 210, 255));
+            }
+        }
+
+        // Pending MCP servers
+        let pending = self.tools.pending_mcp_servers();
+        if !pending.is_empty() {
+            println!();
+            println!("  {} {} pending MCP (not yet connected)",
+                "pending".truecolor(180, 130, 60),
+                pending.len().to_string().truecolor(180, 130, 60).bold(),
+            );
+            for (name, desc) in &pending {
+                if let Some(d) = desc {
+                    println!("    {} — {}", name.truecolor(180, 130, 60), d.truecolor(100, 95, 130));
+                } else {
+                    println!("    {}", name.truecolor(180, 130, 60));
+                }
+            }
+        }
+
+        // Disabled tools
+        if !disabled.is_empty() {
+            println!();
+            println!("  {} {}", "disabled".truecolor(200, 80, 80), disabled.join(", ").truecolor(200, 80, 80).bold());
+        }
+
+        println!();
+        println!("  {}", "─".repeat(52).truecolor(60, 55, 80));
+        println!("  {} add to {} to disable a tool:",
+            "tip:".truecolor(100, 95, 130),
+            "~/.agent.toml".truecolor(100, 210, 255));
+        println!("    {}", "disabled_tools = [\"shell\", \"web_fetch\"]".truecolor(100, 95, 130));
         println!();
     }
 
