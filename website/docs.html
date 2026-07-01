@@ -66,6 +66,7 @@
           <a class="sidebar-link" href="#casual"             data-section="casual">Casual Messages</a>
           <a class="sidebar-link" href="#mcp"                data-section="mcp">Dynamic MCP Loading</a>
           <a class="sidebar-link" href="#goal"               data-section="goal">Autonomous Mode</a>
+          <a class="sidebar-link" href="#scheduler"          data-section="scheduler">Scheduler</a>
         </div>
 
         <div class="sidebar-group">
@@ -1150,6 +1151,40 @@ Tests use testcontainers — don't mock the database.</div>
 
       <div class="section-divider"></div>
 
+      <!-- ── Scheduler ─────────────────────────────────────────────────── -->
+      <section class="doc-section" id="scheduler">
+        <h2>Scheduler</h2>
+        <p class="doc-lead">Zap can run recurring goals on a schedule inside the TUI. Use it for background maintenance tasks like dependency checks, inbox triage, changelog drafting, or periodic repo health scans.</p>
+
+        <div class="feature-row-grid">
+          <div class="feature-row-item">
+            <h4>Natural intervals</h4>
+            <p>Create jobs with compact intervals like <code>30m</code>, <code>1h</code>, or a clock time such as <code>17:30</code>.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>TUI slash commands</h4>
+            <p>Manage jobs with <code>/schedule &lt;interval&gt; &lt;goal&gt;</code>, inspect them with <code>/schedule list</code>, and stop them with <code>/unschedule &lt;name&gt;</code>.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Status visibility</h4>
+            <p>The TUI status bar shows active job count, so you can see scheduled automation without leaving your current session.</p>
+          </div>
+          <div class="feature-row-item">
+            <h4>Safe by default</h4>
+            <p>Scheduled jobs still run through the same model, tool, and permission boundaries as normal Zap turns.</p>
+          </div>
+        </div>
+
+        <div class="subsection-title">Example</div>
+        <div class="code-block">/schedule 1h run cargo test, summarize failures, and update the task plan if anything broke</div>
+
+        <div class="callout callout-tip">
+          <strong>Note:</strong> Scheduler commands are currently available in the TUI flow. If you don't see them in your current mode, open the full-screen interface and run <code>/help</code> there.
+        </div>
+      </section>
+
+      <div class="section-divider"></div>
+
       <!-- ── Commands Reference ────────────────────────────────────────── -->
       <section class="doc-section" id="commands">
         <h2>Commands Reference</h2>
@@ -1176,6 +1211,9 @@ Tests use testcontainers — don't mock the database.</div>
               <tr><td><code>/provider &lt;name&gt;</code></td><td>Switch AI provider mid-session</td></tr>
               <tr><td><code>/mode ask</code></td><td>Require confirmation for every tool call</td></tr>
               <tr><td><code>/mode auto</code></td><td>Run tools without confirmation prompts</td></tr>
+              <tr><td><code>/schedule &lt;interval&gt; &lt;goal&gt;</code></td><td>Schedule a recurring goal in the TUI (examples: <code>30m</code>, <code>1h</code>, <code>17:30</code>)</td></tr>
+              <tr><td><code>/schedule list</code></td><td>Show active scheduled jobs in the current TUI session</td></tr>
+              <tr><td><code>/unschedule &lt;name&gt;</code></td><td>Cancel a scheduled job by name</td></tr>
               <tr><td><code>/help</code></td><td>Show all available commands</td></tr>
               <tr><td><code>/exit</code></td><td>End the session (Ctrl+C also works)</td></tr>
             </tbody>
