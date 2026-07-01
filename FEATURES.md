@@ -69,6 +69,12 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): /schedule and /unschedule TUI slash commands (v0.15.93)
+
+- v0.15.93: scheduler: /schedule and /unschedule TUI slash commands
+
+---
+
 ### feat(scheduler): ScheduledFire TuiEvent, App fields, apply_event handler (v0.15.92)
 
 - v0.15.92: scheduler: TuiEvent::ScheduledFire, App::scheduled_jobs, App::scheduled_queue, apply_event handler

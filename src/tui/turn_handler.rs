@@ -132,6 +132,14 @@ pub(super) async fn handle_tui_slash(
         return Ok(false);
     }
 
+    // /schedule and /unschedule — in-session periodic goal runner.
+    if cmd == "/schedule" || cmd.starts_with("/schedule ") {
+        return super::schedule_handler::handle_schedule(app, cmd);
+    }
+    if cmd.starts_with("/unschedule") {
+        return super::schedule_handler::handle_unschedule(app, cmd);
+    }
+
     // 1. Try native inline handler (output rendered in a popup).
     if let Some(text) = super::commands::handle_inline(session, input, config) {
         if !text.is_empty() {
@@ -209,7 +217,7 @@ pub(super) async fn run_normal_turn(
 
     // Expand `@path` tokens: read each referenced file and append its content
     // to the message sent to the LLM (the original `@path` label stays in chat).
-    let expanded = expand_at_refs(input);
+    let expanded = super::text_parse::expand_at_refs(input);
     let input = expanded.as_str();
 
     {
@@ -561,48 +569,3 @@ fn build_turn_detail(
     TurnDetail { blocks }
 }
 
-/// Scan `input` for `@path` tokens; for each resolvable file, append its
-/// content to the returned string. The original tokens are preserved so the
-/// user sees them in chat. Unresolvable tokens (missing files, directories)
-/// are silently left as-is — the LLM still sees the label.
-fn expand_at_refs(input: &str) -> String {
-    let mut expansions = String::new();
-    let mut seen = std::collections::HashSet::new();
-
-    for token in input.split_whitespace() {
-        let Some(raw_path) = token.strip_prefix('@') else { continue };
-        // Strip trailing punctuation the user may have typed after the path.
-        let path = raw_path.trim_end_matches([',', '.', ':', ';', ')', ']', '"', '\'']);
-        if path.is_empty() || seen.contains(path) {
-            continue;
-        }
-        seen.insert(path.to_string());
-        // Guard against accidentally sending huge files (e.g. logs, binaries).
-        const MAX_FILE_BYTES: u64 = 256 * 1024; // 256 KB
-        let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-        if file_size > MAX_FILE_BYTES {
-            expansions.push_str(&format!(
-                "\n\n--- @{} --- (file too large to inline: {} KB)",
-                path, file_size / 1024,
-            ));
-            continue;
-        }
-        let Ok(content) = std::fs::read_to_string(path) else { continue };
-        let lang = std::path::Path::new(path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
-        expansions.push_str(&format!(
-            "\n\n--- @{} ---\n```{}\n{}\n```",
-            path,
-            lang,
-            content.trim_end(),
-        ));
-    }
-
-    if expansions.is_empty() {
-        input.to_string()
-    } else {
-        format!("{}{}", input, expansions)
-    }
-}

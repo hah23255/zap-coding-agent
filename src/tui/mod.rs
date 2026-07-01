@@ -16,6 +16,7 @@ mod git_info;
 mod goal;
 mod lifecycle;
 mod provider_picker;
+mod schedule_handler;
 mod startup;
 mod text_parse;
 mod turn_handler;
