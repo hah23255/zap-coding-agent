@@ -69,6 +69,12 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): show active job count in status bar (v0.15.95)
+
+- v0.15.95: scheduler: show active scheduled job count in status bar
+
+---
+
 ### feat(scheduler): drain scheduled_queue after each turn (v0.15.94)
 
 - v0.15.94: scheduler: drain scheduled_queue after each turn (busy-queue support)

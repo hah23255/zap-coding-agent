@@ -494,6 +494,15 @@ pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ));
     }
+    if !app.scheduled_jobs.is_empty() {
+        let n = app.scheduled_jobs.len();
+        spans.push(Span::styled(
+            format!("  ⏰ {n}"),
+            Style::default()
+                .fg(Color::Rgb(220, 190, 100))
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
     // Model-switch approval prompt overrides normal keybinds when active.
     if let Some((_, task, model)) = &app.model_switch_confirm {
         let approval_spans = vec![
