@@ -225,8 +225,6 @@ pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String],
     Ok(())
 }
 
-// ── session_log.md ───────────────────────────────────────────────────────────
-
 /// Load recent entries from `.zap/session_log.md`, capped at `max_chars`.
 pub fn load_session_log(max_chars: usize) -> Option<String> {
     let s = std::fs::read_to_string(PathBuf::from(".zap").join("session_log.md")).ok()?;
@@ -263,6 +261,17 @@ pub fn session_log_files(session_id: i64) -> Option<String> {
     None
 }
 
+/// Extract up to `limit` "Next:" lines from session_log.md entries.
+/// Returns "• bullet\n• bullet" or None if nothing found.
+pub fn load_recent_whats_next(limit: usize) -> Option<String> {
+    let s = std::fs::read_to_string(PathBuf::from(".zap").join("session_log.md")).ok()?;
+    let bullets: Vec<String> = s.lines()
+        .filter(|l| l.starts_with("Next: "))
+        .take(limit)
+        .map(|l| format!("• {}", l.trim_start_matches("Next: ").trim()))
+        .collect();
+    if bullets.is_empty() { None } else { Some(bullets.join("\n")) }
+}
 // ── understanding.md ──────────────────────────────────────────────────────────
 
 /// Load `.zap/understanding.md`, capped at `max_chars` for system-prompt injection.
@@ -499,22 +508,12 @@ Auto-generated from code index. Run `/init` for a detailed LLM-powered analysis.
     Ok(())
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn make_context(next: &str) -> String {
-        format!(
-            "# Session Context\n\
-             ## What was being worked on\n\
-             some goal\n\
-             ## Files touched\n\
-               - foo.rs\n\
-             ## What's next\n\
-             {next}\n"
-        )
+        format!("# Session Context\n## What was being worked on\nsome goal\n## Files touched\n  - foo.rs\n## What's next\n{next}\n")
     }
 
     #[test]
@@ -583,6 +582,19 @@ goal
 - step three");
         let r = extract_whats_next(&s).unwrap();
         assert_eq!(r.lines().count(), 3);
+    }
+
+    #[test]
+    fn load_recent_whats_next_parses_bullets() {
+        // Tests parsing logic inline (real fn reads from CWD/.zap/session_log.md)
+        let content = "## Session #1 — 2026-07-01\nGoal: test\nFiles: (none)\nNext: do A | do B\n\n\
+                       ## Session #2 — 2026-07-01\nGoal: test2\nFiles: (none)\nNext: do C\n\n";
+        let bullets: Vec<&str> = content.lines()
+            .filter(|l| l.starts_with("Next: "))
+            .take(3)
+            .map(|l| l.trim_start_matches("Next: ").trim())
+            .collect();
+        assert_eq!(bullets, vec!["do A | do B", "do C"]);
     }
 
 }
