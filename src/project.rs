@@ -1,10 +1,5 @@
-//! Project-level state persisted in `.zap/` inside the current working directory.
-//!
-//! Unlike `~/.zap/agent.db` (global, all projects), these files are project-specific:
-//!   .zap/project.json     — language, index status, init state
-//!   .zap/context.md       — last-session handoff (goal, files touched)
-//!   .zap/session_log.md   — one entry per session: intent + files
-//!   .zap/understanding.md — LLM-maintained project knowledge (written by /init)
+//! Project-level state persisted in `.zap/` (project.json, context.md, session_log.md,
+//! understanding.md). Unlike `~/.zap/agent.db` (global), these files are project-scoped.
 
 use anyhow::Result;
 use chrono::Utc;
@@ -309,11 +304,8 @@ pub fn save_understanding(content: &str) -> Result<()> {
     Ok(())
 }
 
-/// Refresh the deterministic header of `.zap/understanding.md` at session start.
-///
-/// Always overwrites the auto-generated stats block (between the sentinel comments)
-/// while preserving any LLM-written analysis below it (e.g. from `/init`).
-/// Computes accurate facts from the filesystem — no LLM call needed.
+/// Refresh the deterministic stats block of `.zap/understanding.md` at session start,
+/// preserving any LLM-written analysis. No LLM call needed.
 pub fn refresh_understanding_md(
     cwd_name: Option<String>,
     files: usize,
@@ -322,11 +314,8 @@ pub fn refresh_understanding_md(
 ) -> Result<()> {
     let path = zap_dir().join("understanding.md");
 
-    // ── Deterministic facts ───────────────────────────────────────────────────
     let name = cwd_name.as_deref().unwrap_or("(unknown)");
-    // Version: read from Cargo.toml or package.json if present.
     let version = read_project_version().map(|v| format!(" v{v}")).unwrap_or_default();
-    // Language stats.
     let langs_block = if lang_counts.is_empty() {
         String::new()
     } else {
@@ -336,7 +325,6 @@ pub fn refresh_understanding_md(
         format!("### Languages\n{}\n\n", parts.join("\n"))
     };
 
-    // Source modules / built-in skills.
     let modules_block = list_source_modules();
     let skills_block = count_builtin_skills()
         .map(|n| format!("### Built-in skills\n  {n} skills in `src/default_skills/`\n\n"))
@@ -352,7 +340,6 @@ pub fn refresh_understanding_md(
          <!-- zap:auto-stats:end -->\n"
     );
 
-    // ── Merge with existing LLM-written content ───────────────────────────────
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let analysis_section = extract_analysis_section(&existing);
 
@@ -405,20 +392,23 @@ fn count_builtin_skills() -> Option<usize> {
     if count == 0 { None } else { Some(count) }
 }
 
-/// List top-level source modules (src/*.rs basenames, capped at 20).
+/// List top-level source modules and sub-directories (src/*.rs basenames + src/*/), capped at 50.
 fn list_source_modules() -> String {
     let src = std::path::Path::new("src");
     if !src.exists() { return String::new(); }
-    let mut modules: Vec<String> = std::fs::read_dir(src).ok()
-        .into_iter()
-        .flatten()
+    let mut modules: Vec<String> = std::fs::read_dir(src).ok().into_iter().flatten()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map(|x| x == "rs").unwrap_or(false))
-        .filter_map(|e| e.path().file_stem().map(|s| s.to_string_lossy().to_string()))
-        .filter(|n| n != "lib")
+        .filter_map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                p.file_name().map(|s| s.to_string_lossy().to_string())
+            } else if p.extension().map(|x| x == "rs").unwrap_or(false) {
+                p.file_stem().map(|s| s.to_string_lossy().to_string()).filter(|n| n != "lib")
+            } else { None }
+        })
         .collect();
     modules.sort();
-    modules.truncate(20);
+    modules.truncate(50);
     if modules.is_empty() { return String::new(); }
     format!("### Source modules\n  {}\n\n", modules.join(", "))
 }
@@ -446,10 +436,8 @@ fn extract_analysis_section(existing: &str) -> String {
     "## Analysis\n<!-- Run `/init` for a detailed LLM-powered analysis of architecture, patterns, and key modules. -->\n".to_string()
 }
 
-/// Create a default `.zap/understanding.md` if it doesn't already exist,
-/// or if it contains the auto-created placeholder text (meaning /init never
-/// ran the LLM analysis). When index stats are available, fills in project
-/// structure from the code index deterministically.
+/// Create a default `.zap/understanding.md` if absent or placeholder-only;
+/// fills in deterministic stats from the code index when available.
 pub fn ensure_understanding_md(
     cwd_name: Option<String>,
     files: usize,
@@ -595,6 +583,15 @@ goal
         assert!(text.starts_with("• "), "should start with bullet: {text}");
         assert!(text.contains("• do C"), "got: {text}");
         assert!(text.contains("• do A | do B"), "got: {text}");
+    }
+
+    #[test]
+    fn list_source_modules_includes_directories() {
+        let result = list_source_modules();
+        assert!(result.contains("tui"), "should include tui dir, got: {result}");
+        assert!(result.contains("session"), "should include session dir, got: {result}");
+        assert!(result.contains("tools"), "should include tools dir, got: {result}");
+        assert!(result.contains("agent_core"), "should include agent_core, got: {result}");
     }
 
 }
