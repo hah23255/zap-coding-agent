@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): replace status-bar topic-shift hint with full-width highlighted banner (v0.15.83)
+
+When a topic shift is detected, a 3-line highlighted banner now appears above the input
+box instead of a small hint in the status bar. The banner flashes on first appearance
+(alternating bg via `topic_shift_flash` counter) and shows `[Enter]` / `[b]` / `[Esc]`
+key hints with colour coding. The layout inserts a zero-height slot when the banner is
+hidden so the rest of the UI is unaffected.
+
+**Files:** `src/tui/app.rs`, `src/tui/actions.rs`, `src/tui/mod.rs`,
+`src/tui/render/layout.rs`, `src/tui/render/mod.rs`
+
 ### fix(session): test production function + trim module to 600 lines (v0.15.81)
 
 Unit test for `load_recent_whats_next` now calls the real function via a tempdir+chdir

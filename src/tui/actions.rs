@@ -72,6 +72,7 @@ pub(super) async fn handle_action(
                 && crate::session::is_topic_shift(&text, &session.messages);
             if is_shift {
                 app.topic_shift_confirm = Some(text);
+                app.topic_shift_flash = 8;
             } else {
                 app.prompt_history.push(text.clone());
                 app.history_idx = None;

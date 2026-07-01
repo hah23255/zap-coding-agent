@@ -381,6 +381,10 @@ pub struct App {
     /// When Some, user must confirm before the message is sent.
     pub topic_shift_confirm: Option<String>,
 
+    /// Flash counter for the topic-shift banner; decrements each tick while > 0.
+    /// Used to animate the banner background on first appearance.
+    pub topic_shift_flash: u8,
+
     /// Message queued while a turn is in progress.
     /// Typed and submitted (Enter) during a busy turn; auto-fired when the turn ends.
     pub queued_input: Option<String>,
@@ -467,6 +471,7 @@ impl App {
             prompt_history: Vec::new(),
             history_idx: None,
             topic_shift_confirm: None,
+            topic_shift_flash: 0,
             queued_input: None,
         }
     }

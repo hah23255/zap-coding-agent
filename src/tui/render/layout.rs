@@ -420,22 +420,39 @@ pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u1
     cursor_screen
 }
 
-pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
-    // Topic-shift confirmation takes over the status bar entirely.
-    if app.topic_shift_confirm.is_some() {
-        let spans = vec![
-            Span::styled("  💡 Looks like a new topic — ", Style::default().fg(Color::Yellow)),
-            Span::styled("[Enter]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(" send anyway  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("[b]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(" /branch  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("[any key]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
-        ];
-        frame.render_widget(Paragraph::new(Line::from(spans)), area);
-        return;
-    }
+pub(super) fn draw_topic_shift_banner(frame: &mut Frame, app: &App, area: Rect) {
+    let bg = if app.topic_shift_flash % 2 == 1 {
+        Color::Rgb(60, 45, 90)
+    } else {
+        Color::Rgb(40, 30, 60)
+    };
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Rgb(140, 120, 220)))
+        .style(Style::default().bg(bg));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let text = Line::from(vec![
+        Span::styled(" 💡 New topic detected — ", Style::default()
+            .fg(Color::Rgb(220, 210, 255)).add_modifier(Modifier::BOLD)),
+        Span::styled("[Enter]", Style::default()
+            .fg(Color::White).add_modifier(Modifier::BOLD)),
+        Span::styled(" send anyway  ", Style::default().fg(Color::Rgb(170, 160, 200))),
+        Span::styled("[b]", Style::default()
+            .fg(Color::Rgb(140, 220, 180)).add_modifier(Modifier::BOLD)),
+        Span::styled(" /branch (fork)  ", Style::default().fg(Color::Rgb(170, 160, 200))),
+        Span::styled("[Esc]", Style::default()
+            .fg(Color::Rgb(200, 180, 180)).add_modifier(Modifier::BOLD)),
+        Span::styled(" cancel", Style::default().fg(Color::Rgb(170, 160, 200))),
+    ]);
+
+    frame.render_widget(Paragraph::new(text).centered(), inner);
+}
+
+pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     let spin = super::SPINNER_FRAMES[app.spinner_frame % super::SPINNER_FRAMES.len()];
     let word_idx = (app.turn.wrapping_mul(31).wrapping_add(app.word_tick / 188)) % super::THINKING_WORDS.len();
     let elapsed_secs = app.turn_tick / 62;

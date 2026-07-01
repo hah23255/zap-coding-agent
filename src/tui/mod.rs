@@ -152,6 +152,10 @@ async fn tui_loop(
             }
         }
 
+        if app.topic_shift_flash > 0 {
+            app.topic_shift_flash = app.topic_shift_flash.saturating_sub(1);
+        }
+
         terminal.draw(|frame| render::draw(frame, app))?;
 
         if let Some(mut input) = app.pending_input.take() {

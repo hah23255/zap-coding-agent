@@ -191,6 +191,8 @@ pub fn draw(frame: &mut Frame, app: &App) {
     header::draw_header(frame, app, outer[0]);
     layout::draw_status(frame, app, outer[2]);
 
+    let banner_h = if app.topic_shift_confirm.is_some() { 3u16 } else { 0u16 };
+
     let use_sidebar = size.width > SIDEBAR_W + 24;
     if use_sidebar {
         let body = Layout::horizontal([
@@ -202,6 +204,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         let input_h = input_height(app, body[0].width);
         let left = Layout::vertical([
             Constraint::Min(1),
+            Constraint::Length(banner_h),
             input_h,
             Constraint::Length(3),
         ])
@@ -209,8 +212,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
         layout::draw_messages(frame, app, left[0]);
         layout::draw_picker_overlay(frame, app, left[0]);
-        let cursor_pos = layout::draw_input(frame, app, left[1]);
-        layout::draw_dir_panel(frame, app, left[2]);
+        if app.topic_shift_confirm.is_some() {
+            layout::draw_topic_shift_banner(frame, app, left[1]);
+        }
+        let cursor_pos = layout::draw_input(frame, app, left[2]);
+        layout::draw_dir_panel(frame, app, left[3]);
         layout::draw_sidebar(frame, app, body[1]);
         layout::maybe_set_cursor(frame, app, cursor_pos);
     } else {
@@ -225,6 +231,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
         let left = Layout::vertical([
             Constraint::Min(1),
+            Constraint::Length(banner_h),
             input_height(app, outer[1].width),
             Constraint::Length(6),
         ])
@@ -232,8 +239,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
         layout::draw_messages(frame, app, left[0]);
         layout::draw_picker_overlay(frame, app, left[0]);
-        let cursor_pos = layout::draw_input(frame, app, left[1]);
-        layout::draw_dir_panel(frame, app, left[2]);
+        if app.topic_shift_confirm.is_some() {
+            layout::draw_topic_shift_banner(frame, app, left[1]);
+        }
+        let cursor_pos = layout::draw_input(frame, app, left[2]);
+        layout::draw_dir_panel(frame, app, left[3]);
         layout::maybe_set_cursor(frame, app, cursor_pos);
     }
 
