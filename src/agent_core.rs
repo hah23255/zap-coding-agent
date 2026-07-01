@@ -43,6 +43,8 @@ pub async fn run(goal: &str, config: &Config) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&out)?);
     }
 
+    session.save_context_with_summary().await;
+
     Ok(())
 }
 

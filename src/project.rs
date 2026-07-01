@@ -1,10 +1,5 @@
-//! Project-level state persisted in `.zap/` inside the current working directory.
-//!
-//! Unlike `~/.zap/agent.db` (global, all projects), these files are project-specific:
-//!   .zap/project.json     — language, index status, init state
-//!   .zap/context.md       — last-session handoff (goal, files touched)
-//!   .zap/session_log.md   — one entry per session: intent + files
-//!   .zap/understanding.md — LLM-maintained project knowledge (written by /init)
+//! Project-level state persisted in `.zap/` (project.json, context.md, session_log.md,
+//! understanding.md). Unlike `~/.zap/agent.db` (global), these files are project-scoped.
 
 use anyhow::Result;
 use chrono::Utc;
@@ -193,7 +188,7 @@ pub fn save_session_context(
 // ── session_log.md ────────────────────────────────────────────────────────────
 
 /// Prepend one entry to `.zap/session_log.md` (newest first, capped at ~20k chars).
-pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String]) -> Result<()> {
+pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String], whats_next: Option<&str>) -> Result<()> {
     let path = zap_dir().join("session_log.md");
     let now = Utc::now().format("%Y-%m-%d").to_string();
     let files = if files_changed.is_empty() {
@@ -206,16 +201,24 @@ pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String])
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let entry = format!("## Session #{session_id} — {now}\nGoal: {goal}\nFiles: {files}\n\n");
+    let next_line = whats_next
+        .filter(|s| !s.trim().is_empty() && !s.contains("<!--"))
+        .map(|s| {
+            let joined = s.lines()
+                .map(|l| l.trim().trim_start_matches("- ").trim_start_matches("• "))
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join(" | ");
+            format!("Next: {}\n", joined)
+        })
+        .unwrap_or_default();
+    let entry = format!("## Session #{session_id} — {now}\nGoal: {goal}\nFiles: {files}\n{next_line}\n");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let combined = format!("{}{}", entry, existing);
-    // Cap at ~20k chars so the file doesn't grow unbounded
     let capped: String = combined.chars().take(20_000).collect();
     std::fs::write(&path, capped)?;
     Ok(())
 }
-
-// ── session_log.md ───────────────────────────────────────────────────────────
 
 /// Load recent entries from `.zap/session_log.md`, capped at `max_chars`.
 pub fn load_session_log(max_chars: usize) -> Option<String> {
@@ -253,6 +256,16 @@ pub fn session_log_files(session_id: i64) -> Option<String> {
     None
 }
 
+/// Extract up to `limit` "Next:" lines from session_log.md (newest-first). Returns "• bullet\n…" or None.
+pub fn load_recent_whats_next(limit: usize) -> Option<String> {
+    let s = std::fs::read_to_string(PathBuf::from(".zap").join("session_log.md")).ok()?;
+    let bullets: Vec<String> = s.lines()
+        .filter(|l| l.starts_with("Next: "))
+        .take(limit)
+        .map(|l| format!("• {}", l.trim_start_matches("Next: ").trim()))
+        .collect();
+    if bullets.is_empty() { None } else { Some(bullets.join("\n")) }
+}
 // ── understanding.md ──────────────────────────────────────────────────────────
 
 /// Load `.zap/understanding.md`, capped at `max_chars` for system-prompt injection.
@@ -291,11 +304,8 @@ pub fn save_understanding(content: &str) -> Result<()> {
     Ok(())
 }
 
-/// Refresh the deterministic header of `.zap/understanding.md` at session start.
-///
-/// Always overwrites the auto-generated stats block (between the sentinel comments)
-/// while preserving any LLM-written analysis below it (e.g. from `/init`).
-/// Computes accurate facts from the filesystem — no LLM call needed.
+/// Refresh the deterministic stats block of `.zap/understanding.md` at session start,
+/// preserving any LLM-written analysis. No LLM call needed.
 pub fn refresh_understanding_md(
     cwd_name: Option<String>,
     files: usize,
@@ -304,13 +314,8 @@ pub fn refresh_understanding_md(
 ) -> Result<()> {
     let path = zap_dir().join("understanding.md");
 
-    // ── Deterministic facts ───────────────────────────────────────────────────
     let name = cwd_name.as_deref().unwrap_or("(unknown)");
-
-    // Version: read from Cargo.toml or package.json if present.
     let version = read_project_version().map(|v| format!(" v{v}")).unwrap_or_default();
-
-    // Language stats.
     let langs_block = if lang_counts.is_empty() {
         String::new()
     } else {
@@ -320,10 +325,7 @@ pub fn refresh_understanding_md(
         format!("### Languages\n{}\n\n", parts.join("\n"))
     };
 
-    // Source modules: list top-level source files (src/*.rs or similar).
     let modules_block = list_source_modules();
-
-    // Built-in skill count: count .md files in src/default_skills/ if present.
     let skills_block = count_builtin_skills()
         .map(|n| format!("### Built-in skills\n  {n} skills in `src/default_skills/`\n\n"))
         .unwrap_or_default();
@@ -338,7 +340,6 @@ pub fn refresh_understanding_md(
          <!-- zap:auto-stats:end -->\n"
     );
 
-    // ── Merge with existing LLM-written content ───────────────────────────────
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let analysis_section = extract_analysis_section(&existing);
 
@@ -391,20 +392,23 @@ fn count_builtin_skills() -> Option<usize> {
     if count == 0 { None } else { Some(count) }
 }
 
-/// List top-level source modules (src/*.rs basenames, capped at 20).
+/// List top-level source modules and sub-directories (src/*.rs basenames + src/*/), capped at 50.
 fn list_source_modules() -> String {
     let src = std::path::Path::new("src");
     if !src.exists() { return String::new(); }
-    let mut modules: Vec<String> = std::fs::read_dir(src).ok()
-        .into_iter()
-        .flatten()
+    let mut modules: Vec<String> = std::fs::read_dir(src).ok().into_iter().flatten()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map(|x| x == "rs").unwrap_or(false))
-        .filter_map(|e| e.path().file_stem().map(|s| s.to_string_lossy().to_string()))
-        .filter(|n| n != "lib")
+        .filter_map(|e| {
+            let p = e.path();
+            if p.is_dir() {
+                p.file_name().map(|s| s.to_string_lossy().to_string())
+            } else if p.extension().map(|x| x == "rs").unwrap_or(false) {
+                p.file_stem().map(|s| s.to_string_lossy().to_string()).filter(|n| n != "lib")
+            } else { None }
+        })
         .collect();
     modules.sort();
-    modules.truncate(20);
+    modules.truncate(50);
     if modules.is_empty() { return String::new(); }
     format!("### Source modules\n  {}\n\n", modules.join(", "))
 }
@@ -432,10 +436,8 @@ fn extract_analysis_section(existing: &str) -> String {
     "## Analysis\n<!-- Run `/init` for a detailed LLM-powered analysis of architecture, patterns, and key modules. -->\n".to_string()
 }
 
-/// Create a default `.zap/understanding.md` if it doesn't already exist,
-/// or if it contains the auto-created placeholder text (meaning /init never
-/// ran the LLM analysis). When index stats are available, fills in project
-/// structure from the code index deterministically.
+/// Create a default `.zap/understanding.md` if absent or placeholder-only;
+/// fills in deterministic stats from the code index when available.
 pub fn ensure_understanding_md(
     cwd_name: Option<String>,
     files: usize,
@@ -489,22 +491,12 @@ Auto-generated from code index. Run `/init` for a detailed LLM-powered analysis.
     Ok(())
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn make_context(next: &str) -> String {
-        format!(
-            "# Session Context\n\
-             ## What was being worked on\n\
-             some goal\n\
-             ## Files touched\n\
-               - foo.rs\n\
-             ## What's next\n\
-             {next}\n"
-        )
+        format!("# Session Context\n## What was being worked on\nsome goal\n## Files touched\n  - foo.rs\n## What's next\n{next}\n")
     }
 
     #[test]
@@ -573,6 +565,33 @@ goal
 - step three");
         let r = extract_whats_next(&s).unwrap();
         assert_eq!(r.lines().count(), 3);
+    }
+
+    #[test]
+    fn load_recent_whats_next_parses_bullets() {
+        // Calls the real function via tempdir+chdir; session_log is newest-first.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".zap")).unwrap();
+        std::fs::write(dir.path().join(".zap/session_log.md"),
+            "## Session #2\nGoal: g2\nFiles: (none)\nNext: do C\n\n\
+             ## Session #1\nGoal: g1\nFiles: (none)\nNext: do A | do B\n\n").unwrap();
+        let orig = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let text = load_recent_whats_next(3);
+        std::env::set_current_dir(&orig).unwrap();
+        let text = text.expect("should find Next: lines");
+        assert!(text.starts_with("• "), "should start with bullet: {text}");
+        assert!(text.contains("• do C"), "got: {text}");
+        assert!(text.contains("• do A | do B"), "got: {text}");
+    }
+
+    #[test]
+    fn list_source_modules_includes_directories() {
+        let result = list_source_modules();
+        assert!(result.contains("tui"), "should include tui dir, got: {result}");
+        assert!(result.contains("session"), "should include session dir, got: {result}");
+        assert!(result.contains("tools"), "should include tools dir, got: {result}");
+        assert!(result.contains("agent_core"), "should include agent_core, got: {result}");
     }
 
 }

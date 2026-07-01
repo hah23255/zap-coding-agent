@@ -32,4 +32,33 @@ else
     fail "T05c context.md has timestamp" "$(head -10 "$TMP/.zap/context.md" 2>/dev/null)"
 fi
 
+info "T05d: session_log.md contains Next: line (requires LLM)"
+if [ -z "${AGENT_API_KEY:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ] && \
+   ! curl -sf http://localhost:1234/v1/models >/dev/null 2>&1 && \
+   ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+    info "  T05d skipped — no LLM available"
+elif [ -f "$TMP/.zap/session_log.md" ] && grep -qE "^Next:" "$TMP/.zap/session_log.md"; then
+    pass "T05d session_log.md has Next: line"
+else
+    fail "T05d session_log.md has Next: line" "$(head -10 "$TMP/.zap/session_log.md" 2>/dev/null)"
+fi
+
+info "T06: second session shows Last: banner"
+# Session 2 in same project dir — should see the prior context from session 1
+OUT2=$(cd "$TMP" && printf '/exit\n' | timeout "$TIMEOUT" "$ZAP" \
+  --goal "continue" --auto --cli 2>&1) || true
+if echo "$OUT2" | grep -qi "Last:"; then
+    pass "T06 second session shows Last: banner"
+else
+    fail "T06 second session shows Last: banner" "$(echo "$OUT2" | head -10)"
+fi
+
+info "T07: session_log accumulates entries across two sessions"
+entry_count=$(grep -c "^## Session" "$TMP/.zap/session_log.md" 2>/dev/null || echo 0)
+if [ "$entry_count" -ge 2 ]; then
+    pass "T07 session_log has >= 2 entries ($entry_count found)"
+else
+    fail "T07 session_log has >= 2 entries" "only $entry_count entries: $(cat "$TMP/.zap/session_log.md" 2>/dev/null | head -5)"
+fi
+
 summary

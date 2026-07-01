@@ -370,6 +370,11 @@ impl Session {
                         system.push_str("\n\n## Last Session Handoff\n");
                         system.push_str(&ctx);
                     }
+                    if let Some(recent_next) = crate::project::load_recent_whats_next(3) {
+                        system.push_str("\n\n## Recent What's Next (last 3 sessions)\n");
+                        system.push_str(&recent_next);
+                        system.push('\n');
+                    }
                     // Restore full conversation history from the previous session.
                     messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, config);
                 } else {
@@ -390,6 +395,11 @@ impl Session {
                         if let Some(ctx) = crate::project::load_session_context() {
                             system.push_str("\n\n## Last Session Handoff\n");
                             system.push_str(&ctx);
+                        }
+                        if let Some(recent_next) = crate::project::load_recent_whats_next(3) {
+                            system.push_str("\n\n## Recent What's Next (last 3 sessions)\n");
+                            system.push_str(&recent_next);
+                            system.push('\n');
                         }
                         // Restore full conversation history from the previous session.
                         messages = load_and_guard_previous_messages(&store, session_id, &cwd_str, config);

@@ -7,6 +7,24 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(session): test production function + trim module to 600 lines (v0.15.81)
+
+Unit test for `load_recent_whats_next` now calls the real function via a tempdir+chdir
+fixture instead of re-implementing parsing inline. Ordering confirmed correct (log is
+prepended newest-first, so `take(limit)` already returns most recent). Removed redundant
+blank lines and collapsed two-line comments to stay within the 600-line hook limit.
+
+**Files:** `src/project.rs`
+
+### feat: inject last 3 sessions what's-next into startup system prompt (v0.15.80)
+
+At startup, `load_recent_whats_next(3)` scans `.zap/session_log.md` for `Next:` lines
+from the most recent sessions and injects them as a `## Recent What's Next` block into
+the system prompt. This means the LLM always knows what was planned even when starting
+a fresh session or resuming after multiple sessions away.
+
+**Files:** `src/project.rs` (new `load_recent_whats_next`; test now calls production fn via tempdir+chdir fixture), `src/session/mod.rs` (TUI + CLI injection)
+
 ### fix: wire context_window to Ollama num_ctx + deny.toml wit-bindgen skip (v0.15.77)
 
 `num_ctx` for Ollama was hardcoded to 8192 regardless of `context_window` in the
@@ -883,6 +901,7 @@ Addresses the six findings from the independent Mythos security review (`docs/se
 | Fix async test isolation for todo global state (v0.13.40) | `src/tools/todo.rs` | Replaced locked_clean pattern (released lock before async body) with OnceLock<tokio::sync::Mutex<()>> held for entire async test; sync tests hold std::sync::Mutex for full test body; async tests that only verify execute() return strings no longer access global_todos() at all, eliminating the race |
 | Test coverage — todo tools + extract_whats_next (v0.13.40) | `src/tools/todo.rs`, `src/project.rs` | 19 new unit tests: TodoStatus/Priority parsing, global state round-trip, TodoWriteTool::execute (normal, empty, missing key, missing fields), TodoReadTool::execute (empty, with items), extract_whats_next (content, placeholder, absent, blank, section boundary, whitespace trim, multiline); from_str methods made pub(crate); extract_whats_next made pub(crate); total 126 tests passing |
 | Session task tracking — todo_write/todo_read tools (v0.13.39) | `src/tools/todo.rs`, `src/tools/mod.rs`, `src/tui/render/layout.rs`, `src/context_manager.rs`, `src/session/mod.rs` | Two new tools: `todo_write` replaces the full task list (id, content, status, priority); `todo_read` returns the current list. Global `Mutex<Vec<TodoItem>>` cleared at session start (no persistence). System prompt instructs LLM to create a list when given ≥3-step tasks, mark items in_progress/done as it works. TUI sidebar shows a "tasks N/M" section with ○/◑/● icons and priority-coloured text when any tasks exist. |
+| session_log.md what's-next persistence | `src/project.rs`, `src/session/commands/code.rs`, `src/agent_core.rs` | `append_session_log` now accepts `whats_next: Option<&str>` and writes a `Next:` line (first bullet from the LLM summary) into each session_log.md entry; call site in `save_context_inner` threads through the existing `whats_next` parameter; single-shot (`--goal`) mode now also calls `save_context_with_summary` on exit so context.md and session_log.md are written in CLI/scripting flows; T05d e2e test added; fixed: all bullet lines now joined with ` \| ` separator (was silently dropping lines 2-3); T05d anchored to `^Next:` and guards offline CI with LLM-availability check |
 | Automated session continuity (v0.13.38) | `src/project.rs`, `src/session/commands/code.rs`, `src/tui/mod.rs`, `src/agent_core.rs`, `src/context_manager.rs` | On-exit LLM call (`summarize_whats_next`, 20s timeout) generates 1-3 bullet "What's next" summary from last 10 messages; `save_session_context` now accepts `whats_next: Option<&str>` and preserves existing content when `None`; fixed overwrite bug (was always writing blank placeholder); `save_context_with_summary` async replaces `save_context` at both exit points (TUI + REPL); removed duplicate context.md hint from context_manager (already injected at startup); added `/memory set` proactive note to agent memory system prompt section |
 | TUI streaming auto-scroll fix | `src/tui/app.rs:apply_event` | `auto_scroll` is re-enabled on every `LlmChunk` so the viewport follows active streaming output even if the user scrolled up earlier in the turn; previously scrolling up mid-response caused the rest of the output to appear off-screen |
 | Rotating thinking words | `src/tui/render.rs:THINKING_WORDS` | 200-word rotation; per-turn prime offset (`turn * 31`) ensures each response starts at a different word; ~640ms change interval (down from 1.3s) so variety is visible in short turns; status bar, sidebar, and chat all use the same index |
@@ -1184,7 +1203,7 @@ Addresses the six findings from the independent Mythos security review (`docs/se
 | /init produces navigation map not code review | `src/session/commands.rs:cmd_init_direct` | Init LLM prompt rewritten around goal: "where do I go for X?" not "how does X work?". Uses code_map (index) for symbol/file map, reads only manifest + entry point. understanding.md structured as: Entry Points, Module Map (table), Where To Find X (lookup), Non-Obvious Constraints. No recursive listing, no glob **\/*, no reading every file. |
 | Silent language detection on first launch | `src/tui/mod.rs` | New projects: auto-detect language, silently save `project.json`, then proceed — no wizard, no indexing, no LLM call. Indexing and analysis only happen when user explicitly runs `/init`. Unindexed projects see a tip clarifying: indexing is 100% local (tree-sitter → .zap/code.db SQLite), nothing sent to cloud — only typed messages go to the LLM. Same message shown in /init output after indexing completes. |
 | detect_project_type extension fallback | `src/session/commands.rs:detect_project_type` | When no build manifest found, scans file extensions (`.rs`, `.py`, `.ts`, etc.) and returns the dominant language. Projects with only docs/markdown/config return "general" instead of "". Empty directories still return "" to trigger the wizard. |
-| understanding.md auto-refresh | `src/project.rs:refresh_understanding_md`, `src/session/mod.rs:Session::new` | At every session start, rewrites the `<!-- zap:auto-stats:begin/end -->` block with deterministic facts: version (Cargo.toml/package.json), file+symbol counts, language stats, source module list, built-in skill count. LLM-written `/init` content below the block is preserved. No LLM call — zero latency. |
+| understanding.md auto-refresh | `src/project.rs:refresh_understanding_md`, `src/session/mod.rs:Session::new` | At every session start, rewrites the `<!-- zap:auto-stats:begin/end -->` block with deterministic facts: version (Cargo.toml/package.json), file+symbol counts, language stats, source module list (including sub-directories like `tui/`, `session/`, `tools/`), built-in skill count. LLM-written `/init` content below the block is preserved. No LLM call — zero latency. |
 | Git status in prompt | `src/context_manager.rs:git_status_summary` | 2s timeout |
 | Agent memory in prompt | `src/context_manager.rs` | from SQLite store |
 
