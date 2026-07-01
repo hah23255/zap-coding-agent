@@ -32,4 +32,11 @@ else
     fail "T05c context.md has timestamp" "$(head -10 "$TMP/.zap/context.md" 2>/dev/null)"
 fi
 
+info "T05d: session_log.md contains Next: line"
+if [ -f "$TMP/.zap/session_log.md" ] && grep -q "Next:" "$TMP/.zap/session_log.md"; then
+    pass "T05d session_log.md has Next:"
+else
+    fail "T05d session_log.md has Next:" "$(head -10 "$TMP/.zap/session_log.md" 2>/dev/null)"
+fi
+
 summary

@@ -193,7 +193,7 @@ pub fn save_session_context(
 // ── session_log.md ────────────────────────────────────────────────────────────
 
 /// Prepend one entry to `.zap/session_log.md` (newest first, capped at ~20k chars).
-pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String]) -> Result<()> {
+pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String], whats_next: Option<&str>) -> Result<()> {
     let path = zap_dir().join("session_log.md");
     let now = Utc::now().format("%Y-%m-%d").to_string();
     let files = if files_changed.is_empty() {
@@ -206,10 +206,13 @@ pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String])
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let entry = format!("## Session #{session_id} — {now}\nGoal: {goal}\nFiles: {files}\n\n");
+    let next_line = whats_next
+        .filter(|s| !s.trim().is_empty() && !s.contains("<!--"))
+        .map(|s| format!("Next: {}\n", s.lines().next().unwrap_or("").trim()))
+        .unwrap_or_default();
+    let entry = format!("## Session #{session_id} — {now}\nGoal: {goal}\nFiles: {files}\n{next_line}\n");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let combined = format!("{}{}", entry, existing);
-    // Cap at ~20k chars so the file doesn't grow unbounded
     let capped: String = combined.chars().take(20_000).collect();
     std::fs::write(&path, capped)?;
     Ok(())

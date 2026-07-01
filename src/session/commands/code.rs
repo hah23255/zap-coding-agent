@@ -380,6 +380,7 @@ impl Session {
             self.session_id,
             &goal,
             &self.files_changed,
+            whats_next,
         ) {
             crate::log::write("WARN ", &format!("could not update session_log.md: {}", e));
         }
