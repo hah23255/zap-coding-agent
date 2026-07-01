@@ -488,6 +488,14 @@ p code, li code, td code, h4 code {
 .feature-card p  { font-size: 0.86rem; color: var(--text-2); line-height: 1.7; margin-bottom: 18px; }
 .feature-link    { font-size: 0.82rem; color: var(--purple); font-weight: 600; letter-spacing: 0.01em; }
 .feature-link:hover { text-decoration: underline; }
+.feature-callout {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #7c6af7;
+  background: rgba(124, 106, 247, 0.08);
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9rem;
+}
 
 /* ── Provider chips (landing) ────────────────────────────────────── */
 .provider-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 28px; }
