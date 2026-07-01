@@ -69,6 +69,16 @@ the routing lookup will be wired in subsequent tasks.
 
 ---
 
+### feat(scheduler): in-session scheduler data model and parsers (v0.15.91)
+
+`src/session/scheduler.rs` adds the `ScheduledJob` struct (name, goal, interval_str,
+Tokio JoinHandle, fire_count), `parse_interval` (accepts "30s", "5m", "2h", "1h30m"),
+`parse_wallclock` (strict "HH:MM" format), and `schedule_label` for display.
+
+**Files:** `src/session/scheduler.rs`, `src/session/mod.rs`
+
+---
+
 ### feat(tui): show active tool count in startup notice (v0.15.87)
 
 At TUI startup, a notice line "Tools: N loaded — /tools to list all" is added to

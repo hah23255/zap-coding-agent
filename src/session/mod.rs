@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod routing;
+pub mod scheduler;
 pub mod task_classifier;
 mod casual;
 mod history;
