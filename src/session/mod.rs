@@ -418,6 +418,18 @@ impl Session {
                 if let Some(ref warning) = skill_warning {
                     startup_notices.push(warning.clone());
                 }
+                let active_count = tools.active_tool_names().len();
+                let disabled_count = config.disabled_tools.len();
+                let tool_notice = if disabled_count > 0 {
+                    format!(
+                        "Tools: {} active ({} disabled) — /tools to list",
+                        active_count.saturating_sub(disabled_count),
+                        disabled_count
+                    )
+                } else {
+                    format!("Tools: {} loaded — /tools to list all", active_count)
+                };
+                startup_notices.push(tool_notice);
             }
         }
 

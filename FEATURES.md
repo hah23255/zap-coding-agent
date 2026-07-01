@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): show active tool count in startup notice (v0.15.87)
+
+At TUI startup, a notice line "Tools: N loaded — /tools to list all" is added to
+`startup_notices` so users immediately see how many tools are active without typing `/tools`.
+When `config.disabled_tools` is non-empty the notice reads "Tools: N active (M disabled) —
+/tools to list". The count is derived from `tools.active_tool_names().len()`.
+
+**Files:** `src/session/mod.rs`
+
+---
+
 ### feat(tools): filter disabled_tools and disabled_skills from session (v0.15.86)
 
 `ToolRegistry` gains two new methods: `tool_definitions_filtered(disabled: &[String])` which

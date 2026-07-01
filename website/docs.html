@@ -230,9 +230,11 @@ api_key = <span class="c-str">"sk-ant-..."</span>  <span class="c-dim"># or use 
 
         <div class="subsection-title">All options</div>
         <div class="code-block"><span class="c-dim"># ~/.agent.toml</span>
-model      = <span class="c-str">"claude-sonnet-4-6"</span>
-mode       = <span class="c-str">"ask"</span>           <span class="c-dim"># ask | auto</span>
-skill_paths = [<span class="c-str">"~/.claude/skills"</span>, <span class="c-str">"~/.zap/skills"</span>]
+model            = <span class="c-str">"claude-sonnet-4-6"</span>
+mode             = <span class="c-str">"ask"</span>                        <span class="c-dim"># ask | auto</span>
+skill_paths      = [<span class="c-str">"~/.claude/skills"</span>, <span class="c-str">"~/.zap/skills"</span>]
+disabled_tools   = [<span class="c-str">"shell"</span>, <span class="c-str">"web_fetch"</span>]    <span class="c-dim"># tools the LLM will never see</span>
+disabled_skills  = [<span class="c-str">"deploy"</span>, <span class="c-str">"ship"</span>]          <span class="c-dim"># skills never auto-triggered</span>
 
 [anthropic]
 api_key = <span class="c-str">"sk-ant-..."</span>
@@ -249,6 +251,54 @@ api_key = <span class="c-str">"sk-..."</span></div>
 
         <div class="callout callout-tip">
           <strong>Tip:</strong> Set <code>mode = "auto"</code> to let zap run tools without asking for confirmation each time. Useful for trusted projects.
+        </div>
+
+        <div class="subsection-title">Option reference</div>
+        <div class="context-table-wrap">
+          <table class="context-table">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Default</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>model</code></td>
+                <td><code>"claude-sonnet-4-6"</code></td>
+                <td>Model to use for all LLM calls. Any provider model string is accepted.</td>
+              </tr>
+              <tr>
+                <td><code>mode</code></td>
+                <td><code>"ask"</code></td>
+                <td><code>ask</code> — prompt before each tool call. <code>auto</code> — run tools without confirmation. Switch per project via <code>/mode</code>.</td>
+              </tr>
+              <tr>
+                <td><code>skill_paths</code></td>
+                <td><code>[]</code></td>
+                <td>Directories scanned for skill files (<code>.md</code>). Skills found here are available for keyword-triggered injection.</td>
+              </tr>
+              <tr>
+                <td><code>disabled_tools</code></td>
+                <td><code>[]</code></td>
+                <td>
+                  Tool names to exclude from every session. The LLM will not see or be able to call excluded tools.
+                  Use <code>/tools</code> inside zap to list all available names.
+                  Example: <code>disabled_tools = ["shell", "web_fetch"]</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>disabled_skills</code></td>
+                <td><code>[]</code></td>
+                <td>
+                  Skill names to exclude from automatic injection. Skills matching this list are never triggered,
+                  even if the user's message matches their keywords.
+                  Example: <code>disabled_skills = ["deploy", "ship"]</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
