@@ -7,6 +7,15 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(session): test production function + trim module to 600 lines (v0.15.81)
+
+Unit test for `load_recent_whats_next` now calls the real function via a tempdir+chdir
+fixture instead of re-implementing parsing inline. Ordering confirmed correct (log is
+prepended newest-first, so `take(limit)` already returns most recent). Removed redundant
+blank lines and collapsed two-line comments to stay within the 600-line hook limit.
+
+**Files:** `src/project.rs`
+
 ### feat: inject last 3 sessions what's-next into startup system prompt (v0.15.80)
 
 At startup, `load_recent_whats_next(3)` scans `.zap/session_log.md` for `Next:` lines
@@ -14,7 +23,7 @@ from the most recent sessions and injects them as a `## Recent What's Next` bloc
 the system prompt. This means the LLM always knows what was planned even when starting
 a fresh session or resuming after multiple sessions away.
 
-**Files:** `src/project.rs` (new `load_recent_whats_next`), `src/session/mod.rs` (TUI + CLI injection)
+**Files:** `src/project.rs` (new `load_recent_whats_next`; test now calls production fn via tempdir+chdir fixture), `src/session/mod.rs` (TUI + CLI injection)
 
 ### fix: wire context_window to Ollama num_ctx + deny.toml wit-bindgen skip (v0.15.77)
 

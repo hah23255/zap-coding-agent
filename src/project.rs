@@ -261,8 +261,7 @@ pub fn session_log_files(session_id: i64) -> Option<String> {
     None
 }
 
-/// Extract up to `limit` "Next:" lines from session_log.md entries.
-/// Returns "• bullet\n• bullet" or None if nothing found.
+/// Extract up to `limit` "Next:" lines from session_log.md (newest-first). Returns "• bullet\n…" or None.
 pub fn load_recent_whats_next(limit: usize) -> Option<String> {
     let s = std::fs::read_to_string(PathBuf::from(".zap").join("session_log.md")).ok()?;
     let bullets: Vec<String> = s.lines()
@@ -325,10 +324,8 @@ pub fn refresh_understanding_md(
 
     // ── Deterministic facts ───────────────────────────────────────────────────
     let name = cwd_name.as_deref().unwrap_or("(unknown)");
-
     // Version: read from Cargo.toml or package.json if present.
     let version = read_project_version().map(|v| format!(" v{v}")).unwrap_or_default();
-
     // Language stats.
     let langs_block = if lang_counts.is_empty() {
         String::new()
@@ -339,10 +336,8 @@ pub fn refresh_understanding_md(
         format!("### Languages\n{}\n\n", parts.join("\n"))
     };
 
-    // Source modules: list top-level source files (src/*.rs or similar).
+    // Source modules / built-in skills.
     let modules_block = list_source_modules();
-
-    // Built-in skill count: count .md files in src/default_skills/ if present.
     let skills_block = count_builtin_skills()
         .map(|n| format!("### Built-in skills\n  {n} skills in `src/default_skills/`\n\n"))
         .unwrap_or_default();
@@ -586,15 +581,20 @@ goal
 
     #[test]
     fn load_recent_whats_next_parses_bullets() {
-        // Tests parsing logic inline (real fn reads from CWD/.zap/session_log.md)
-        let content = "## Session #1 — 2026-07-01\nGoal: test\nFiles: (none)\nNext: do A | do B\n\n\
-                       ## Session #2 — 2026-07-01\nGoal: test2\nFiles: (none)\nNext: do C\n\n";
-        let bullets: Vec<&str> = content.lines()
-            .filter(|l| l.starts_with("Next: "))
-            .take(3)
-            .map(|l| l.trim_start_matches("Next: ").trim())
-            .collect();
-        assert_eq!(bullets, vec!["do A | do B", "do C"]);
+        // Calls the real function via tempdir+chdir; session_log is newest-first.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".zap")).unwrap();
+        std::fs::write(dir.path().join(".zap/session_log.md"),
+            "## Session #2\nGoal: g2\nFiles: (none)\nNext: do C\n\n\
+             ## Session #1\nGoal: g1\nFiles: (none)\nNext: do A | do B\n\n").unwrap();
+        let orig = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        let text = load_recent_whats_next(3);
+        std::env::set_current_dir(&orig).unwrap();
+        let text = text.expect("should find Next: lines");
+        assert!(text.starts_with("• "), "should start with bullet: {text}");
+        assert!(text.contains("• do C"), "got: {text}");
+        assert!(text.contains("• do A | do B"), "got: {text}");
     }
 
 }
