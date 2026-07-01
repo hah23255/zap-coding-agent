@@ -32,11 +32,15 @@ else
     fail "T05c context.md has timestamp" "$(head -10 "$TMP/.zap/context.md" 2>/dev/null)"
 fi
 
-info "T05d: session_log.md contains Next: line"
-if [ -f "$TMP/.zap/session_log.md" ] && grep -q "Next:" "$TMP/.zap/session_log.md"; then
-    pass "T05d session_log.md has Next:"
+info "T05d: session_log.md contains Next: line (requires LLM)"
+if [ -z "${AGENT_API_KEY:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ] && \
+   ! curl -sf http://localhost:1234/v1/models >/dev/null 2>&1 && \
+   ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+    info "  T05d skipped — no LLM available"
+elif [ -f "$TMP/.zap/session_log.md" ] && grep -qE "^Next:" "$TMP/.zap/session_log.md"; then
+    pass "T05d session_log.md has Next: line"
 else
-    fail "T05d session_log.md has Next:" "$(head -10 "$TMP/.zap/session_log.md" 2>/dev/null)"
+    fail "T05d session_log.md has Next: line" "$(head -10 "$TMP/.zap/session_log.md" 2>/dev/null)"
 fi
 
 summary

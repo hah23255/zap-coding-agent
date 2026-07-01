@@ -208,7 +208,14 @@ pub fn append_session_log(session_id: i64, goal: &str, files_changed: &[String],
     };
     let next_line = whats_next
         .filter(|s| !s.trim().is_empty() && !s.contains("<!--"))
-        .map(|s| format!("Next: {}\n", s.lines().next().unwrap_or("").trim()))
+        .map(|s| {
+            let joined = s.lines()
+                .map(|l| l.trim().trim_start_matches("- ").trim_start_matches("• "))
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join(" | ");
+            format!("Next: {}\n", joined)
+        })
         .unwrap_or_default();
     let entry = format!("## Session #{session_id} — {now}\nGoal: {goal}\nFiles: {files}\n{next_line}\n");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
