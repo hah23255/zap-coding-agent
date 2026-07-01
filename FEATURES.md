@@ -156,6 +156,10 @@ box instead of a small hint in the status bar. The banner flashes on first appea
 key hints with colour coding. The layout inserts a zero-height slot when the banner is
 hidden so the rest of the UI is unaffected.
 
+Update: pressing `[b]` now auto-creates a conversation fork like `fork-1`, saves it,
+switches to that branch in-place, and keeps the drafted text in the TUI instead of
+queueing a bare `/branch` command.
+
 **Files:** `src/tui/app.rs`, `src/tui/actions.rs`, `src/tui/mod.rs`,
 `src/tui/render/layout.rs`, `src/tui/render/mod.rs`
 
@@ -166,7 +170,12 @@ fixture instead of re-implementing parsing inline. Ordering confirmed correct (l
 prepended newest-first, so `take(limit)` already returns most recent). Removed redundant
 blank lines and collapsed two-line comments to stay within the 600-line hook limit.
 
-**Files:** `src/project.rs`
+Update: the understanding/stats helpers now live in `src/project/project_understanding.rs`,
+which keeps `src/project.rs` under the line-limit hook while preserving behavior. The
+source-module listing also now prefers directories before truncation so entries like
+`session` are not dropped when many top-level modules exist.
+
+**Files:** `src/project.rs`, `src/project/project_understanding.rs`
 
 ### feat: inject last 3 sessions what's-next into startup system prompt (v0.15.80)
 

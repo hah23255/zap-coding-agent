@@ -144,11 +144,63 @@ pub(super) async fn handle_action(
         }
 
         InputAction::TopicShiftBranch => {
-            if let Some(text) = app.topic_shift_confirm.take() {
-                app.input = text;
-                app.cursor = app.input.chars().count();
+            let Some(text) = app.topic_shift_confirm.take() else {
+                return Ok(false);
+            };
+            app.input = text;
+            app.cursor = app.input.chars().count();
+
+            let branch_name = match session.store.list_branches(session.session_id) {
+                Ok(branches) => {
+                    let names: std::collections::HashSet<String> = branches.into_iter()
+                        .map(|(name, _, _, _)| name)
+                        .collect();
+                    let mut idx = 1usize;
+                    loop {
+                        let candidate = format!("fork-{idx}");
+                        if !names.contains(&candidate) && candidate != session.current_branch {
+                            break candidate;
+                        }
+                        idx += 1;
+                    }
+                }
+                Err(_) => {
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    format!("fork-{ts}")
+                }
+            };
+
+            match serde_json::to_string(&session.messages) {
+                Ok(json) => match session.store.save_branch(
+                    session.session_id,
+                    &branch_name,
+                    &session.current_branch,
+                    &json,
+                    session.turn_count,
+                ) {
+                    Ok(()) => {
+                        let old = session.current_branch.clone();
+                        session.current_branch = branch_name.clone();
+                        app.messages.push(UiMessage {
+                            role: MsgRole::Assistant,
+                            blocks: vec![UiBlock::Text(format!(
+                                "Forked conversation {} → {}. Continue here in TUI.",
+                                old, branch_name
+                            ))],
+                        });
+                        app.auto_scroll = true;
+                    }
+                    Err(e) => {
+                        app.error = Some(format!("Failed to fork conversation: {e}"));
+                    }
+                },
+                Err(e) => {
+                    app.error = Some(format!("Failed to serialize conversation for fork: {e}"));
+                }
             }
-            app.pending_input = Some("/branch".to_string());
         }
 
         InputAction::TopicShiftCancel => {
