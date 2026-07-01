@@ -494,6 +494,23 @@ pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ));
     }
+    // Model-switch approval prompt overrides normal keybinds when active.
+    if let Some((_, task, model)) = &app.model_switch_confirm {
+        let approval_spans = vec![
+            Span::styled("  🔀 Route to ", Style::default().fg(Color::Cyan)),
+            Span::styled(model.clone(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" for {} task — ", task), Style::default().fg(Color::DarkGray)),
+            Span::styled("[Enter]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(" confirm  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("[n]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(" use default  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("[Esc]", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
+        ];
+        frame.render_widget(Paragraph::new(Line::from(approval_spans)), area);
+        return;
+    }
+
     spans.push(Span::styled(keybinds, Style::default().fg(Color::DarkGray)));
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }

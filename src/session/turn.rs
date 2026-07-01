@@ -59,16 +59,15 @@ impl Session {
         }
 
         // In CLI mode only — TUI intercepts topic shifts before the turn starts.
-        if !crate::tui::channel::is_tui_mode()
-            && self.turn_count >= 3
+        if !crate::tui::channel::is_tui_mode() && self.turn_count >= 3
             && is_topic_shift(input, &self.messages)
         {
-            println!(
-                "  {} Looks like a new topic — consider {} to fork or {} for a fresh session.",
-                "💡".bright_yellow(), "/branch".cyan(), "/exit".cyan(),
-            );
+            println!("  {} Looks like a new topic — consider {} to fork or {} for a fresh session.",
+                "💡".bright_yellow(), "/branch".cyan(), "/exit".cyan());
         }
 
+        // Route: classify input, swap client/model this turn if model_routes matches.
+        let mut routing_save = super::routing::route_for_turn(self, input);
         let disable_compact = std::env::var("DISABLE_COMPACT").is_ok();
         let ctx_limit_k = configured_context_limit(&self.config) / 1000;
 
@@ -117,7 +116,7 @@ impl Session {
                     "✗".red().bold(), proj_ctx_k
                 );
             }
-            return Ok(());
+            super::routing::restore_routing(self, &mut routing_save); return Ok(());
         }
         if !disable_compact && ctx_pct >= 90 && self.compact_failures < 3 {
             if crate::tui::channel::is_tui_mode() {
@@ -397,7 +396,7 @@ impl Session {
                         tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
                         continue;
                     }
-                    return Err(e);
+                    super::routing::restore_routing(self, &mut routing_save); return Err(e);
                 }
             };
 
@@ -552,7 +551,7 @@ impl Session {
                 .collect();
 
             match self.execute_tool_round(calls).await? {
-                None => return Ok(()),   // secrets abort
+                None => { super::routing::restore_routing(self, &mut routing_save); return Ok(()); } // secrets abort
                 Some(mut tool_msg) => {
                     // Reset chat-nudge counter: model is now using tools correctly.
                     slm_chat_nudges = 0;
@@ -594,6 +593,7 @@ impl Session {
 
         crate::remote_channel::send_done();
 
+        super::routing::restore_routing(self, &mut routing_save);
         Ok(())
     }
 }

@@ -95,6 +95,11 @@ pub enum InputAction {
     TopicShiftBranch,
     TopicShiftCancel,
 
+    /// Model-switch approval: confirm routing, skip routing (use default), or cancel.
+    ModelSwitchConfirm,
+    ModelSwitchSkip,
+    ModelSwitchCancel,
+
     /// Context viewer overlay actions.
     ContextViewerDrop,
     ContextViewerCompact,
@@ -143,6 +148,16 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
     // Diff viewer takes priority when open.
     if app.diff_viewer.is_some() {
         return handle_diff_viewer_key(app, key);
+    }
+
+    // Model-switch approval — intercept all keys until resolved.
+    if app.model_switch_confirm.is_some() {
+        return match key.code {
+            KeyCode::Enter                                     => InputAction::ModelSwitchConfirm,
+            KeyCode::Char('n') | KeyCode::Char('N')          => InputAction::ModelSwitchSkip,
+            KeyCode::Esc                                       => InputAction::ModelSwitchCancel,
+            _                                                  => InputAction::None,
+        };
     }
 
     // Topic-shift confirmation — intercept all keys until resolved.

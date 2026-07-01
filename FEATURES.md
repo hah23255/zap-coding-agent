@@ -7,6 +7,35 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(session/tui): per-turn model routing with TUI approval prompt
+
+At the start of each turn, classifies the user's input via `task_classifier::classify()`.
+If `config.model_routes` has an entry for the classified type and the routed model differs
+from `session.model`, zap temporarily swaps the client/model for that turn only, restoring
+the original at every return path.
+
+In **CLI mode**: prints `  ◎ Routing coding task to codex/gpt-5.5 (model_routes)` before
+sending to the LLM.
+
+In **TUI mode**: the Submit handler intercepts before the turn starts and sets
+`app.model_switch_confirm`. The status bar shows:
+
+```
+🔀 Route to codex/gpt-5.5 for coding task — [Enter] confirm  [n] use default  [Esc] cancel
+```
+
+`[n]` sets `session.skip_routing_once = true`, which turn.rs checks and clears, causing the
+turn to run on the default model. `[Esc]` restores the text to the input box without sending.
+
+E2E test: `tests/e2e/test_model_routing.sh` (T20a/T20b).
+Website docs: `website/docs.html` — `[model_routes]` table row + config block example.
+
+**Files:** `src/session/turn.rs`, `src/session/mod.rs`, `src/tui/app.rs`, `src/tui/actions.rs`,
+`src/tui/input.rs`, `src/tui/render/layout.rs`, `tests/e2e/test_model_routing.sh`,
+`website/docs.html`
+
+---
+
 ### feat(session): keyword-heuristic task type classifier
 
 Adds `src/session/task_classifier.rs` with a `TaskType` enum (Coding, Review, Explain,

@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod routing;
 pub mod task_classifier;
 mod casual;
 mod history;
@@ -193,6 +194,9 @@ pub struct Session {
     /// Set when the watchdog escalates: tools are withdrawn for the rest of
     /// the turn so the model can only write its escalation summary.
     pub verify_escalated: bool,
+    /// When true, skip model routing for the next turn only (user pressed [n] on
+    /// the model-switch approval prompt). Cleared at the start of each turn.
+    pub skip_routing_once: bool,
 }
 
 impl Session {
@@ -525,6 +529,7 @@ impl Session {
             agentic_round: 0,
             watchdog_nudged: false,
             verify_escalated: false,
+            skip_routing_once: false,
         })
     }
 

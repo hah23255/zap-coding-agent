@@ -74,6 +74,31 @@ pub(super) async fn handle_action(
                 app.topic_shift_confirm = Some(text);
                 app.topic_shift_flash = 8;
             } else {
+                // Check if model routing applies and prompt user before sending.
+                let task_type = crate::session::task_classifier::classify(&text);
+                let routed = if task_type != crate::session::task_classifier::TaskType::Default {
+                    session.config.model_routes.get(task_type.as_str())
+                        .filter(|m| *m != &session.model)
+                        .cloned()
+                } else {
+                    None
+                };
+                if let Some(routed_model) = routed {
+                    app.model_switch_confirm = Some((text, task_type.as_str().to_string(), routed_model));
+                } else {
+                    app.prompt_history.push(text.clone());
+                    app.history_idx = None;
+                    app.messages.push(UiMessage {
+                        role: MsgRole::User,
+                        blocks: vec![UiBlock::Text(text.clone())],
+                    });
+                    app.pending_input = Some(text);
+                }
+            }
+        }
+
+        InputAction::ModelSwitchConfirm => {
+            if let Some((text, _, _)) = app.model_switch_confirm.take() {
                 app.prompt_history.push(text.clone());
                 app.history_idx = None;
                 app.messages.push(UiMessage {
@@ -81,6 +106,28 @@ pub(super) async fn handle_action(
                     blocks: vec![UiBlock::Text(text.clone())],
                 });
                 app.pending_input = Some(text);
+            }
+        }
+
+        InputAction::ModelSwitchSkip => {
+            // User wants to send but use the default model, not the routed one.
+            // Signal turn.rs to skip routing for this one turn.
+            if let Some((text, _, _)) = app.model_switch_confirm.take() {
+                session.skip_routing_once = true;
+                app.prompt_history.push(text.clone());
+                app.history_idx = None;
+                app.messages.push(UiMessage {
+                    role: MsgRole::User,
+                    blocks: vec![UiBlock::Text(text.clone())],
+                });
+                app.pending_input = Some(text);
+            }
+        }
+
+        InputAction::ModelSwitchCancel => {
+            if let Some((text, _, _)) = app.model_switch_confirm.take() {
+                app.input  = text;
+                app.cursor = app.input.chars().count();
             }
         }
 

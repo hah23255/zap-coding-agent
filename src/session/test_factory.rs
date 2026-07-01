@@ -91,6 +91,7 @@ impl Session {
             agentic_round: 0,
             watchdog_nudged: false,
             verify_escalated: false,
+            skip_routing_once: false,
         })
     }
 }

@@ -236,6 +236,10 @@ skill_paths      = [<span class="c-str">"~/.claude/skills"</span>, <span class="
 disabled_tools   = [<span class="c-str">"shell"</span>, <span class="c-str">"web_fetch"</span>]    <span class="c-dim"># tools the LLM will never see</span>
 disabled_skills  = [<span class="c-str">"deploy"</span>, <span class="c-str">"ship"</span>]          <span class="c-dim"># skills never auto-triggered</span>
 
+[model_routes]                                    <span class="c-dim"># route tasks to specific models</span>
+coding  = <span class="c-str">"codex/gpt-5.5"</span>
+review  = <span class="c-str">"claude-opus-4-8"</span>
+
 [anthropic]
 api_key = <span class="c-str">"sk-ant-..."</span>
 
@@ -295,6 +299,19 @@ api_key = <span class="c-str">"sk-..."</span></div>
                   Skill names to exclude from automatic injection. Skills matching this list are never triggered,
                   even if the user's message matches their keywords.
                   Example: <code>disabled_skills = ["deploy", "ship"]</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>[model_routes]</code></td>
+                <td><em>none</em></td>
+                <td>
+                  Map task types to specific model slugs. Supported keys: <code>coding</code>, <code>review</code>,
+                  <code>explain</code>, <code>search</code>. When a matching message is detected, zap shows an
+                  approval prompt before routing to the configured model. The current session model is unchanged
+                  after the turn. Example:
+                  <pre style="margin:0.5rem 0 0;font-size:0.85rem">[model_routes]
+coding = "codex/gpt-5.5"
+review = "claude-opus-4-8"</pre>
                 </td>
               </tr>
             </tbody>

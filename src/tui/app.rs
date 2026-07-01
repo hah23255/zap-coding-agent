@@ -385,6 +385,11 @@ pub struct App {
     /// Used to animate the banner background on first appearance.
     pub topic_shift_flash: u8,
 
+    /// Pending model-switch approval: (input_text, task_type_label, target_model).
+    /// When Some, user must confirm (Enter), skip (n), or cancel (Esc) before the
+    /// turn is submitted.
+    pub model_switch_confirm: Option<(String, String, String)>,
+
     /// Message queued while a turn is in progress.
     /// Typed and submitted (Enter) during a busy turn; auto-fired when the turn ends.
     pub queued_input: Option<String>,
@@ -472,6 +477,7 @@ impl App {
             history_idx: None,
             topic_shift_confirm: None,
             topic_shift_flash: 0,
+            model_switch_confirm: None,
             queued_input: None,
         }
     }
