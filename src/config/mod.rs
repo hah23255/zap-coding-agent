@@ -183,6 +183,12 @@ pub struct Config {
     pub provider_slug: String,
     /// All configured providers keyed by slug — preserved across /provider switches.
     pub all_providers: HashMap<String, ProviderEntry>,
+    /// Tool names to exclude from every session. Set in ~/.agent.toml as:
+    /// disabled_tools = ["shell", "web_fetch"]
+    pub disabled_tools: Vec<String>,
+    /// Skill names to exclude from every session. Set in ~/.agent.toml as:
+    /// disabled_skills = ["deploy", "ship"]
+    pub disabled_skills: Vec<String>,
 }
 
 // ── Config file path ──────────────────────────────────────────────────────────
@@ -232,6 +238,10 @@ struct FileConfig {
     additional_dirs: Option<Vec<String>>,
     disable_stream:  Option<bool>,
     tool_profile:    Option<String>,
+    #[serde(default)]
+    disabled_tools:  Vec<String>,
+    #[serde(default)]
+    disabled_skills: Vec<String>,
 }
 
 impl FileConfig {
@@ -376,12 +386,16 @@ impl Config {
             .filter(|v| v == "core" || v == "full")
             .unwrap_or_else(|| "full".to_string());
 
+        let disabled_tools  = file.disabled_tools;
+        let disabled_skills = file.disabled_skills;
+
         Ok(Self {
             permission_mode, sandbox, api_key, model, provider, base_url,
             output_format: OutputFormat::Text, agent_depth: 3, is_subagent: false, spawn_depth: 0,
             proxy, no_proxy, ca_bundle, tls_skip_verify, timeout_secs,
             budget: None, skill_paths, skill_token_budget, context_paths, allowed_paths, additional_dirs, disable_stream, skip_domain_prompt: false, tui_mode: false,
             tool_profile, provider_slug, all_providers,
+            disabled_tools, disabled_skills,
         })
     }
 
@@ -550,6 +564,8 @@ impl Default for Config {
             tui_mode: false,
             provider_slug: "test".to_string(),
             all_providers: HashMap::new(),
+            disabled_tools: vec![],
+            disabled_skills: vec![],
         }
     }
 }

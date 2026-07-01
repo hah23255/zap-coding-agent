@@ -1341,6 +1341,7 @@ Black-box tests that run the installed `zap` binary and assert on observable out
 | Edit ledger mock-client tests (v0.15.8) | `src/session/agent_loop_tests.rs` | `edit_ledger_appears_on_next_turn`: verifies ledger injected on turn after file edit; `edit_ledger_persists_after_turns_slide_out_of_window`: 13-turn test verifying ledger still mentions turn-1 file after sliding window (window=8) |
 | Documentation diet (v0.15.8) | `ARCHITECTURE.md`, `README.md` | New `ARCHITECTURE.md` (~300 lines) derived from source: module map, data flow, design decisions, testing strategy; README trimmed from 76KB to 5.2KB — what it is, install, quickstart, providers, config, slash commands, security, link to ARCHITECTURE; 17 aspirational `.md` files archived to `docs/archive/` |
 | Graceful mutex degradation in slash-trigger path (v0.15.8) | `src/ui.rs`, `src/agent_core.rs` | Replaced the two remaining production `.lock().unwrap()` sites with `.lock().ok()` + safe fallback so a poisoned mutex degrades instead of panicking the REPL/readline thread; on poison the slash trigger is treated as "not fired". Completes the panic-audit goal of task 2.2 |
+| Tool/skill disable list in config | `src/config/mod.rs` | `disabled_tools = ["shell", "web_fetch"]` and `disabled_skills = ["deploy"]` in `~/.agent.toml`; fields added to both `FileConfig` (TOML-deserializable) and `Config` struct, wired in `Config::load()`, defaulting to empty `Vec<String>`. Task 1 of tool-transparency plan. |
 
 ---
 

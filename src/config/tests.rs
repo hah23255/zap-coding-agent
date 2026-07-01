@@ -279,3 +279,26 @@ fn local_non_qwen_slm_does_not_trigger_qwen3_8b_mode() {
     assert!(is_slm_tier(&config));
     assert!(!is_qwen3_8b_tier(&config));
 }
+
+// ── disabled_tools / disabled_skills ─────────────────────────────────────
+
+#[test]
+fn disabled_tools_and_skills_parsed_from_toml() {
+    let toml_str = r#"
+        api_key = "test"
+        model = "claude-sonnet-4-6"
+        disabled_tools = ["shell", "web_fetch"]
+        disabled_skills = ["deploy"]
+    "#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(file.disabled_tools, vec!["shell", "web_fetch"]);
+    assert_eq!(file.disabled_skills, vec!["deploy"]);
+}
+
+#[test]
+fn disabled_tools_and_skills_default_to_empty() {
+    let toml_str = r#"api_key = "test""#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert!(file.disabled_tools.is_empty());
+    assert!(file.disabled_skills.is_empty());
+}

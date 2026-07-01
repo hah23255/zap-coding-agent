@@ -36,6 +36,8 @@ fn minimal_config(provider_slug: &str, model: &str) -> Config {
         tool_profile: "full".to_string(),
         provider_slug: provider_slug.to_string(),
         all_providers: HashMap::new(),
+        disabled_tools: vec![],
+        disabled_skills: vec![],
     }
 }
 
