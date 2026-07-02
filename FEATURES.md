@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(remote): validate the public tunneled URL before showing `/remote` link (v0.15.101 patch)
+
+Zap now probes the full public `/remote` URL, including the access token, before it
+prints or copies the link. This catches cases where the local server is healthy but the
+public tunnel still cannot reach the upstream localhost service, avoiding bad links that
+fail immediately in the browser.
+
+**Files:** `src/remote.rs`, `src/session/mod.rs`, `src/tui/commands/mod.rs`
+
+---
+
 ### fix(remote): wait for local `/remote` server before publishing tunnel URL (v0.15.100 patch)
 
 After creating the public tunnel, zap now probes the local remote-control web server

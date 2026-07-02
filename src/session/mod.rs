@@ -640,7 +640,7 @@ impl Session {
                     match crate::remote::start_server(port, token.clone()).await {
                         Ok(actual_port) => {
                             println!("  {} remote server on http://127.0.0.1:{}/?token={}", "⚡".bright_yellow(), actual_port, token);
-                            match crate::remote::launch_tunnel(actual_port).await {
+                            match crate::remote::launch_tunnel(actual_port, &token).await {
                                 Ok(url) => {
                                     let base = url.trim_end_matches('/');
                                     let remote_url = format!("{}/?token={}", base, token);

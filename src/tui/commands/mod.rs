@@ -345,7 +345,7 @@ pub fn handle_inline(
                                 "⚡ remote server listening on http://127.0.0.1:{}/?token={}",
                                 actual_port, token_for_task
                             );
-                            match crate::remote::launch_tunnel(actual_port).await {
+                            match crate::remote::launch_tunnel(actual_port, &token_for_task).await {
                                 Ok(url) => {
                                     let base = url.trim_end_matches('/');
                                     let remote_url = format!("{}/?token={}", base, token_for_task);

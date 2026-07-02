@@ -264,7 +264,7 @@ pub async fn start_server(port: u16, token: String) -> Result<u16> {
 
 /// Try ngrok first (queries its local API on :4040), then fall back to
 /// localhost.run via SSH. Returns the public HTTPS URL.
-pub async fn launch_tunnel(port: u16) -> Result<String> {
+pub async fn launch_tunnel(port: u16, token: &str) -> Result<String> {
     // ── ngrok ─────────────────────────────────────────────────────────────────
     if let Ok(ngrok_path) = which_ngrok() {
         // Start ngrok in background.
@@ -282,7 +282,7 @@ pub async fn launch_tunnel(port: u16) -> Result<String> {
         for _ in 0..10 {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             if let Ok(url) = ngrok_url().await {
-                wait_for_local_server(port, 10).await?;
+                wait_for_remote_url(&url, token, 20).await?;
                 return Ok(url);
             }
         }
@@ -290,12 +290,12 @@ pub async fn launch_tunnel(port: u16) -> Result<String> {
 
     // ── localhost.run (SSH, always available) ─────────────────────────────────
     let url = localhost_run_tunnel(port).await?;
-    wait_for_local_server(port, 10).await?;
+    wait_for_remote_url(&url, token, 20).await?;
     Ok(url)
 }
 
-async fn wait_for_local_server(port: u16, seconds: u64) -> Result<()> {
-    let url = format!("http://127.0.0.1:{}/", port);
+async fn wait_for_remote_url(base_url: &str, token: &str, seconds: u64) -> Result<()> {
+    let url = format!("{}/?token={}", base_url.trim_end_matches('/'), token);
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
     let mut last_err = None;
 
@@ -305,12 +305,11 @@ async fn wait_for_local_server(port: u16, seconds: u64) -> Result<()> {
             Ok(resp) => last_err = Some(format!("unexpected status {}", resp.status())),
             Err(e) => last_err = Some(e.to_string()),
         }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
     anyhow::bail!(
-        "local remote server on {} was not reachable after tunnel startup{}",
-        url,
+        "public remote URL was not reachable after tunnel startup{}",
         last_err
             .map(|e| format!(": {e}"))
             .unwrap_or_default()
