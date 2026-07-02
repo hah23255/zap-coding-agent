@@ -282,13 +282,39 @@ pub async fn launch_tunnel(port: u16) -> Result<String> {
         for _ in 0..10 {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             if let Ok(url) = ngrok_url().await {
+                wait_for_local_server(port, 10).await?;
                 return Ok(url);
             }
         }
     }
 
     // ── localhost.run (SSH, always available) ─────────────────────────────────
-    localhost_run_tunnel(port).await
+    let url = localhost_run_tunnel(port).await?;
+    wait_for_local_server(port, 10).await?;
+    Ok(url)
+}
+
+async fn wait_for_local_server(port: u16, seconds: u64) -> Result<()> {
+    let url = format!("http://127.0.0.1:{}/", port);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
+    let mut last_err = None;
+
+    while tokio::time::Instant::now() < deadline {
+        match crate::http::client().get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => return Ok(()),
+            Ok(resp) => last_err = Some(format!("unexpected status {}", resp.status())),
+            Err(e) => last_err = Some(e.to_string()),
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    anyhow::bail!(
+        "local remote server on {} was not reachable after tunnel startup{}",
+        url,
+        last_err
+            .map(|e| format!(": {e}"))
+            .unwrap_or_default()
+    )
 }
 
 pub fn copy_to_clipboard(text: &str) -> bool {

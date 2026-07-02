@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(remote): wait for local `/remote` server before publishing tunnel URL (v0.15.100 patch)
+
+After creating the public tunnel, zap now probes the local remote-control web server
+on `127.0.0.1` and only announces/copies the public URL once the upstream is actually
+reachable. This avoids "failed to establish connection to upstream web service" errors
+caused by exposing the tunnel before the local server was ready.
+
+**Files:** `src/remote.rs`
+
+---
+
 ### feat(remote): auto-copy generated `/remote` URL to clipboard (v0.15.99 patch)
 
 When `/remote` successfully starts a public tunnel, zap now builds the final
