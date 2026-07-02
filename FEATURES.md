@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): restore `/schedule` and `/unschedule` in slash-command picker (v0.15.102 patch)
+
+The TUI already implemented `/schedule` and `/unschedule`, but both commands were missing
+from `SLASH_COMMANDS`, so they did not appear in slash completion. This patch restores them
+in the picker and adds a built-in `slash-commands` skill to remind future command work to
+update handler wiring, picker registration, docs, and verification together.
+
+**Files:** `src/tui/commands/mod.rs`, `src/default_skills/slash-commands.md`, `src/skill_manager.rs`
+
+---
+
 ### fix(remote): validate the public tunneled URL before showing `/remote` link (v0.15.101 patch)
 
 Zap now probes the full public `/remote` URL, including the access token, before it

@@ -50,6 +50,8 @@ pub const SLASH_COMMANDS: &[(&str, &str)] = &[
     ("/paste",             "attach clipboard image to the next message"),
     ("/remote [port]",     "start remote control server"),
     ("/remote stop",       "stop the remote control server"),
+    ("/schedule",          "schedule a goal in the TUI"),
+    ("/unschedule",        "cancel a scheduled TUI job"),
     // ── View ────────────────────────────────────────────────────────────────
     ("\x00 View",            "\x00"),
     ("/help",              "show help"),
