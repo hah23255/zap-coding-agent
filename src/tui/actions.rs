@@ -308,10 +308,12 @@ pub(super) async fn handle_action(
         }
 
         InputAction::LoadSession { id: sid, goal } => {
+            session.save_context();
             startup::load_session_into_app(app, session, sid, goal);
         }
 
         InputAction::StartNewSession => {
+            session.save_context();
             if let Ok(json) = serde_json::to_string(&session.messages) {
                 let _ = session.store.save_messages(session.session_id, &json);
             }

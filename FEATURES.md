@@ -7,6 +7,16 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): save `.zap/context.md` before session switches (v0.15.97 patch)
+
+Before TUI session-boundary transitions, zap now calls `session.save_context()` before
+`LoadSession` and `StartNewSession`. This preserves the outgoing session's latest context in
+`.zap/context.md` instead of leaving it stale until a later exit.
+
+**Files:** `src/tui/actions.rs`
+
+---
+
 ### feat(session/tui): per-turn model routing with TUI approval prompt
 
 At the start of each turn, classifies the user's input via `task_classifier::classify()`.
