@@ -1,6 +1,6 @@
 # ⚡ Zap Coding Agent
 
-**[Website](https://zap.justpush.cloud) · [Docs](https://zap.justpush.cloud/docs.html) · [Install](#install) · [Demo](https://youtu.be/-wa1t2YiHDg)**
+**[Website](https://zap.justpush.cloud) · [Docs](https://zap.justpush.cloud/docs.html) · [Roadmap](#roadmap--public-roadmap) · [Changelog](FEATURES.md) · [Install](#install) · [Demo](https://youtu.be/-wa1t2YiHDg)**
 
 [![Crates.io](https://img.shields.io/crates/v/zap-coding-agent?color=5b3ff8)](https://crates.io/crates/zap-coding-agent)
 [![License: MIT](https://img.shields.io/badge/license-MIT-5b3ff8)](LICENSE)
@@ -1332,22 +1332,59 @@ Tomorrow's session picks this up automatically. No re-explaining. No lost contex
 
 ---
 
-## Roadmap — Skill Ecosystem
+## Roadmap — Public Roadmap
 
-zap's bet is on **skills as a platform**, not on being a better terminal agent. The goal: turn team knowledge into code, make it shareable, composable, and cross-compatible with other agents.
+zap should have a roadmap people can see without digging through chats or commits.
+The public model is:
 
-| Feature | Status | What it enables |
+- **Roadmap**: this section in `README.md` for the high-level direction
+- **Execution tracker**: GitHub Issues (one issue per roadmap item, linked from here)
+- **Shipped changelog**: `FEATURES.md` for released features/fixes and where they live
+- **Versioned releases**: GitHub Releases for downloadable milestones
+
+That keeps one source of truth for shipped work (`FEATURES.md`) while GitHub Issues stay the
+place where people can discuss, subscribe to, and track roadmap items before they ship.
+
+| Theme | Status | How it should be tracked |
 |---|---|---|
-| `/skill install github:user/repo/path` | planned | One-command community skill install |
-| Skill extends / composition | planned | Composable skill layers |
-| Semantic skill routing | planned | Intent-based matching, no keyword guessing |
-| Public skill directory | planned | Discoverable ecosystem at zap.sh/skills |
-| Stack auto-detection expansion | planned | Zero-config for Ruby, Swift, Kotlin, C++ |
-| Cross-agent compatibility | planned | Write once, use anywhere |
+| Multi-task orchestration with separate sub-agents | planned | GitHub issue: batch-task orchestration |
+| Live sub-agent monitoring in TUI / web | planned | GitHub issue: sub-agent event stream + dashboard |
+| `/skill install github:user/repo/path` | planned | GitHub issue: community skill install |
+| Skill extends / composition | planned | GitHub issue: composable skill layers |
+| Semantic skill routing | planned | GitHub issue: intent-based skill routing |
+| Public skill directory | planned | GitHub issue: skills catalog/discovery |
+| Stack auto-detection expansion | planned | GitHub issue: Ruby/Swift/Kotlin/C++ detection |
+| Cross-agent compatibility | in progress | Track via issues tagged `interop` |
 
-The skill format is already compatible with Claude Code (`CLAUDE.md`-style) and the [multica-ai SKILL.md standard](https://github.com/multica-ai/andrej-karpathy-skills). Skills you write for zap work in other agents today.
+### How roadmap items should work
 
----
+For each roadmap item:
+
+1. Open a GitHub issue with the user problem, not just the feature name
+2. Add labels like `roadmap`, `enhancement`, and an area label (`tui`, `agent`, `docs`, etc.)
+3. Link the issue from this section once it exists
+4. When the feature ships, move the implementation details to `FEATURES.md`
+5. Mention the released version in `FEATURES.md` and GitHub Releases
+
+### Changelog
+
+The project already updates `FEATURES.md` regularly, and that should remain the canonical
+public changelog for now. It is more useful than a generic hand-written changelog because it
+records:
+
+- what shipped
+- the affected files
+- version numbers for many entries
+- implementation notes that are helpful to contributors and power users
+
+Public links:
+
+- [Changelog / Feature Registry](FEATURES.md)
+- [GitHub Releases](https://github.com/zap-coding-agent/zap-coding-agent/releases)
+- [GitHub Issues](https://github.com/zap-coding-agent/zap-coding-agent/issues)
+
+zap's longer-term bet is still on **skills as a platform**, not just being a better terminal agent.
+The goal: turn team knowledge into code, make it shareable, composable, and cross-compatible with other agents.
 
 ## Contributing
 
