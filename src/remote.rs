@@ -11,7 +11,7 @@ use axum::{
     routing::get,
 };
 use std::collections::HashMap;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, process::Command, sync::Arc};
 use tokio::net::TcpListener;
 
 /// Generate a URL-safe per-session access token from the OS CSPRNG.
@@ -289,6 +289,71 @@ pub async fn launch_tunnel(port: u16) -> Result<String> {
 
     // ── localhost.run (SSH, always available) ─────────────────────────────────
     localhost_run_tunnel(port).await
+}
+
+pub fn copy_to_clipboard(text: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use std::io::Write;
+        if let Ok(mut child) = Command::new("pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if stdin.write_all(text.as_bytes()).is_ok() {
+                    return child.wait().map(|s| s.success()).unwrap_or(false);
+                }
+            }
+        }
+        false
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", "Set-Clipboard"])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .ok()
+            .and_then(|mut child| {
+                use std::io::Write;
+                if let Some(stdin) = child.stdin.as_mut() {
+                    stdin.write_all(text.as_bytes()).ok()?;
+                    child.wait().ok()
+                } else {
+                    None
+                }
+            })
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        use std::io::Write;
+        if let Ok(mut child) = Command::new("wl-copy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if stdin.write_all(text.as_bytes()).is_ok() {
+                    return child.wait().map(|s| s.success()).unwrap_or(false);
+                }
+            }
+        }
+        if let Ok(mut child) = Command::new("xclip")
+            .args(["-selection", "clipboard"])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if stdin.write_all(text.as_bytes()).is_ok() {
+                    return child.wait().map(|s| s.success()).unwrap_or(false);
+                }
+            }
+        }
+        false
+    }
 }
 
 fn which_ngrok() -> Result<String> {

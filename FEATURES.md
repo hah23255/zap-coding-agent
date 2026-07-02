@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(remote): auto-copy generated `/remote` URL to clipboard (v0.15.99 patch)
+
+When `/remote` successfully starts a public tunnel, zap now builds the final
+remote-control URL including the token, copies it to the system clipboard, and
+prints `Copied to clipboard.` alongside the existing secrecy warning. This avoids
+manual selection/copy issues when the terminal makes the generated URL hard to grab.
+
+Implemented in both the TUI slash-command path and the session command path.
+
+**Files:** `src/remote.rs`, `src/session/mod.rs`, `src/tui/commands/mod.rs`
+
+---
+
 ### fix(tui): save `.zap/context.md` before session switches (v0.15.97 patch)
 
 Before TUI session-boundary transitions, zap now calls `session.save_context()` before

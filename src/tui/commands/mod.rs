@@ -348,8 +348,10 @@ pub fn handle_inline(
                             match crate::remote::launch_tunnel(actual_port).await {
                                 Ok(url) => {
                                     let base = url.trim_end_matches('/');
-                                    crate::zap_warn!("🌐 remote URL: {}/?token={}", base, token_for_task);
-                                    crate::zap_warn!("   Keep this URL secret — the token is the only access control. /remote stop to end.");
+                                    let remote_url = format!("{}/?token={}", base, token_for_task);
+                                    crate::remote::copy_to_clipboard(&remote_url);
+                                    crate::zap_warn!("🌐 remote URL: {}", remote_url);
+                                    crate::zap_warn!("   Copied to clipboard. Keep this URL secret — the token is the only access control. /remote stop to end.");
                                 }
                                 Err(e) => crate::zap_warn!(
                                     "tunnel failed: {} — use http://127.0.0.1:{}/?token={} on the same network",

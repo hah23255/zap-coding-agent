@@ -643,8 +643,10 @@ impl Session {
                             match crate::remote::launch_tunnel(actual_port).await {
                                 Ok(url) => {
                                     let base = url.trim_end_matches('/');
-                                    println!("  {} {}/?token={}", "🌐".truecolor(100, 200, 255), base.cyan().bold(), token);
-                                    println!("     Keep this URL secret — the token is the only access control.");
+                                    let remote_url = format!("{}/?token={}", base, token);
+                                    crate::remote::copy_to_clipboard(&remote_url);
+                                    println!("  {} {}", "🌐".truecolor(100, 200, 255), remote_url.cyan().bold());
+                                    println!("     Copied to clipboard. Keep this URL secret — the token is the only access control.");
                                 }
                                 Err(e) => println!("  {} tunnel failed: {} — use http://127.0.0.1:{}/?token={} on same network", "⚠".yellow(), e, actual_port, token),
                             }
