@@ -242,6 +242,14 @@
         </div>
 
         <div class="feature-card">
+          <div class="feature-icon-wrap">🔀</div>
+          <h3>Route Task Types to Different Models</h3>
+          <p>Keep one default model, then route coding, review, explain, or search tasks to different models automatically with <code>[model_routes]</code>.</p>
+          <div class="feature-callout">Example: use <code>codex/gpt-5.5</code> for coding, <code>claude-opus-4-8</code> for review, and keep <code>claude-sonnet-4-6</code> as the default. zap switches for that turn only, then restores the session model.</div>
+          <a href="docs.html#config" class="feature-link">Learn more →</a>
+        </div>
+
+        <div class="feature-card">
           <div class="feature-icon-wrap">🧠</div>
           <h3>Session Memory — Never Lose Context</h3>
           <p>At the end of every session, zap asks the LLM to write down what should happen next. Those notes are stored in <code>.zap/context.md</code> and <code>session_log.md</code>. At next startup, the last 3 sessions' bullets are injected into the system prompt automatically — so the model always knows where you left off.</p>

@@ -778,6 +778,39 @@ api_key  = "gsk_..."
 
 Each `[providers.<slug>]` block stores settings independently — switching providers never overwrites another provider's key.
 
+### Per-task model routing
+
+You can keep one default model for normal work, then route specific task types to a different model for a single turn.
+This is useful when you want, for example:
+
+- Codex for coding edits
+- Claude Opus for code review
+- Claude Sonnet for explanations
+- a cheaper/local model for search-style queries
+
+```toml
+# ~/.agent.toml
+model = "claude-sonnet-4-6"   # default model
+
+[model_routes]
+coding = "codex/gpt-5.5"
+review = "claude-opus-4-8"
+explain = "claude-sonnet-4-6"
+search = "gemma-4-e4b-it"
+```
+
+How it works:
+
+- zap classifies the prompt by task type (`coding`, `review`, `explain`, `search`)
+- if a matching route exists, it uses that model for that turn only
+- after the turn finishes, zap restores your default session model
+- in TUI mode, zap shows a confirmation prompt before switching
+
+Example:
+
+- “Refactor this Rust function and update the tests” → routed to `codex/gpt-5.5`
+- “Review this diff for bugs and missing edge cases” → routed to `claude-opus-4-8`
+
 ### Environment variable overrides
 
 ```bash
