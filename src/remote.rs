@@ -262,36 +262,44 @@ pub async fn start_server(port: u16, token: String) -> Result<u16> {
 
 // ── Tunnel ────────────────────────────────────────────────────────────────────
 
-/// Try ngrok first (queries its local API on :4040), then fall back to
-/// localhost.run via SSH. Returns the public HTTPS URL.
+/// Try ngrok first (queries its local API on :4040). If ngrok is unavailable or the
+/// public URL never becomes reachable end-to-end, return a clear error instead of
+/// silently falling back to localhost.run, which has been returning unstable 502s.
 pub async fn launch_tunnel(port: u16, token: &str) -> Result<String> {
-    // ── ngrok ─────────────────────────────────────────────────────────────────
-    if let Ok(ngrok_path) = which_ngrok() {
-        // Start ngrok in background.
-        if let Ok(child) = tokio::process::Command::new(&ngrok_path)
-            .args(["http", &port.to_string()])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        {
-            if let Some(pid) = child.id() { crate::remote_channel::set_tunnel_pid(pid); }
-        }
+    let ngrok_path = which_ngrok().context(
+        "ngrok is required for /remote right now; install/authenticate ngrok because localhost.run fallback is disabled due to unstable 502 responses",
+    )?;
 
-        // Poll ngrok's local API until the tunnel is up (max 5s).
-        for _ in 0..10 {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            if let Ok(url) = ngrok_url().await {
-                wait_for_remote_url(&url, token, 20).await?;
-                return Ok(url);
+    // Start ngrok in background.
+    if let Ok(child) = tokio::process::Command::new(&ngrok_path)
+        .args(["http", &port.to_string()])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        if let Some(pid) = child.id() { crate::remote_channel::set_tunnel_pid(pid); }
+    }
+
+    // Poll ngrok's local API until the tunnel is up and reachable end-to-end.
+    for _ in 0..20 {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        if let Ok(url) = ngrok_url().await {
+            match wait_for_remote_url(&url, token, 20).await {
+                Ok(()) => return Ok(url),
+                Err(e) => {
+                    anyhow::bail!(
+                        "ngrok tunnel came up but the public /remote URL never became reachable: {e}"
+                    );
+                }
             }
         }
     }
 
-    // ── localhost.run (SSH, always available) ─────────────────────────────────
-    let url = localhost_run_tunnel(port).await?;
-    wait_for_remote_url(&url, token, 20).await?;
-    Ok(url)
+    anyhow::bail!(
+        "ngrok tunnel did not become available on http://127.0.0.1:4040/api/tunnels within 10s; check `ngrok http {}` manually to confirm auth/account setup",
+        port
+    )
 }
 
 async fn wait_for_remote_url(base_url: &str, token: &str, seconds: u64) -> Result<()> {
@@ -419,67 +427,6 @@ async fn ngrok_url() -> Result<String> {
             }
         }))
         .context("no https tunnel in ngrok API response")
-}
-
-async fn localhost_run_tunnel(port: u16) -> Result<String> {
-    use tokio::io::AsyncBufReadExt;
-
-    let mut child = tokio::process::Command::new("ssh")
-        .args([
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ServerAliveInterval=30",
-            "-R", &format!("80:localhost:{}", port),
-            "nokey@localhost.run",
-        ])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .context("failed to spawn ssh for localhost.run tunnel")?;
-
-    // Read lines from stderr (localhost.run prints the URL there) and stdout.
-    let stderr = child.stderr.take().expect("child.stderr");
-    let stdout = child.stdout.take().expect("child.stdout");
-
-    // Track PID for clean shutdown, then keep child alive.
-    if let Some(pid) = child.id() { crate::remote_channel::set_tunnel_pid(pid); }
-    tokio::spawn(async move { let _ = child.wait().await; });
-
-    // Parse the URL from either stream (within 10s).
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
-
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let tx2 = tx.clone();
-
-    tokio::spawn(async move {
-        let mut lines = tokio::io::BufReader::new(stderr).lines();
-        while let Ok(Some(l)) = lines.next_line().await { let _ = tx.send(l); }
-    });
-    tokio::spawn(async move {
-        let mut lines = tokio::io::BufReader::new(stdout).lines();
-        while let Ok(Some(l)) = lines.next_line().await { let _ = tx2.send(l); }
-    });
-
-    while tokio::time::Instant::now() < deadline {
-        if let Ok(Some(line)) = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv()).await {
-            // localhost.run prints something like:
-            //   tunneled with tls termination, https://abc123.lhr.life
-            if let Some(url) = extract_https_url(&line) {
-                return Ok(url);
-            }
-        }
-    }
-
-    anyhow::bail!("timed out waiting for localhost.run tunnel URL")
-}
-
-fn extract_https_url(line: &str) -> Option<String> {
-    // Match "https://..." anywhere in the line.
-    let start = line.find("https://")?;
-    let rest  = &line[start..];
-    // URL ends at whitespace or end of string.
-    let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
-    Some(rest[..end].to_string())
 }
 
 #[cfg(test)]

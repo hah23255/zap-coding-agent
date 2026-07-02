@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(remote): stop returning flaky localhost.run `/remote` URLs that 502 (v0.15.103 patch)
+
+`/remote` no longer silently falls back to `localhost.run` when ngrok is unavailable or not
+ready. Instead, zap now requires a working ngrok tunnel and returns a clear setup error if
+ngrok is missing, unauthenticated, or never becomes reachable end-to-end. This avoids
+handing out public remote-control URLs that later fail with browser-side 502 errors.
+
+**Files:** `src/remote.rs`
+
+---
+
 ### fix(tui): restore `/schedule` and `/unschedule` in slash-command picker (v0.15.102 patch)
 
 The TUI already implemented `/schedule` and `/unschedule`, but both commands were missing
