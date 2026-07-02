@@ -1,6 +1,6 @@
 # ⚡ Zap Coding Agent
 
-**[Website](https://zap.justpush.cloud) · [Docs](https://zap.justpush.cloud/docs.html) · [Roadmap](#roadmap--public-roadmap) · [Changelog](FEATURES.md) · [Install](#install) · [Demo](https://youtu.be/-wa1t2YiHDg)**
+**[Website](https://zap.justpush.cloud) · [Docs](https://zap.justpush.cloud/docs.html) · [Roadmap](https://github.com/orgs/zap-coding-agent/projects) · [Changelog](FEATURES.md) · [Install](#install) · [Demo](https://youtu.be/-wa1t2YiHDg)**
 
 [![Crates.io](https://img.shields.io/crates/v/zap-coding-agent?color=5b3ff8)](https://crates.io/crates/zap-coding-agent)
 [![License: MIT](https://img.shields.io/badge/license-MIT-5b3ff8)](LICENSE)
