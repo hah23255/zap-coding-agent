@@ -1347,8 +1347,8 @@ place where people can discuss, subscribe to, and track roadmap items before the
 
 | Theme | Status | How it should be tracked |
 |---|---|---|
-| Multi-task orchestration with separate sub-agents | planned | GitHub issue: batch-task orchestration |
-| Live sub-agent monitoring in TUI / web | planned | GitHub issue: sub-agent event stream + dashboard |
+| Multi-task orchestration with separate sub-agents | planned | [Issue #4](https://github.com/zap-coding-agent/zap-coding-agent/issues/4) |
+| Live sub-agent monitoring in TUI / web | planned | [Issue #5](https://github.com/zap-coding-agent/zap-coding-agent/issues/5) |
 | `/skill install github:user/repo/path` | planned | GitHub issue: community skill install |
 | Skill extends / composition | planned | GitHub issue: composable skill layers |
 | Semantic skill routing | planned | GitHub issue: intent-based skill routing |
@@ -1382,6 +1382,7 @@ Public links:
 - [Changelog / Feature Registry](FEATURES.md)
 - [GitHub Releases](https://github.com/zap-coding-agent/zap-coding-agent/releases)
 - [GitHub Issues](https://github.com/zap-coding-agent/zap-coding-agent/issues)
+- [Roadmap issue workflow](https://github.com/zap-coding-agent/zap-coding-agent/issues/6)
 
 zap's longer-term bet is still on **skills as a platform**, not just being a better terminal agent.
 The goal: turn team knowledge into code, make it shareable, composable, and cross-compatible with other agents.
