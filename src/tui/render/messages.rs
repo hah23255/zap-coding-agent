@@ -340,8 +340,8 @@ pub fn tool_call_lines(tc: &UiToolCall, expanded: bool, width: u16) -> Vec<Line<
         ("⏺", Color::Rgb(100, 180, 255))
     };
 
-    let label_short: String = if tc.label.chars().count() > 42 {
-        format!("{}…", tc.label.chars().take(41).collect::<String>())
+    let label_short = if tc.label.chars().count() > max_w.saturating_sub(4) {
+        format!("{}…", tc.label.chars().take(max_w.saturating_sub(5).max(1)).collect::<String>())
     } else {
         tc.label.clone()
     };
@@ -394,16 +394,25 @@ pub fn tool_call_lines(tc: &UiToolCall, expanded: bool, width: u16) -> Vec<Line<
                 ]));
             }
         } else if !all_lines.is_empty() {
-            let summary = all_lines[0].trim().to_string();
-            let hint = if all_lines.len() > 1 {
-                format!("  {}  ·  Ctrl+O to expand", summary)
-            } else {
-                format!("  {}", summary)
-            };
-            lines.push(Line::from(vec![
-                Span::styled("    ", Style::default().fg(border)),
-                Span::styled(hint, Style::default().fg(hint_color).add_modifier(Modifier::ITALIC)),
-            ]));
+            let preview_cap = 3usize;
+            let preview_len = all_lines.len().min(preview_cap);
+            for raw in all_lines.iter().take(preview_len) {
+                for wrapped in word_wrap_plain(raw.trim_end(), max_w.saturating_sub(2)) {
+                    lines.push(Line::from(vec![
+                        Span::styled("    ", Style::default().fg(border)),
+                        Span::styled(wrapped.spans.into_iter().map(|s| s.content).collect::<String>(), Style::default().fg(hint_color).add_modifier(Modifier::ITALIC)),
+                    ]));
+                }
+            }
+            if all_lines.len() > preview_cap {
+                lines.push(Line::from(vec![
+                    Span::styled("    ", Style::default().fg(border)),
+                    Span::styled(
+                        format!("  … {} more line(s)  ·  Ctrl+O to expand", all_lines.len() - preview_cap),
+                        Style::default().fg(hint_color).add_modifier(Modifier::ITALIC),
+                    ),
+                ]));
+            }
         }
     }
 

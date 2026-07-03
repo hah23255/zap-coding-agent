@@ -182,7 +182,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let size = frame.area();
 
     let outer = Layout::vertical([
-        Constraint::Length(7),
+        Constraint::Length(5),
         Constraint::Min(1),
         Constraint::Length(1),
     ])
@@ -206,7 +206,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
             Constraint::Min(1),
             Constraint::Length(banner_h),
             input_h,
-            Constraint::Length(3),
+            Constraint::Length(2),
         ])
         .split(body[0]);
 
@@ -233,7 +233,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
             Constraint::Min(1),
             Constraint::Length(banner_h),
             input_height(app, outer[1].width),
-            Constraint::Length(6),
+            Constraint::Length(4),
         ])
         .split(outer[1]);
 

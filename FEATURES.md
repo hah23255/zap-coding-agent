@@ -119,6 +119,18 @@ pngpaste` when it's missing (macOS fast path; AppleScript fallback still works w
 
 ---
 
+### fix(tui): show more transcript and richer collapsed tool previews (v0.15.113 patch)
+
+The TUI now reserves less vertical space for header/footer chrome so more transcript lines stay
+visible during normal use. Collapsed tool cards no longer reduce to a single tiny summary line:
+they now show up to three wrapped preview lines and keep the `Ctrl+O` expansion hint when more
+content is available. Added PTY/tmux-backed E2E harnesses for both a local render smoke check and
+a real-provider session capture.
+
+**Files:** `src/tui/render/mod.rs`, `src/tui/render/messages.rs`, `tests/e2e/test_tui_render_evidence.sh`, `tests/e2e/test_tui_real_provider.sh`
+
+---
+
 ### feat(tui): copy last reply (Ctrl+Y) and native text-selection mode (Ctrl+T) (v0.15.105 patch)
 
 The TUI's mouse-reporting mode (needed for scroll-wheel support) silently blocked normal
