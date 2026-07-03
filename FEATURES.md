@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): `/attach` path normalization, pngpaste hint (v0.15.106 patch)
+
+`/attach` failed on paths as terminals actually deliver them from drag-and-drop:
+surrounding quotes, backslash-escaped spaces, and `~`. Now normalizes all three before
+reading the file. The clipboard-paste failure message also suggests `brew install
+pngpaste` when it's missing (macOS fast path; AppleScript fallback still works without it).
+
+**Files:** `src/tui/commands/mod.rs`, `src/tui/lifecycle.rs`
+
+---
+
 ### feat(tui): copy last reply (Ctrl+Y) and native text-selection mode (Ctrl+T) (v0.15.105 patch)
 
 The TUI's mouse-reporting mode (needed for scroll-wheel support) silently blocked normal

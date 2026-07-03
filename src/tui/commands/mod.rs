@@ -265,6 +265,18 @@ pub fn handle_inline(
                 return Some("Usage: /attach <image-path>".to_string());
             }
 
+            // Normalize paths as terminals deliver them: surrounding quotes
+            // (Finder/Explorer drag-drop), backslash-escaped spaces, and `~`.
+            let cleaned = arg.trim().trim_matches('"').trim_matches('\'').replace("\\ ", " ");
+            let arg: &str = &if let Some(rest) = cleaned.strip_prefix("~/") {
+                match std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+                    Ok(home) => format!("{home}/{rest}"),
+                    Err(_) => cleaned.clone(),
+                }
+            } else {
+                cleaned.clone()
+            };
+
             let mime = match std::path::Path::new(arg)
                 .extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref()
             {

@@ -224,14 +224,29 @@ pub(super) fn handle_paste_image(
     }
 
     // Neither image nor text available.
+    let extra_hint = if cfg!(target_os = "macos") && which_pngpaste_missing() {
+        "\n· Tip: `brew install pngpaste` makes image paste faster and more reliable.\
+         \n· You can also stage a file directly: /attach <path-to-image>"
+    } else {
+        "\n· You can also stage a file directly: /attach <path-to-image>"
+    };
     app.messages.push(UiMessage {
         role: MsgRole::Assistant,
-        blocks: vec![UiBlock::Text(
-            "✗ No image or text in clipboard. Copy something first, then press Ctrl+V again."
-                .to_string(),
-        )],
+        blocks: vec![UiBlock::Text(format!(
+            "✗ No image or text in clipboard. Copy something first, then press Ctrl+V again.{extra_hint}"
+        ))],
     });
     app.auto_scroll = true;
+}
+
+/// True when the pngpaste helper is not on PATH (macOS image-paste fast path).
+fn which_pngpaste_missing() -> bool {
+    std::process::Command::new("pngpaste")
+        .arg("-v")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_err()
 }
 
 /// Show instructions for using a Gemini API key instead of gcloud auth.
