@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): copy last reply (Ctrl+Y) and native text-selection mode (Ctrl+T) (v0.15.105 patch)
+
+The TUI's mouse-reporting mode (needed for scroll-wheel support) silently blocked normal
+click-drag text selection, and there was no way to copy a reply without it. Ctrl+Y copies
+the last assistant reply to the system clipboard (OSC 52 fallback for SSH sessions).
+Ctrl+T toggles mouse reporting off so the terminal's native selection takes over, with a
+footer indicator (`▣ SELECT MODE`) so it's discoverable.
+
+**Files:** `src/tui/actions.rs`, `src/tui/app.rs`, `src/tui/input.rs`, `src/tui/render/layout.rs`
+
+---
+
 ### fix(claude_code): session continuity, permission mode, image passthrough (v0.15.104 patch)
 
 The `claude_code` provider (routes through the local `claude` CLI) replayed the entire

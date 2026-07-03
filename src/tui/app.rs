@@ -326,6 +326,10 @@ pub struct App {
     /// True after first Ctrl+Q press; second press confirms quit.
     pub quit_confirm: bool,
 
+    /// False while mouse reporting is toggled off (Ctrl+T) so the user can
+    /// select text natively; scroll-wheel events don't reach the app then.
+    pub mouse_captured: bool,
+
     /// Skill names available in this session, used for dynamic picker completions.
     pub skill_names: Vec<String>,
 
@@ -462,6 +466,7 @@ impl App {
             init_wizard: None,
             show_mode_picker_after_init: false,
             quit_confirm: false,
+            mouse_captured: true,
             skill_names: Vec::new(),
             goal_state: None,
             diff_viewer: None,

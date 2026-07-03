@@ -389,6 +389,58 @@ pub(super) async fn handle_action(
             }
         }
 
+        InputAction::CopyLastReply => {
+            let text = app.messages.iter().rev()
+                .find(|m| matches!(m.role, MsgRole::Assistant))
+                .map(|m| {
+                    m.blocks.iter().filter_map(|b| match b {
+                        UiBlock::Text(t) => Some(t.clone()),
+                        UiBlock::Code { lines, .. } => Some(lines.join("\n")),
+                        _ => None,
+                    }).collect::<Vec<_>>().join("\n")
+                })
+                .unwrap_or_default();
+            if text.is_empty() {
+                app.error = Some("Nothing to copy yet.".to_string());
+            } else if crate::remote::copy_to_clipboard(&text) {
+                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
+                    format!("✓ Copied last reply to clipboard ({} chars).", text.chars().count())
+                ));
+            } else {
+                // Native clipboard tools unavailable (e.g. over SSH) — OSC 52
+                // asks the terminal emulator itself to set the clipboard.
+                use base64::Engine;
+                use std::io::Write as _;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
+                let mut out = std::io::stdout();
+                let _ = write!(out, "\x1b]52;c;{}\x07", b64);
+                let _ = out.flush();
+                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
+                    "✓ Copied last reply via terminal (OSC 52).".to_string()
+                ));
+            }
+        }
+
+        InputAction::ToggleTextSelection => {
+            use std::io::Write as _;
+            let mut out = std::io::stdout();
+            if app.mouse_captured {
+                let _ = write!(out, "\x1b[?1002l\x1b[?1000l\x1b[?1006l");
+                app.mouse_captured = false;
+                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
+                    "▣ Selection mode ON — drag with the mouse to select, Cmd/Ctrl+C to copy. \
+                     Scroll wheel is paused; press Ctrl+T again to restore it.".to_string()
+                ));
+            } else {
+                let _ = write!(out, "\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+                app.mouse_captured = true;
+                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
+                    "▣ Selection mode off — scroll wheel restored.".to_string()
+                ));
+            }
+            let _ = out.flush();
+        }
+
         InputAction::ContextViewerDrop => {
             if let Some(ref viewer) = app.context_viewer {
                 if let Some(entry) = viewer.turns.get(viewer.selected) {

@@ -474,10 +474,12 @@ pub(super) fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         String::new()
     };
 
-    let keybinds = if matches!(app.state, AppState::Idle) {
-        "  ↑↓ scroll  Tab  Ctrl+O collapse  Ctrl+F files  Ctrl+G diff  Ctrl+P dir  Ctrl+N new  Ctrl+Q quit"
+    let keybinds = if !app.mouse_captured {
+        "  ▣ SELECT MODE — drag to select text, Cmd/Ctrl+C to copy, Ctrl+T to exit"
+    } else if matches!(app.state, AppState::Idle) {
+        "  ↑↓ scroll  Tab  Ctrl+O collapse  Ctrl+Y copy  Ctrl+T select  Ctrl+F files  Ctrl+G diff  Ctrl+N new  Ctrl+Q quit"
     } else {
-        "  ↑↓ scroll  Ctrl+O collapse  Ctrl+C cancel"
+        "  ↑↓ scroll  Ctrl+O collapse  Ctrl+Y copy  Ctrl+C cancel"
     };
     let mut spans = vec![
         Span::styled(hint, Style::default().fg(hint_color)),

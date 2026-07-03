@@ -90,6 +90,11 @@ pub enum InputAction {
     /// Ctrl+Z: remove the last user turn and its assistant response from session history.
     DropLastTurn,
 
+    /// Ctrl+Y: copy the last assistant reply to the system clipboard.
+    CopyLastReply,
+    /// Ctrl+T: toggle mouse reporting off/on so text can be selected natively.
+    ToggleTextSelection,
+
     /// Topic-shift confirmation responses: send anyway, open /branch, or cancel.
     TopicShiftSend,
     TopicShiftBranch,
@@ -359,6 +364,16 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
             return InputAction::DropLastTurn;
         }
         return InputAction::None;
+    }
+
+    // Ctrl+Y: copy last assistant reply to clipboard (works in all states)
+    if key.code == KeyCode::Char('y') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        return InputAction::CopyLastReply;
+    }
+
+    // Ctrl+T: toggle native text selection (mouse reporting off/on)
+    if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        return InputAction::ToggleTextSelection;
     }
 
     // Ctrl+N: start a new session (idle only)
