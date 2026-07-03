@@ -40,6 +40,39 @@ fn model_entry_default_is_empty() {
     assert!(m.output.is_none());
 }
 
+// ── resolve_provider_kind ──────────────────────────────────────────────────
+
+#[test]
+fn claude_code_slug_resolves_to_anthropic_even_without_toml_kind() {
+    // Regression: previously fell through to the generic kind/slug match,
+    // where "claude_code" doesn't match "anthropic" case-insensitively and
+    // silently resolved to Provider::OpenAi.
+    assert!(matches!(resolve_provider_kind("claude_code", None), Provider::Anthropic));
+}
+
+#[test]
+fn codex_slug_resolves_to_openai_even_without_toml_kind() {
+    assert!(matches!(resolve_provider_kind("codex", None), Provider::OpenAi));
+}
+
+#[test]
+fn claude_code_slug_ignores_a_conflicting_toml_kind() {
+    // Built-in slugs are hardcoded regardless of what a stale/wrong TOML entry says.
+    assert!(matches!(resolve_provider_kind("claude_code", Some("openai")), Provider::Anthropic));
+}
+
+#[test]
+fn unknown_slug_falls_back_to_kind_field() {
+    assert!(matches!(resolve_provider_kind("my-custom-provider", Some("anthropic")), Provider::Anthropic));
+    assert!(matches!(resolve_provider_kind("my-custom-provider", Some("openai")), Provider::OpenAi));
+}
+
+#[test]
+fn unknown_slug_with_no_kind_falls_back_to_slug_name() {
+    assert!(matches!(resolve_provider_kind("anthropic", None), Provider::Anthropic));
+    assert!(matches!(resolve_provider_kind("some-openai-compatible-server", None), Provider::OpenAi));
+}
+
 // ── ProviderEntry with models deserialization ─────────────────────────────
 
 #[test]

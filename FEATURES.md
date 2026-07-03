@@ -7,6 +7,21 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(config): hardcode Provider kind for built-in CLI-passthrough slugs (v0.15.110 patch)
+
+`config.provider_slug == "claude_code"` resolved `config.provider` to `Provider::OpenAi`
+whenever the TOML had no explicit `kind` for that slug (the fallback interpreted the slug
+name itself, and "claude_code" doesn't match "anthropic"). This only "worked" because
+`create_client()` special-cases the slug before ever consulting `config.provider` — but
+every OTHER piece of code that reads `config.provider` (e.g. `provider_supports_vision`)
+saw the wrong value, working only by coincidence. Extracted a `resolve_provider_kind`
+function that hardcodes `claude_code` → Anthropic and `codex` → OpenAi regardless of TOML
+state, with unit tests covering the regression.
+
+**Files:** `src/config/mod.rs`, `src/config/tests.rs`
+
+---
+
 ### fix(session): dedupe clipboard auto-attach by content hash (v0.15.109 patch)
 
 Every turn, if the OS clipboard held an image, zap silently attached it — even if it was

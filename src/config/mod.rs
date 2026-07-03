@@ -271,6 +271,30 @@ impl FileConfig {
 
 // ── Config::load ──────────────────────────────────────────────────────────────
 
+/// Resolve the `Provider` enum for a provider slug.
+///
+/// Built-in CLI-passthrough slugs (`claude_code`, `codex`) are hardcoded rather
+/// than left to the `kind`/TOML fallback: `create_client()` special-cases these
+/// slugs before ever consulting `config.provider`, so a missing/wrong `kind`
+/// previously left `config.provider` silently mislabeled (`claude_code` resolved
+/// to `OpenAi`) for every OTHER piece of code that reads it, e.g.
+/// `provider_supports_vision` — it happened to work there by coincidence, not
+/// because the value was actually correct.
+fn resolve_provider_kind(provider_slug: &str, entry_kind: Option<&str>) -> Provider {
+    match provider_slug {
+        "claude_code" => Provider::Anthropic,
+        "codex"       => Provider::OpenAi,
+        _ => {
+            // Fall back to the entry's kind, or interpret the slug name
+            // (backwards compat with old provider = "anthropic").
+            match entry_kind.unwrap_or(provider_slug).to_lowercase().as_str() {
+                "anthropic" => Provider::Anthropic,
+                _           => Provider::OpenAi,
+            }
+        }
+    }
+}
+
 impl Config {
     /// Priority (highest wins): env vars → ~/.agent.toml → built-in defaults.
     pub fn load() -> Result<Self> {
@@ -289,15 +313,7 @@ impl Config {
         // Look up the active provider entry (may be absent for legacy configs).
         let active_entry = all_providers.get(&provider_slug);
 
-        // Determine the Provider enum from the entry's kind, or fall back to
-        // interpreting the slug name (backwards compat with old provider = "anthropic").
-        let provider = {
-            let kind = active_entry.and_then(|e| e.kind.as_deref());
-            match kind.unwrap_or(&provider_slug).to_lowercase().as_str() {
-                "anthropic" => Provider::Anthropic,
-                _           => Provider::OpenAi,
-            }
-        };
+        let provider = resolve_provider_kind(&provider_slug, active_entry.and_then(|e| e.kind.as_deref()));
 
         // ── api_key ───────────────────────────────────────────────────────────
         let api_key = env::var("AGENT_API_KEY").ok()
