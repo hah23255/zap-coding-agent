@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(session): dedupe clipboard auto-attach by content hash (v0.15.109 patch)
+
+Every turn, if the OS clipboard held an image, zap silently attached it — even if it was
+the same screenshot from 10 turns ago that the user had long forgotten about. That meant
+token waste and a privacy leak (an old screenshot riding along on unrelated messages).
+Now hashes the clipboard image bytes and only auto-attaches when the hash differs from
+the last auto-attached image, so a stale clipboard stops resending itself. Explicit
+`/paste`, `/attach`, and Ctrl+V are untouched and always work regardless of the hash.
+
+**Files:** `src/session/mod.rs`, `src/session/turn.rs`, `src/session/test_factory.rs`, `src/session/clipboard_paste.rs`
+
+---
+
 ### fix(tui): mouse-wheel scroll off by default, native text selection always works (v0.15.108 patch)
 
 Mouse reporting (needed for scroll-wheel support) was ON by default, which blocked the

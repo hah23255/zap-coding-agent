@@ -3,6 +3,7 @@ pub mod routing;
 pub mod scheduler;
 pub mod task_classifier;
 mod casual;
+mod clipboard_paste;
 mod history;
 mod memory_refresh;
 mod preview;
@@ -155,6 +156,11 @@ pub struct Session {
     pub config:        Config,
     /// Images staged with /attach, sent with the next user turn then cleared.
     pub staged_images: Vec<(String, String)>,
+    /// Hash of the last image auto-attached from the OS clipboard (see
+    /// turn.rs). Prevents a stale screenshot from being silently resent on
+    /// every turn — only a genuinely new clipboard image gets attached.
+    /// Explicit /paste, /attach, and Ctrl+V bypass this and always work.
+    pub last_auto_clip_hash: Option<u64>,
     pub skills:        Vec<crate::skill_manager::Skill>,
     /// Names of Domain skills active this session. Empty = no restriction (all Domain candidates).
     pub domain_scope:  std::collections::HashSet<String>,
@@ -511,6 +517,7 @@ impl Session {
             session_id,
             config: config.clone(),
             staged_images: Vec::new(),
+            last_auto_clip_hash: None,
             skills,
             domain_scope,
             pinned_skills: std::collections::HashSet::new(),

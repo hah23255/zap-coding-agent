@@ -72,6 +72,7 @@ impl Session {
             session_id,
             config: cfg,
             staged_images: Vec::new(),
+            last_auto_clip_hash: None,
             skills: Vec::new(),
             domain_scope: std::collections::HashSet::new(),
             pinned_skills: std::collections::HashSet::new(),

@@ -230,37 +230,7 @@ impl Session {
             }
         }
 
-        // If no images were explicitly staged (e.g. via Ctrl+V), check the OS
-        // clipboard now. This catches image paste via Cmd+V / Ctrl+Shift+V
-        // where the terminal may have consumed the paste event without
-        // forwarding it to the app (e.g. iTerm2 rendering inline).
-        if self.staged_images.is_empty()
-            && crate::llm_client::provider_supports_vision(&self.config)
-            && !cfg!(test)
-        {
-            let tmp = "/tmp/zap_auto_paste.png";
-            if crate::session::commands::paste_clipboard_image(tmp)
-                && std::path::Path::new(tmp).exists()
-            {
-                if let Ok(bytes) = std::fs::read(tmp) {
-                    if bytes.len() >= 128 {
-                        use base64::Engine;
-                        let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                        let kb = bytes.len() / 1024;
-                        self.staged_images.push(("image/png".to_string(), data));
-                        let msg = format!("✓ Clipboard image attached ({} KB).", kb);
-                        if crate::tui::channel::is_tui_mode() {
-                            crate::tui::channel::tui_send(
-                                crate::tui::channel::TuiEvent::Notice(msg),
-                            );
-                        } else {
-                            println!("  {}", msg.dimmed());
-                        }
-                    }
-                    let _ = std::fs::remove_file(tmp);
-                }
-            }
-        }
+        super::clipboard_paste::maybe_auto_attach_clipboard_image(self);
 
         let user_msg = if self.staged_images.is_empty() {
             Message::user_text(input)
