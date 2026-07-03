@@ -572,9 +572,10 @@ mod tests {
     }
 
     fn non_vision_config() -> crate::config::Config {
-        // Codex provider is explicitly marked as non-vision in provider_supports_vision().
+        // deepseek.com is explicitly marked as non-vision in provider_supports_vision().
         crate::config::Config {
-            provider_slug: "codex".to_string(),
+            provider: crate::config::Provider::OpenAi,
+            base_url: Some("https://api.deepseek.com".to_string()),
             ..Default::default()
         }
     }

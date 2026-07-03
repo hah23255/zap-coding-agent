@@ -3541,7 +3541,7 @@ dependencies = [
 
 [[package]]
 name = "zap-coding-agent"
-version = "0.15.110"
+version = "0.15.112"
 dependencies = [
  "anyhow",
  "async-lsp",

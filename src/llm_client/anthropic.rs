@@ -15,8 +15,8 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Uses a conservative default for unrecognized models.
 fn max_output_tokens(model: &str) -> u32 {
     let m = model.to_lowercase();
-    if m.contains("claude-opus") || m.contains("claude-sonnet") { 32_000 }
-    else                                                          { 16_000 }
+    if m.contains("claude-opus") || m.contains("claude-sonnet") || m.contains("claude-fable") { 32_000 }
+    else                                                                                        { 16_000 }
 }
 
 #[derive(Debug, Serialize)]

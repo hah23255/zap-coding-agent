@@ -7,6 +7,37 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): update Claude provider fallbacks to include Fable and latest Opus (v0.15.112 patch)
+
+The Claude model lists were only partially updated: onboarding/startup showed the new
+Anthropic models, but the runtime provider picker still had stale fallback entries for
+`anthropic` and `claude_code`. That meant users in Claude provider mode could still see old
+options like `claude-opus-4-7` and miss `claude-fable-5`. This patch aligns the runtime
+fallbacks with the startup picker, adds `anthropic/claude-fable-5` to the OpenRouter sample
+list there as well, and preserves the updated Anthropic output-token cap handling for Fable.
+
+**Files:** `src/tui/provider_picker.rs`, `src/tui/startup.rs`, `src/llm_client/anthropic.rs`
+
+---
+
+### feat(codex): support image input via Responses API multipart content (v0.15.111 patch)
+
+Codex previously dropped every image block with a warning ("not yet supported"). Rewrote
+`encode_input` to emit multipart `content` (`input_text` + `input_image` parts, images as
+`data:<mime>;base64,...` URIs) when a user message has images, keeping the flat-string
+format for text-only messages. Also fixed a second, independent bug uncovered while
+testing this live: `provider_supports_vision`'s local-model heuristic reads
+`config.base_url`, but Codex never sets a real one (it hardcodes its own endpoint) — so a
+codex config commonly carries the LM Studio default
+(`http://localhost:1234/...`), which the heuristic misread as "local model, check vision
+support by name" and blocked images even after the encoding fix. Verified end-to-end
+against the live Codex API (ChatGPT ⁠subscription) with `/attach` + a real screenshot —
+model correctly identified the image content.
+
+**Files:** `src/llm_client/codex.rs`, `src/llm_client/mod.rs`, `src/tui/commands/mod.rs`
+
+---
+
 ### fix(config): hardcode Provider kind for built-in CLI-passthrough slugs (v0.15.110 patch)
 
 `config.provider_slug == "claude_code"` resolved `config.provider` to `Provider::OpenAi`

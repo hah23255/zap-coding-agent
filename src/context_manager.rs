@@ -350,6 +350,7 @@ pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Re
          \n\
          **Search:**\n\
          - Always try `find_definition` or `code_map` before `search_code` or `read_file`.\n\
+         - Exception: read manifest/config files like `Cargo.toml` directly when you need the tech stack or release metadata.\n\
          - If you know the symbol name: `find_definition` → done.\n\
          - If you know the file: `code_map` → read only the relevant lines.\n\
          - `search_code` is for unknown symbol names or cross-file pattern matching only."

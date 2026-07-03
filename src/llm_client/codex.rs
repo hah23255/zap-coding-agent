@@ -152,23 +152,32 @@ fn encode_input(messages: &[Message]) -> Vec<serde_json::Value> {
                     if let ContentBlock::Text { text } = b { Some(text.as_str()) } else { None }
                 }).collect();
                 let joined = texts.join("\n");
-                let image_count = msg.content.iter()
-                    .filter(|b| matches!(b, ContentBlock::Image { .. }))
-                    .count();
-                if image_count > 0 {
-                    let warn = format!(
-                        "✗ Dropped {image_count} image block(s) — image input via the Codex \
-                         backend is not yet supported. Switch to Anthropic or OpenAI (direct) \
-                         to use images.");
-                    crate::zap_warn!("{}", warn);
-                    if crate::tui::channel::is_tui_mode() {
-                        crate::tui::channel::tui_send(
-                            crate::tui::channel::TuiEvent::Warning(warn),
-                        );
+                let images: Vec<(&str, &str)> = msg.content.iter().filter_map(|b| {
+                    if let ContentBlock::Image { media_type, data } = b {
+                        Some((media_type.as_str(), data.as_str()))
+                    } else {
+                        None
                     }
-                }
-                if !joined.is_empty() {
-                    out.push(serde_json::json!({ "role": "user", "content": joined }));
+                }).collect();
+
+                if images.is_empty() {
+                    if !joined.is_empty() {
+                        out.push(serde_json::json!({ "role": "user", "content": joined }));
+                    }
+                } else if !joined.is_empty() || !images.is_empty() {
+                    // Responses API multipart content: input_text + input_image parts,
+                    // images as data URIs (same convention as the OpenAI direct client).
+                    let mut parts: Vec<serde_json::Value> = Vec::new();
+                    if !joined.is_empty() {
+                        parts.push(serde_json::json!({ "type": "input_text", "text": joined }));
+                    }
+                    for (media_type, data) in &images {
+                        parts.push(serde_json::json!({
+                            "type": "input_image",
+                            "image_url": format!("data:{};base64,{}", media_type, data),
+                        }));
+                    }
+                    out.push(serde_json::json!({ "role": "user", "content": parts }));
                 }
                 for b in &msg.content {
                     if let ContentBlock::ToolResult { tool_use_id, content } = b {
@@ -392,5 +401,55 @@ impl LlmProvider for CodexClient {
         }
 
         Ok(ApiResponse { content, stop_reason, usage })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_only_user_message_stays_a_flat_string() {
+        let msgs = [Message {
+            role: "user".into(),
+            content: vec![ContentBlock::Text { text: "hello".into() }],
+        }];
+        let input = encode_input(&msgs);
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0]["role"], "user");
+        assert_eq!(input[0]["content"], "hello");
+    }
+
+    #[test]
+    fn image_message_becomes_multipart_content() {
+        let msgs = [Message {
+            role: "user".into(),
+            content: vec![
+                ContentBlock::Text { text: "what is this".into() },
+                ContentBlock::Image { media_type: "image/png".into(), data: "QUJD".into() },
+            ],
+        }];
+        let input = encode_input(&msgs);
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0]["role"], "user");
+        let parts = input[0]["content"].as_array().expect("content must be an array with images");
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0]["type"], "input_text");
+        assert_eq!(parts[0]["text"], "what is this");
+        assert_eq!(parts[1]["type"], "input_image");
+        assert_eq!(parts[1]["image_url"], "data:image/png;base64,QUJD");
+    }
+
+    #[test]
+    fn image_only_message_omits_the_text_part() {
+        let msgs = [Message {
+            role: "user".into(),
+            content: vec![ContentBlock::Image { media_type: "image/jpeg".into(), data: "eHl6".into() }],
+        }];
+        let input = encode_input(&msgs);
+        let parts = input[0]["content"].as_array().unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0]["type"], "input_image");
+        assert_eq!(parts[0]["image_url"], "data:image/jpeg;base64,eHl6");
     }
 }
