@@ -73,6 +73,7 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     terminal.clear()?;
 
     let mut app = App::new(&session.model, &branch);
+    schedule_handler::load_persisted_schedules(&mut app);
     app.skill_names = session.skills.iter().map(|s| s.name.clone()).collect();
 
     let is_new_project = crate::project::load_project_meta().is_none();

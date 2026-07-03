@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(scheduler): persist jobs and make `daily HH:MM` explicit (v0.15.115 patch)
+
+`/schedule 15:30 ...` now means a one-shot run at the next 15:30, matching normal user
+expectation instead of silently acting like a daily recurring schedule. Explicit wall-clock
+recurrence now requires `/schedule daily 15:30 ...`. Scheduled jobs are also persisted to
+`.zap/scheduled_jobs.json`, reloaded when the TUI starts, and `/schedule list` now shows
+whether each job is one-shot vs recurring, plus next run, last run, and fire count.
+
+**Files:** `src/session/scheduler.rs`, `src/tui/schedule_handler.rs`, `src/tui/mod.rs`, `src/tui/app.rs`
+
+---
+
 ### fix(tui): send topic-shift prompt immediately after branch fork (v0.15.113 patch)
 
 In the TUI topic-shift confirmation, pressing `b` correctly created a forked branch but left

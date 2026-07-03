@@ -600,6 +600,16 @@ impl App {
                 self.auto_scroll = true;
             }
             TuiEvent::ScheduledFire { name, goal } => {
+                let fired_at = chrono::Local::now();
+                let mut remove_after_fire = false;
+                for job in &mut self.scheduled_jobs {
+                    if job.name == name {
+                        job.fire_count += 1;
+                        job.last_run_at = Some(fired_at);
+                        remove_after_fire = !job.spec.repeats();
+                        break;
+                    }
+                }
                 if matches!(self.state, AppState::Idle) && self.pending_input.is_none() {
                     // Session is free — submit immediately as a user turn.
                     self.messages.push(UiMessage {
@@ -608,14 +618,17 @@ impl App {
                     });
                     self.pending_input = Some(goal);
                     self.auto_scroll   = true;
-                    // Increment fire_count on the matching job.
-                    for job in &mut self.scheduled_jobs {
-                        if job.name == name { job.fire_count += 1; break; }
-                    }
                 } else {
                     // Busy — queue for after the current turn finishes.
-                    self.scheduled_queue.push_back((name, goal));
+                    self.scheduled_queue.push_back((name.clone(), goal));
                 }
+                if remove_after_fire {
+                    if let Some(pos) = self.scheduled_jobs.iter().position(|j| j.name == name) {
+                        let job = self.scheduled_jobs.remove(pos);
+                        job.handle.abort();
+                    }
+                }
+                super::schedule_handler::persist_jobs(self);
             }
         }
     }
