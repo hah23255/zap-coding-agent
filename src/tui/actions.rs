@@ -428,14 +428,14 @@ pub(super) async fn handle_action(
                 let _ = write!(out, "\x1b[?1002l\x1b[?1000l\x1b[?1006l");
                 app.mouse_captured = false;
                 crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
-                    "▣ Selection mode ON — drag with the mouse to select, Cmd/Ctrl+C to copy. \
-                     Scroll wheel is paused; press Ctrl+T again to restore it.".to_string()
+                    "🖱 Mouse scroll off — text selection restored to normal click-drag.".to_string()
                 ));
             } else {
                 let _ = write!(out, "\x1b[?1000h\x1b[?1002h\x1b[?1006h");
                 app.mouse_captured = true;
                 crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(
-                    "▣ Selection mode off — scroll wheel restored.".to_string()
+                    "🖱 Mouse scroll ON — use the wheel to scroll. Hold Option/Alt while \
+                     dragging to select text, or Ctrl+T again to turn scroll off.".to_string()
                 ));
             }
             let _ = out.flush();

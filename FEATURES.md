@@ -7,6 +7,20 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): mouse-wheel scroll off by default, native text selection always works (v0.15.108 patch)
+
+Mouse reporting (needed for scroll-wheel support) was ON by default, which blocked the
+terminal's native click-drag selection unless you knew to press Ctrl+T first — bad
+discoverability, and it meant copy was broken out of the box. Flipped the default: mouse
+reporting starts OFF, so click-drag selection just works immediately, matching Claude
+Code / opencode / Codex. Ctrl+T is now the opt-in for mouse-wheel scrolling (at the cost
+of needing Option/Alt+drag to select while it's on). Footer and in-app notices reworded
+to match the new framing.
+
+**Files:** `src/tui/mod.rs`, `src/tui/app.rs`, `src/tui/actions.rs`, `src/tui/input.rs`, `src/tui/render/layout.rs`
+
+---
+
 ### fix(remote): reuse running ngrok agent, match tunnels by port, reap leaked agents (v0.15.107 patch)
 
 `/remote` was returning 502s in practice because a leaked `ngrok` process from a prior

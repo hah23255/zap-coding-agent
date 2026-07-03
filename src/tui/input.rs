@@ -92,7 +92,8 @@ pub enum InputAction {
 
     /// Ctrl+Y: copy the last assistant reply to the system clipboard.
     CopyLastReply,
-    /// Ctrl+T: toggle mouse reporting off/on so text can be selected natively.
+    /// Ctrl+T: toggle mouse-wheel scroll reporting on/off. Off (default) lets
+    /// the terminal's native click-drag text selection work unhindered.
     ToggleTextSelection,
 
     /// Topic-shift confirmation responses: send anyway, open /branch, or cancel.
@@ -371,7 +372,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         return InputAction::CopyLastReply;
     }
 
-    // Ctrl+T: toggle native text selection (mouse reporting off/on)
+    // Ctrl+T: toggle mouse-wheel scroll reporting (off by default)
     if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
         return InputAction::ToggleTextSelection;
     }

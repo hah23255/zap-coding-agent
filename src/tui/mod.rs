@@ -57,17 +57,15 @@ pub async fn run_tui(config: &Config) -> Result<()> {
 
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
-    // Enable cell-level button-event mouse reporting (DECSET 1000 + 1002).
-    // DECSET 1002 is required on macOS terminals (Terminal.app, iTerm2) for
-    // scroll-wheel events to reach the application — without it, wheel events
-    // leak to the terminal scrollback buffer, causing a "jump to top" effect.
-    // Text selection still works by holding Option/Alt while dragging
-    // (standard convention across terminal apps: htop, btop, lazygit, etc.).
+    // Mouse reporting starts OFF so click-drag text selection works out of the
+    // box, matching Claude Code / opencode / Codex — no toggle needed to copy.
+    // Ctrl+T (see tui/actions.rs) opts into mouse-wheel scrolling at the cost
+    // of requiring Option/Alt+drag for selection while it's on.
     crossterm::execute!(
         stdout,
         crossterm::terminal::EnterAlternateScreen,
         crossterm::cursor::Hide,
-        crossterm::style::Print("\x1b[?1007l\x1b[?1000h\x1b[?1002h\x1b[?1006h"),
+        crossterm::style::Print("\x1b[?1007l"),
         EnableBracketedPaste,
     )?;
     let backend = CrosstermBackend::new(stdout);
