@@ -7,6 +7,22 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(claude_code): session continuity, permission mode, image passthrough (v0.15.104 patch)
+
+The `claude_code` provider (routes through the local `claude` CLI) replayed the entire
+conversation as separate stream-json user events on every turn — the CLI answers each
+user event independently, so turn N re-answered every prior message before touching the
+new one. It also never passed `--permission-mode`, so every file write was silently
+denied with no visible error (stderr went to `/dev/null`). Rewrote to use `--resume
+<session_id>` for continuity (first turn inlines prior history into one event),
+`--permission-mode acceptEdits`/`bypassPermissions` (mapped from zap's own permission
+mode), stderr capture surfaced on failure, and image content blocks now pass through as
+base64 instead of being dropped.
+
+**Files:** `src/llm_client/claude_code.rs`, `src/llm_client/mod.rs`
+
+---
+
 ### fix(remote): stop returning flaky localhost.run `/remote` URLs that 502 (v0.15.103 patch)
 
 `/remote` no longer silently falls back to `localhost.run` when ngrok is unavailable or not
