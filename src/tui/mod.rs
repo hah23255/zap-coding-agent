@@ -190,6 +190,15 @@ async fn tui_loop(
                 session.pinned_skills.remove(name.as_str());
             }
 
+            // Remote web UI: guarantee a done signal after every handled input.
+            // Normal turns emit one from the session loop, but slash commands
+            // and errored turns don't — without this the browser stays locked
+            // on "busy" with its input disabled forever. Duplicate dones are
+            // harmless (the UI just re-enables its input).
+            if crate::remote_channel::is_active() {
+                crate::remote_channel::send_done();
+            }
+
             // Auto-fire any prompt queued while the turn was in progress.
             // Priority: queued_input (user btw) > scheduled_queue (background jobs).
             if app.pending_input.is_none() {

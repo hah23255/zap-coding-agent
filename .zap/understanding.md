@@ -3,18 +3,18 @@
 
 <!-- zap:auto-stats:begin -->
 ## Project
-ideas v0.15.74 · 362 files · 5167 symbols
+ideas v0.15.103 · 382 files · 5375 symbols
 
 ### Languages
-  - python: 3154 symbols
-  - rust: 2003 symbols
+  - python: 3193 symbols
+  - rust: 2172 symbols
   - javascript: 10 symbols
 
 ### Source modules
-  agent_core, audit, cli, context_manager, context_utils, domain_map, hooks, http, log, main, mcp, permission_manager, persistence, plan_execution, project, remote, remote_channel, secret_scanner, shell_runner, skill_installer
+  bin, code_index, config, default_skills, llm_client, lsp, project, session, tools, tui, agent_core, audit, cli, context_manager, context_utils, domain_map, hooks, http, log, main, mcp, permission_manager, persistence, plan_execution, project, remote, remote_channel, secret_scanner, shell_runner, skill_installer, skill_manager, snapshot, stream_highlighter, task_planner, trust, ui, workflow
 
 ### Built-in skills
-  26 skills in `src/default_skills/`
+  27 skills in `src/default_skills/`
 
 <!-- zap:auto-stats:end -->
 
@@ -59,6 +59,13 @@ ideas v0.15.74 · 362 files · 5167 symbols
 - MCP, remote, hooks, and HTTP/provider integrations are edge adapters that should normalize external capabilities/events before they reach agent orchestration.
 - Safety modules are intentionally cross-cutting and should be invoked before side effects reach shell, filesystem, network, subprocess, MCP, or remote boundaries.
 <!-- zap:domain-map:end -->
+
+
+
+
+
+
+
 
 
 

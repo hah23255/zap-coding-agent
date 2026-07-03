@@ -1,3 +1,31 @@
+## Session #522 — 2026-07-02
+Goal: fix , getting remote cntrol url giving 502
+Files: src/remote.rs, FEATURES.md, Cargo.toml
+Next: Verify the `/remote` user-facing failure path in `src/remote.rs`: ensure the command now returns a clear actionable error when ngrok is missing or unauthenticated, and add/adjust tests covering those cases. | Audit `src/remote.rs` for any remaining assumptions from the removed `localhost.run` fallback, especially in the tunnel selection/setup functions, and simplify or rename code/comments to reflect “ngrok-only” behavior. | Add or update release/user docs for the `/remote` feature to state that ngrok is now required, including install/auth steps and expected error behavior after `0.15.103`.
+
+## Session #521 — 2026-07-02
+Goal: schedule is not coming in slash command ?
+Files: src/tui/commands/mod.rs, src/default_skills/slash-commands.md, src/skill_manager.rs, FEATURES.md, Cargo.toml
+Next: Verify the `slash-commands` built-in skill is actually loaded in the app startup/registration path and add a regression test around slash-command discovery so `/schedule` and `/unschedule` stay present in the picker. | Audit recent slash-command additions against the central command list/metadata to ensure no other commands are missing discoverability wiring, especially wherever the picker sources its entries. | Triage the existing Windows inactive-code/clippy hint noted during verification and clean it up if it points to dead code in the TUI slash-command or skill-registration path.
+
+## Session #520 — 2026-07-02
+Goal: did not work
+Files: src/remote.rs, src/tui/commands/mod.rs, src/session/mod.rs, FEATURES.md, Cargo.toml
+Next: Re-test the `/remote` flow on `zap 0.15.101`; if it still fails, capture and inspect the exact zap `/remote` command output to determine whether the remaining problem is with the tunnel provider rather than the app’s public-URL timing/validation logic. | If failures persist, add more explicit diagnostics around the `/remote` public tunnel validation path in the three modified `/remote` source files so the CLI surfaces provider response details and validation failures directly. | Update the next release notes/changelog entry after validation with any follow-up `/remote` fix details, starting from the current released version in `Cargo.toml` (`0.15.101`).
+
+## Session #519 — 2026-07-02
+Goal: getting error agent failed to establist cnnectin upstreamweb service at localhos
+Files: src/remote.rs, FEATURES.md, Cargo.toml
+
+## Session #518 — 2026-07-02
+Goal: I want to add a feature where I want to give multiple tasks and each should be d
+Files: README.md, website/index.html, website/docs.html, website/partials/footer.html, src/tui/actions.rs, FEATURES.md, Cargo.toml, src/remote.rs, src/tui/commands/mod.rs, src/session/mod.rs
+Next: Verify the new `/remote` auto-copy behavior end-to-end in the command implementation: add or update tests around the clipboard-copy path and URL generation flow for the `/remote` feature. | Review and commit any follow-up release artifacts created by the version bump to `0.15.99`, especially `Cargo.lock` and any generated metadata tied to `Cargo.toml`. | Confirm `FEATURES.md` accurately documents the `/remote` clipboard behavior, including any caveats or platform-specific clipboard handling.
+
+## Session #508 — 2026-07-02
+Goal: can you check if superpowers skills are installed?
+Files: website/docs.html, website/index.html, src/project.rs, .gitignore, src/tui/actions.rs, src/project_understanding.rs, FEATURES.md, Cargo.toml
+
 ## Session #462 — 2026-06-30
 Goal: hi
 Files: (no files modified)

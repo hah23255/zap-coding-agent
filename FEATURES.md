@@ -7,6 +7,22 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(remote): reuse running ngrok agent, match tunnels by port, reap leaked agents (v0.15.107 patch)
+
+`/remote` was returning 502s in practice because a leaked `ngrok` process from a prior
+session (upstream port long dead) still owned the `:4040` API — the old code accepted
+*any* https tunnel from that API without checking which port it pointed at. Rewrote
+`launch_tunnel` to: (1) only accept a tunnel whose upstream `addr` matches our port,
+(2) reuse an already-running agent via its HTTP API instead of spawning a second one
+(ngrok's free plan allows one agent session), and (3) kill any agent this call spawned
+if the tunnel never became reachable, so a failed attempt can't leak a process that
+poisons the next one. Also fixed the web remote UI getting stuck on "busy" forever
+after a slash command or errored turn (no `done` event was ever sent for those paths).
+
+**Files:** `src/remote.rs`, `src/tui/mod.rs`
+
+---
+
 ### fix(tui): `/attach` path normalization, pngpaste hint (v0.15.106 patch)
 
 `/attach` failed on paths as terminals actually deliver them from drag-and-drop:

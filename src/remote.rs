@@ -262,44 +262,148 @@ pub async fn start_server(port: u16, token: String) -> Result<u16> {
 
 // ── Tunnel ────────────────────────────────────────────────────────────────────
 
-/// Try ngrok first (queries its local API on :4040). If ngrok is unavailable or the
-/// public URL never becomes reachable end-to-end, return a clear error instead of
-/// silently falling back to localhost.run, which has been returning unstable 502s.
+/// Try ngrok first. If ngrok is unavailable or the public URL never becomes
+/// reachable end-to-end, return a clear error instead of silently falling back
+/// to localhost.run, which has been returning unstable 502s.
+///
+/// Robust against the failure mode that plagued earlier versions: a leaked
+/// ngrok agent from a previous session owning the :4040 API with a tunnel to a
+/// dead port. We (1) only accept tunnels whose upstream addr is OUR port,
+/// (2) reuse an already-running agent via its HTTP API instead of spawning a
+/// second one (the free plan allows a single agent session), and (3) kill any
+/// agent we spawned if the tunnel never becomes reachable, so failures don't
+/// leak processes that poison the next attempt.
 pub async fn launch_tunnel(port: u16, token: &str) -> Result<String> {
     let ngrok_path = which_ngrok().context(
         "ngrok is required for /remote right now; install/authenticate ngrok because localhost.run fallback is disabled due to unstable 502 responses",
     )?;
 
-    // Start ngrok in background.
-    if let Ok(child) = tokio::process::Command::new(&ngrok_path)
-        .args(["http", &port.to_string()])
+    // Reuse a running ngrok agent when one exists — a second `ngrok http`
+    // process would be rejected by the free-plan session limit.
+    if let Some(api) = find_ngrok_api().await {
+        let url = agent_tunnel_for_port(&api, port).await.with_context(|| format!(
+            "an ngrok agent is already running (API {api}) but a tunnel for port {port} \
+             could not be created through it — run `pkill ngrok` and retry /remote"
+        ))?;
+        wait_for_remote_url(&url, token, 20).await.with_context(|| format!(
+            "reused running ngrok agent {api}, but its public URL never became reachable \
+             — run `pkill ngrok` and retry /remote"
+        ))?;
+        return Ok(url);
+    }
+
+    // No agent running — spawn one. Bind upstream explicitly to 127.0.0.1 so
+    // ngrok cannot resolve `localhost` to ::1 while our server listens on IPv4.
+    let spawned_pid = tokio::process::Command::new(&ngrok_path)
+        .args(["http", &format!("127.0.0.1:{port}")])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
-    {
-        if let Some(pid) = child.id() { crate::remote_channel::set_tunnel_pid(pid); }
-    }
+        .ok()
+        .and_then(|child| child.id());
+    if let Some(pid) = spawned_pid { crate::remote_channel::set_tunnel_pid(pid); }
 
-    // Poll ngrok's local API until the tunnel is up and reachable end-to-end.
+    // On any failure past this point, reap the agent we spawned — leaving it
+    // behind is what created the stale-:4040 502 loop in the first place.
+    let cleanup = |msg: String| -> anyhow::Error {
+        if let Some(pid) = spawned_pid {
+            let _ = std::process::Command::new("kill").arg(pid.to_string()).spawn();
+            crate::remote_channel::set_tunnel_pid(0);
+        }
+        anyhow::anyhow!(msg)
+    };
+
+    // Poll the agent's API until it reports a tunnel for OUR port.
     for _ in 0..20 {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        if let Ok(url) = ngrok_url().await {
-            match wait_for_remote_url(&url, token, 20).await {
-                Ok(()) => return Ok(url),
-                Err(e) => {
-                    anyhow::bail!(
-                        "ngrok tunnel came up but the public /remote URL never became reachable: {e}"
-                    );
-                }
-            }
+        let Some(api) = find_ngrok_api().await else { continue };
+        if let Ok(url) = tunnel_url_for_port(&api, port).await {
+            return match wait_for_remote_url(&url, token, 20).await {
+                Ok(()) => Ok(url),
+                Err(e) => Err(cleanup(format!(
+                    "ngrok tunnel came up but the public /remote URL never became reachable: {e}"
+                ))),
+            };
         }
     }
 
-    anyhow::bail!(
-        "ngrok tunnel did not become available on http://127.0.0.1:4040/api/tunnels within 10s; check `ngrok http {}` manually to confirm auth/account setup",
-        port
-    )
+    Err(cleanup(format!(
+        "ngrok did not report a tunnel for port {port} within 10s; check `ngrok http {port}` \
+         manually to confirm auth/account setup (a free account needs `ngrok config add-authtoken …`)"
+    )))
+}
+
+/// Find a live ngrok agent API. Agents bind 4040 by default and walk upward
+/// when the port is taken, so scan a small range.
+async fn find_ngrok_api() -> Option<String> {
+    for p in 4040..=4044u16 {
+        let base = format!("http://127.0.0.1:{p}");
+        let resp = crate::http::client()
+            .get(format!("{base}/api/tunnels"))
+            .timeout(std::time::Duration::from_millis(700))
+            .send()
+            .await;
+        if let Ok(r) = resp {
+            if r.status().is_success() { return Some(base); }
+        }
+    }
+    None
+}
+
+/// Public URL of an existing https tunnel whose upstream addr is `port`.
+/// Never returns some other port's tunnel — that stale-tunnel confusion is
+/// exactly the 502 bug this rewrite removes.
+async fn tunnel_url_for_port(api_base: &str, port: u16) -> Result<String> {
+    let body = crate::http::client()
+        .get(format!("{api_base}/api/tunnels"))
+        .send()
+        .await?
+        .text()
+        .await?;
+    let val: serde_json::Value = serde_json::from_str(&body)?;
+    let want = format!(":{port}");
+    val["tunnels"]
+        .as_array()
+        .and_then(|arr| arr.iter().find_map(|t| {
+            let addr_ok = t["config"]["addr"].as_str().map(|a| a.ends_with(&want)).unwrap_or(false);
+            if addr_ok && t["proto"].as_str() == Some("https") {
+                t["public_url"].as_str().map(|s| s.to_string())
+            } else {
+                None
+            }
+        }))
+        .with_context(|| format!("no https tunnel for port {port} in ngrok API response"))
+}
+
+/// Get (or create through the agent API) a tunnel for `port` on a running agent.
+async fn agent_tunnel_for_port(api_base: &str, port: u16) -> Result<String> {
+    if let Ok(url) = tunnel_url_for_port(api_base, port).await {
+        return Ok(url);
+    }
+    // No tunnel for our port yet — ask the running agent to open one.
+    let resp = crate::http::client()
+        .post(format!("{api_base}/api/tunnels"))
+        .json(&serde_json::json!({
+            "name": format!("zap-{port}"),
+            "proto": "http",
+            "addr": format!("127.0.0.1:{port}")
+        }))
+        .send()
+        .await
+        .context("POST /api/tunnels to running ngrok agent failed")?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("running ngrok agent refused to open a tunnel ({status}): {body}");
+    }
+    let val: serde_json::Value = serde_json::from_str(&resp.text().await?)?;
+    if let Some(u) = val["public_url"].as_str() {
+        return Ok(u.to_string());
+    }
+    // Some agent versions return the tunnel object asynchronously — re-list.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    tunnel_url_for_port(api_base, port).await
 }
 
 async fn wait_for_remote_url(base_url: &str, token: &str, seconds: u64) -> Result<()> {
@@ -407,26 +511,6 @@ fn which_ngrok() -> Result<String> {
         if !p.is_empty() { return Ok(p); }
     }
     anyhow::bail!("ngrok not found")
-}
-
-async fn ngrok_url() -> Result<String> {
-    let body = crate::http::client()
-        .get("http://127.0.0.1:4040/api/tunnels")
-        .send()
-        .await?
-        .text()
-        .await?;
-    let val: serde_json::Value = serde_json::from_str(&body)?;
-    val["tunnels"]
-        .as_array()
-        .and_then(|arr| arr.iter().find_map(|t| {
-            if t["proto"].as_str() == Some("https") {
-                t["public_url"].as_str().map(|s| s.to_string())
-            } else {
-                None
-            }
-        }))
-        .context("no https tunnel in ngrok API response")
 }
 
 #[cfg(test)]
