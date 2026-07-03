@@ -147,7 +147,7 @@ pub(super) async fn handle_action(
             let Some(text) = app.topic_shift_confirm.take() else {
                 return Ok(false);
             };
-            app.input = text;
+            app.input = text.clone();
             app.cursor = app.input.chars().count();
 
             let branch_name = match session.store.list_branches(session.session_id) {
@@ -187,10 +187,17 @@ pub(super) async fn handle_action(
                         app.messages.push(UiMessage {
                             role: MsgRole::Assistant,
                             blocks: vec![UiBlock::Text(format!(
-                                "Forked conversation {} → {}. Continue here in TUI.",
+                                "Forked conversation {} → {}. Sending prompt in new branch.",
                                 old, branch_name
                             ))],
                         });
+                        app.messages.push(UiMessage {
+                            role: MsgRole::User,
+                            blocks: vec![UiBlock::Text(text.clone())],
+                        });
+                        app.pending_input = Some(text.clone());
+                        app.input.clear();
+                        app.cursor = 0;
                         app.auto_scroll = true;
                     }
                     Err(e) => {

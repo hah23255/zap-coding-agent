@@ -7,7 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
-### fix(tui): update Claude provider fallbacks to include Fable and latest Opus (v0.15.112 patch)
+### fix(tui): send topic-shift prompt immediately after branch fork (v0.15.113 patch)
+
+In the TUI topic-shift confirmation, pressing `b` correctly created a forked branch but left
+the drafted prompt sitting in the input box instead of actually sending it. That made the
+flow feel broken and could trigger the same "new topic" prompt again on the next submit.
+Now `b` behaves like "fork and send": zap switches to the new branch, echoes the user
+message in the UI, queues it as pending input, and clears the draft box.
+
+**Files:** `src/tui/actions.rs`
+
+---
+
+### fix(tui): update Claude provider fallbacks to include Fable and latest Opus (v0.15.113 patch)
 
 The Claude model lists were only partially updated: onboarding/startup showed the new
 Anthropic models, but the runtime provider picker still had stale fallback entries for
