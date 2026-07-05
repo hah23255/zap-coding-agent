@@ -62,6 +62,57 @@ pub fn parse_bg_args(arg: &str) -> (String, Option<String>) {
     }
 }
 
+/// Spawn a background agent: builds an independent `Config`/`Session` for
+/// `goal`, runs it to completion on a detached tokio task, and reports the
+/// outcome via `TuiEvent::BackgroundAgentDone`. Returns the registry entry to
+/// push into `App.background_agents` immediately — its `status` starts
+/// `Running` and is updated later when the event arrives.
+pub fn spawn(id: String, goal: String, explicit_model: Option<String>, config: &Config) -> BackgroundAgent {
+    let model = resolve_bg_model(&goal, explicit_model.as_deref(), config);
+
+    let mut sub_config = config.clone();
+    sub_config.model               = model.clone();
+    sub_config.is_subagent         = true;
+    sub_config.is_background_agent = true;
+    sub_config.agent_depth         = config.agent_depth.saturating_sub(1);
+    sub_config.spawn_depth         = config.spawn_depth.saturating_add(1);
+    sub_config.permission_mode     = crate::config::PermissionMode::Auto;
+
+    let started_at = Local::now();
+    let task_id    = id.clone();
+    let task_goal  = goal.clone();
+    let task_model = model.clone();
+
+    let handle = tokio::spawn(async move {
+        let run: anyhow::Result<crate::agent_core::SubagentResult> = async {
+            let mut session = crate::session::Session::new(&sub_config).await?;
+            session.handle_user_turn(&task_goal).await?;
+            Ok(crate::agent_core::extract_result(&session))
+        }.await;
+
+        let outcome = match run {
+            Ok(r) => BgOutcome::Done {
+                summary:       r.summary,
+                files_changed: r.files_changed,
+                turns:         r.turns,
+                tool_calls:    r.tool_calls,
+            },
+            Err(e) => BgOutcome::Failed(e.to_string()),
+        };
+
+        let elapsed_secs = (Local::now() - started_at).num_seconds().max(0) as u64;
+        crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::BackgroundAgentDone {
+            id: task_id,
+            goal: task_goal,
+            model: task_model,
+            elapsed_secs,
+            outcome,
+        });
+    });
+
+    BackgroundAgent { id, goal, model, status: BgStatus::Running, started_at, handle }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

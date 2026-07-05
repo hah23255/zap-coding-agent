@@ -7,6 +7,21 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(session): background_agent::spawn (v0.15.124 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). Adds the
+detached-tokio-task spawn function: builds an independent `Config`/
+`Session` for a `/bg` goal (own model, `is_subagent`+`is_background_agent`
+set so its transcript persists, `Auto` permission mode, propagated
+recursion-depth caps), runs it to completion, and reports the outcome
+over the existing `TuiEvent` channel. Not yet reachable from any command
+— the `/bg` slash command itself lands in a later task.
+
+**Files:** `src/session/background_agent.rs`
+
+---
+
 ### feat(session): background_agent module foundation (v0.15.123 patch)
 
 Part of the in-progress `/bg` background-agents feature (see
