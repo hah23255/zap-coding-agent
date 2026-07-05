@@ -18,6 +18,7 @@ fn minimal_config(provider_slug: &str, model: &str) -> Config {
         output_format: OutputFormat::Text,
         agent_depth: 0,
         is_subagent: false,
+        is_background_agent: false,
         spawn_depth: 0,
         proxy: None,
         no_proxy: None,
@@ -39,6 +40,7 @@ fn minimal_config(provider_slug: &str, model: &str) -> Config {
         disabled_tools: vec![],
         disabled_skills: vec![],
         model_routes: HashMap::new(),
+        max_background_agents: 5,
     }
 }
 

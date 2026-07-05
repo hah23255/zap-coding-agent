@@ -125,6 +125,11 @@ pub struct Config {
     /// True when this config is for a sub-agent session. Suppresses startup banners
     /// and other output that would interleave with the parent session's output.
     pub is_subagent: bool,
+    /// True when this sub-agent session was spawned by `/bg` (user-invoked,
+    /// detached) rather than the model-invoked `spawn_agent` tool. Unlike plain
+    /// sub-agents, background agents DO persist a `sessions` row — see
+    /// `session::should_persist_session`.
+    pub is_background_agent: bool,
     /// Nesting depth of this session: 0 = top-level, 1 = first sub-agent, etc.
     /// Incremented by run_subagent; never persisted to disk.
     pub spawn_depth: u8,
@@ -194,6 +199,9 @@ pub struct Config {
     /// [model_routes]
     /// coding = "codex/gpt-5.5"
     pub model_routes: HashMap<String, String>,
+    /// Maximum number of `/bg` background agents allowed to run concurrently.
+    /// Set in ~/.agent.toml as: max_background_agents = 5
+    pub max_background_agents: usize,
 }
 
 // ── Config file path ──────────────────────────────────────────────────────────
@@ -249,6 +257,7 @@ struct FileConfig {
     disabled_skills: Vec<String>,
     #[serde(default)]
     model_routes:    HashMap<String, String>,
+    max_background_agents: Option<usize>,
 }
 
 impl FileConfig {
@@ -412,14 +421,16 @@ impl Config {
         let disabled_tools  = file.disabled_tools;
         let disabled_skills = file.disabled_skills;
         let model_routes    = file.model_routes;
+        let max_background_agents = file.max_background_agents.unwrap_or(5);
 
         Ok(Self {
             permission_mode, sandbox, api_key, model, provider, base_url,
-            output_format: OutputFormat::Text, agent_depth: 3, is_subagent: false, spawn_depth: 0,
+            output_format: OutputFormat::Text, agent_depth: 3, is_subagent: false,
+            is_background_agent: false, spawn_depth: 0,
             proxy, no_proxy, ca_bundle, tls_skip_verify, timeout_secs,
             budget: None, skill_paths, skill_token_budget, context_paths, allowed_paths, additional_dirs, disable_stream, skip_domain_prompt: false, tui_mode: false,
             tool_profile, provider_slug, all_providers,
-            disabled_tools, disabled_skills, model_routes,
+            disabled_tools, disabled_skills, model_routes, max_background_agents,
         })
     }
 
@@ -553,45 +564,6 @@ impl Config {
         }
 
         Ok(())
-    }
-}
-
-
-#[cfg(test)]
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            permission_mode: PermissionMode::Auto,
-            sandbox: SandboxMode::Off,
-            api_key: String::new(),
-            model: "test-model".to_string(),
-            provider: Provider::OpenAi,
-            base_url: None,
-            output_format: OutputFormat::Text,
-            agent_depth: 0,
-            is_subagent: false,
-            spawn_depth: 0,
-            proxy: None,
-            no_proxy: None,
-            ca_bundle: None,
-            tls_skip_verify: false,
-            timeout_secs: 120,
-            budget: None,
-            skill_paths: vec![],
-            skill_token_budget: 4000,
-            context_paths: vec![],
-            allowed_paths: vec![],
-            additional_dirs: vec![],
-            disable_stream: false,
-            tool_profile: "full".to_string(),
-            skip_domain_prompt: false,
-            tui_mode: false,
-            provider_slug: "test".to_string(),
-            all_providers: HashMap::new(),
-            disabled_tools: vec![],
-            disabled_skills: vec![],
-            model_routes: HashMap::new(),
-        }
     }
 }
 

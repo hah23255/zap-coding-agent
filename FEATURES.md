@@ -7,6 +7,21 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(config): background-agent config fields (v0.15.117 patch)
+
+Foundation for `/bg` background agents (in progress — see
+`docs/superpowers/plans/2026-07-05-background-agents.md`): `is_background_agent`
+distinguishes user-invoked `/bg` sub-sessions from the model-invoked
+`spawn_agent` tool (so background-agent transcripts persist to SQLite while
+plain sub-agents still don't), and `max_background_agents` caps concurrent
+background agents (default 5). The test-only `Default for Config` impl moved
+from `mod.rs` to `tests.rs` to keep `mod.rs` under the project's 600-line
+pre-commit gate.
+
+**Files:** `src/config/mod.rs`, `src/config/tests.rs`, `tests/provider_e2e.rs`
+
+---
+
 ### feat(scheduler): persist jobs and make `daily HH:MM` explicit (v0.15.115 patch)
 
 `/schedule 15:30 ...` now means a one-shot run at the next 15:30, matching normal user

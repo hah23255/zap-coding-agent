@@ -358,3 +358,65 @@ fn model_routes_default_to_empty() {
     let file: FileConfig = toml::from_str(toml_str).unwrap();
     assert!(file.model_routes.is_empty());
 }
+
+#[test]
+fn max_background_agents_parsed_from_toml() {
+    let toml_str = r#"
+        api_key = "test"
+        max_background_agents = 3
+    "#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(file.max_background_agents, Some(3));
+}
+
+#[test]
+fn max_background_agents_defaults_to_five_when_absent() {
+    let toml_str = r#"api_key = "test""#;
+    let file: FileConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(file.max_background_agents.unwrap_or(5), 5);
+}
+
+// ── Test-only Default impl ─────────────────────────────────────────────────
+//
+// Lives here (not in mod.rs) to keep mod.rs under the project's 600-line
+// pre-commit gate — it's only ever used by #[cfg(test)] code, so the whole
+// module already being test-gated (`#[cfg(test)] mod tests;` in mod.rs)
+// covers it without needing its own #[cfg(test)] attribute.
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            permission_mode: PermissionMode::Auto,
+            sandbox: SandboxMode::Off,
+            api_key: String::new(),
+            model: "test-model".to_string(),
+            provider: Provider::OpenAi,
+            base_url: None,
+            output_format: OutputFormat::Text,
+            agent_depth: 0,
+            is_subagent: false,
+            is_background_agent: false,
+            spawn_depth: 0,
+            proxy: None,
+            no_proxy: None,
+            ca_bundle: None,
+            tls_skip_verify: false,
+            timeout_secs: 120,
+            budget: None,
+            skill_paths: vec![],
+            skill_token_budget: 4000,
+            context_paths: vec![],
+            allowed_paths: vec![],
+            additional_dirs: vec![],
+            disable_stream: false,
+            tool_profile: "full".to_string(),
+            skip_domain_prompt: false,
+            tui_mode: false,
+            provider_slug: "test".to_string(),
+            all_providers: HashMap::new(),
+            disabled_tools: vec![],
+            disabled_skills: vec![],
+            model_routes: HashMap::new(),
+            max_background_agents: 5,
+        }
+    }
+}
