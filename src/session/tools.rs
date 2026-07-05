@@ -79,18 +79,28 @@ impl Session {
             }
             match perm_decision {
                 crate::permission_manager::QuickDecision::Allow => {
-                    let force_prompt = if name == "shell" {
-                        if let Some(cmd) = input["command"].as_str() {
-                            crate::tools::shell::destructive_pattern(cmd)
-                                .map(|reason| format!("[DESTRUCTIVE: {}]\n         {}", reason, ctx))
-                        } else {
-                            None
-                        }
+                    let destructive_reason = if name == "shell" {
+                        input["command"].as_str().and_then(crate::tools::shell::destructive_pattern)
                     } else {
                         None
                     };
-                    if let Some(destructive_ctx) = force_prompt {
-                        needs_prompt.push((id.clone(), name.clone(), destructive_ctx, input.clone()));
+                    if let Some(reason) = destructive_reason {
+                        if self.config.is_subagent {
+                            // No controlling terminal to prompt (model-invoked spawn_agent
+                            // or a /bg background agent) — auto-deny instead of queuing an
+                            // interactive prompt that can never be answered.
+                            audit::record(&format!("tool_denied name={} id={} reason=destructive_unattended", name, id))?;
+                            tool_results.push(ContentBlock::ToolResult {
+                                tool_use_id: id.clone(),
+                                content: format!(
+                                    "blocked: {reason} — destructive commands require interactive \
+                                     approval, not available in an unattended sub-agent."
+                                ),
+                            });
+                        } else {
+                            let destructive_ctx = format!("[DESTRUCTIVE: {}]\n         {}", reason, ctx);
+                            needs_prompt.push((id.clone(), name.clone(), destructive_ctx, input.clone()));
+                        }
                     } else {
                         match self.hooks.fire_pre_tool_use(name, input) {
                             crate::hooks::HookDecision::Block(reason) => {

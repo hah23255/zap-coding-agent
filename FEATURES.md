@@ -7,6 +7,21 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(session): auto-deny destructive commands for unattended sub-agents (v0.15.120 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). `run_subagent`
+forces `PermissionMode::Auto` because sub-agents have no controlling
+terminal to prompt for approval — but the destructive-command check
+(`rm -rf`, `git push --force`, `DROP TABLE`, ...) queued an interactive
+prompt regardless of permission mode, so a sub-agent hitting one would
+hang forever waiting for input that could never arrive. Now returns an
+immediate `blocked: ...` tool error instead, which the model can react to.
+
+**Files:** `src/session/tools.rs`, `src/session/agent_loop_tests.rs`
+
+---
+
 ### fix(session): persist background-agent sessions correctly (v0.15.119 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

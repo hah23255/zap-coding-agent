@@ -185,6 +185,33 @@ async fn one_tool_round_executes_tool_and_loops_back() {
 }
 
 #[tokio::test]
+async fn destructive_shell_command_auto_denied_for_unattended_subagent() {
+    // Regression test: before this fix, a destructive shell command under
+    // is_subagent=true would be queued for an interactive prompt that can
+    // never be answered (no controlling terminal), hanging the turn forever.
+    let mock = MockClient::with_script(vec![
+        MockClient::tool_call("call_1", "shell", json!({ "command": "rm -rf build/" })),
+        MockClient::text("acknowledged"),
+    ]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    session.handle_user_turn("clean up build artifacts").await.expect("turn ran");
+
+    assert_eq!(mock.call_count(), 2, "must not hang waiting for an interactive prompt");
+
+    let tool_result = session.messages[2].content.iter().find_map(|b| {
+        if let ContentBlock::ToolResult { content, tool_use_id } = b {
+            Some((tool_use_id.as_str(), content.as_str()))
+        } else { None }
+    });
+    let (tool_use_id, body) = tool_result.expect("tool_result block present");
+    assert_eq!(tool_use_id, "call_1");
+    assert!(body.starts_with("blocked:"), "expected auto-deny message, got: {body}");
+    assert!(body.contains("recursive forced deletion"), "should surface the destructive reason: {body}");
+}
+
+#[tokio::test]
 async fn runaway_tool_calls_stop_at_max_turns() {
     // Seed enough tool calls that the loop would run forever without the cap.
     let mut script: Vec<crate::llm_client::ApiResponse> = (0..MAX_TURNS + 5)
