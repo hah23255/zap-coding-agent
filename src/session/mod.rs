@@ -63,6 +63,17 @@ pub fn configured_context_limit(config: &Config) -> usize {
         })
 }
 
+/// Whether `Session::new` should persist a row in the `sessions` table.
+/// Model-invoked sub-agents (`spawn_agent` tool, `is_subagent = true`,
+/// `is_background_agent = false`) deliberately don't — they're short-lived
+/// internal helpers and used to bloat `agent.db` with empty "(repl)" rows.
+/// `/bg` background agents also set `is_subagent = true` (for banner
+/// suppression and the destructive-command permission fix) but DO need
+/// their transcript to survive, so they're the one exception.
+pub fn should_persist_session(config: &Config) -> bool {
+    !config.is_subagent || config.is_background_agent
+}
+
 /// Load the previous session's messages, applying a context-size guard:
 /// 1. `windowed_history` — cap to 8 user turns + prune oversized tool results
 /// 2. Token budget — drop oldest user+assistant pairs until under 30% of the
@@ -218,14 +229,14 @@ impl Session {
         crate::tools::clear_todos();
         let store = persistence::init()?;
         let cwd_str = persistence::current_project_cwd();
-        // Subagents are internal helpers, not real top-level sessions — don't
-        // persist a row for them (they were previously bloating ~/.zap/agent.db
-        // with empty "(repl)" entries on every spawn_agent call). session_id=0
-        // is a sentinel meaning "not persisted"; callers guard writes on it.
-        let session_id = if config.is_subagent {
-            0
-        } else {
+        // session_id=0 is a sentinel meaning "not persisted"; callers guard
+        // writes on it. See should_persist_session() for the exact rule
+        // (model-invoked spawn_agent sub-agents don't persist; /bg background
+        // agents do, even though both set is_subagent=true).
+        let session_id = if should_persist_session(config) {
             store.save_session("(repl)", &config.model, &cwd_str)?
+        } else {
+            0
         };
 
         // SLM tier: use a compact ~400-token prompt and force the core tool profile.

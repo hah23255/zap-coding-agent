@@ -61,6 +61,25 @@ fn configured_provider_context_window_overrides_model_guess() {
     assert_eq!(super::configured_context_limit(&config), 123_456);
 }
 
+#[test]
+fn should_persist_session_true_for_top_level_and_background_agents() {
+    let mut cfg = test_config();
+    cfg.is_subagent = false;
+    assert!(super::should_persist_session(&cfg), "top-level sessions must persist");
+
+    cfg.is_subagent = true;
+    cfg.is_background_agent = true;
+    assert!(super::should_persist_session(&cfg), "/bg agents must persist their transcript");
+}
+
+#[test]
+fn should_persist_session_false_for_model_invoked_subagents() {
+    let mut cfg = test_config();
+    cfg.is_subagent = true;
+    cfg.is_background_agent = false;
+    assert!(!super::should_persist_session(&cfg), "spawn_agent sub-agents must not bloat agent.db");
+}
+
 #[tokio::test]
 async fn single_text_turn_makes_one_call_and_appends_assistant_message() {
     let mock = MockClient::with_script(vec![MockClient::text("hello back")]);

@@ -7,6 +7,22 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(session): persist background-agent sessions correctly (v0.15.119 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). `Session::new`
+previously zeroed `session_id` (skip SQLite persistence) for any
+`is_subagent = true` config — correct for model-invoked `spawn_agent`
+sub-agents, but would have silently discarded `/bg` background-agent
+transcripts too, since they also need `is_subagent = true` for banner
+suppression. `should_persist_session()` carves out the `is_background_agent`
+exception. The call-site comment above the old check was also trimmed —
+it stated the now-incomplete "subagents never persist" rationale.
+
+**Files:** `src/session/mod.rs`, `src/session/agent_loop_tests.rs`
+
+---
+
 ### feat(config): background-agent config fields (v0.15.117 patch)
 
 Foundation for `/bg` background agents (in progress — see
