@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### refactor(agent_core): extract SubagentResult/extract_result (v0.15.121 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). Pulls
+`run_subagent`'s inline summary/turns/tool_calls/files_changed extraction
+into a standalone `agent_core::extract_result()` function, unchanged in
+behavior, so the upcoming `/bg` background-agent path can reuse it instead
+of duplicating the logic.
+
+**Files:** `src/agent_core.rs`, `src/session/agent_loop_tests.rs`
+
+---
+
 ### fix(session): auto-deny destructive commands for unattended sub-agents (v0.15.120 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

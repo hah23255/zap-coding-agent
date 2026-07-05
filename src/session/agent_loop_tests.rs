@@ -212,6 +212,28 @@ async fn destructive_shell_command_auto_denied_for_unattended_subagent() {
 }
 
 #[tokio::test]
+async fn extract_result_captures_summary_turns_tools_and_files() {
+    let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+    writeln!(tmp, "original content").unwrap();
+    let path = tmp.path().to_string_lossy().to_string();
+
+    let mock = MockClient::with_script(vec![
+        MockClient::tool_call("call_1", "write_file", json!({ "path": path, "content": "new content\n" })),
+        MockClient::text("updated the file"),
+    ]);
+    let session_client: Box<dyn LlmProvider> = Box::new(mock.clone());
+    let mut session = Session::new_for_test(&test_config(), session_client).expect("session ctor");
+
+    session.handle_user_turn("update the file").await.expect("turn ran");
+
+    let result = crate::agent_core::extract_result(&session);
+    assert_eq!(result.turns, 1);
+    assert_eq!(result.tool_calls, 1);
+    assert_eq!(result.summary, "updated the file");
+    assert_eq!(result.files_changed, vec![path]);
+}
+
+#[tokio::test]
 async fn runaway_tool_calls_stop_at_max_turns() {
     // Seed enough tool calls that the loop would run forever without the cap.
     let mut script: Vec<crate::llm_client::ApiResponse> = (0..MAX_TURNS + 5)

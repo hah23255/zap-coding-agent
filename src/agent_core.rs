@@ -309,6 +309,61 @@ pub async fn run_sdk(config: &Config) -> Result<()> {
 
 // ── Sub-agent (spawned by SpawnAgentTool) ─────────────────────────────────────
 
+/// Structured summary of a finished sub-agent session: what it did, how much
+/// work it took, and which files it touched. Shared by `run_subagent`
+/// (model-invoked, synchronous) and `session::background_agent` (user-invoked
+/// via `/bg`, detached).
+pub struct SubagentResult {
+    pub summary: String,
+    pub turns: usize,
+    pub tool_calls: usize,
+    pub files_changed: Vec<String>,
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+}
+
+/// Extract a [`SubagentResult`] from a finished sub-agent session: the final
+/// assistant text, turn/tool-call counts, and files touched (via each tool's
+/// `affected_path()`, the canonical source of truth rather than hardcoded
+/// tool names).
+pub fn extract_result(session: &Session) -> SubagentResult {
+    let turns = session.turn_count;
+    let total_tools: usize = session.messages.iter()
+        .flat_map(|m| &m.content)
+        .filter(|b| matches!(b, ContentBlock::ToolUse { .. }))
+        .count();
+
+    let mut files_changed: Vec<String> = session.messages.iter()
+        .flat_map(|m| &m.content)
+        .filter_map(|b| {
+            if let ContentBlock::ToolUse { name, input, .. } = b {
+                session.tools.get(name)?.affected_path(input).map(str::to_string)
+            } else {
+                None
+            }
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    files_changed.sort_unstable();
+
+    let summary = session.messages.iter().rev()
+        .find(|m| m.role == "assistant")
+        .and_then(|m| m.content.iter().find_map(|b| {
+            if let ContentBlock::Text { text } = b { Some(text.clone()) } else { None }
+        }))
+        .unwrap_or_default();
+
+    SubagentResult {
+        summary,
+        turns,
+        tool_calls: total_tools,
+        files_changed,
+        input_tokens: session.session_usage.input_tokens,
+        output_tokens: session.session_usage.output_tokens,
+    }
+}
+
 pub async fn run_subagent(goal: &str, config: &Config) -> Result<String> {
     let mut sub_config = config.clone();
     sub_config.output_format  = OutputFormat::Json;
@@ -338,57 +393,30 @@ pub async fn run_subagent(goal: &str, config: &Config) -> Result<String> {
     let mut session = Session::new(&sub_config).await?;
     session.handle_user_turn(goal).await?;
 
-    let turns = session.turn_count;
-    let total_tools: usize = session.messages.iter()
-        .flat_map(|m| &m.content)
-        .filter(|b| matches!(b, ContentBlock::ToolUse { .. }))
-        .count();
-
-    // Collect files that were written/edited via the affected_path() trait method,
-    // which is the canonical source of truth rather than hardcoded tool names.
-    let mut files_changed: Vec<String> = session.messages.iter()
-        .flat_map(|m| &m.content)
-        .filter_map(|b| {
-            if let ContentBlock::ToolUse { name, input, .. } = b {
-                session.tools.get(name)?.affected_path(input).map(str::to_string)
-            } else {
-                None
-            }
-        })
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    files_changed.sort_unstable();
-
-    let summary = session.messages.iter().rev()
-        .find(|m| m.role == "assistant")
-        .and_then(|m| m.content.iter().find_map(|b| {
-            if let ContentBlock::Text { text } = b { Some(text.clone()) } else { None }
-        }))
-        .unwrap_or_default();
+    let r = extract_result(&session);
 
     let result = serde_json::json!({
-        "summary": summary,
-        "turns": turns,
-        "tool_calls": total_tools,
-        "files_changed": files_changed,
-        "input_tokens": session.session_usage.input_tokens,
-        "output_tokens": session.session_usage.output_tokens,
+        "summary": r.summary,
+        "turns": r.turns,
+        "tool_calls": r.tool_calls,
+        "files_changed": r.files_changed,
+        "input_tokens": r.input_tokens,
+        "output_tokens": r.output_tokens,
     });
 
     println!(
         "  {} sub-agent [L{}] done  {} turn(s)  {} tool(s){}",
         "◈".bright_cyan(),
         depth_level,
-        turns.to_string().cyan(),
-        total_tools.to_string().cyan(),
-        if files_changed.is_empty() {
+        r.turns.to_string().cyan(),
+        r.tool_calls.to_string().cyan(),
+        if r.files_changed.is_empty() {
             String::new()
         } else {
-            format!("  changed: {}", files_changed.join(", ").truecolor(130, 125, 150))
+            format!("  changed: {}", r.files_changed.join(", ").truecolor(130, 125, 150))
         },
     );
-    audit::record(&format!("subagent_end depth={} turns={} tools={}", depth_level, turns, total_tools))?;
+    audit::record(&format!("subagent_end depth={} turns={} tools={}", depth_level, r.turns, r.tool_calls))?;
 
     Ok(result.to_string())
 }
