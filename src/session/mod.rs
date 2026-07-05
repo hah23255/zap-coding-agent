@@ -1,3 +1,4 @@
+pub mod background_agent;
 pub mod commands;
 pub mod routing;
 pub mod scheduler;

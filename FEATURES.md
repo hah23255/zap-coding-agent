@@ -7,6 +7,20 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(session): background_agent module foundation (v0.15.123 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). New
+`session::background_agent` module: `BackgroundAgent`/`BgStatus` registry
+types, `resolve_bg_model` (explicit `--model` > `model_routes` >
+default model — same lookup already used for in-session turn routing),
+and `parse_bg_args` for `/bg <goal> [--model <slug>]`. Not wired to any
+command yet.
+
+**Files:** `src/session/background_agent.rs`, `src/session/mod.rs`
+
+---
+
 ### feat(tui): TuiEvent::BackgroundAgentDone plumbing (v0.15.122 patch)
 
 Part of the in-progress `/bg` background-agents feature (see
