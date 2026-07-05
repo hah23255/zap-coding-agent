@@ -630,6 +630,12 @@ impl App {
                 }
                 super::schedule_handler::persist_jobs(self);
             }
+            // TODO(next task): replace this placeholder with real handling —
+            // update the matching BackgroundAgent's status in
+            // App.background_agents and push a completion/failure notice to
+            // the transcript. Exists here only so the match stays exhaustive
+            // after adding the BackgroundAgentDone variant in this commit.
+            TuiEvent::BackgroundAgentDone { .. } => {}
         }
     }
 

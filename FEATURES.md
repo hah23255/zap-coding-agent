@@ -7,6 +7,17 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): TuiEvent::BackgroundAgentDone plumbing (v0.15.122 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). Adds the event
+type the detached background-agent task will use to report completion
+back to the TUI; full handling lands in a follow-up task.
+
+**Files:** `src/tui/channel.rs`, `src/tui/app.rs`
+
+---
+
 ### refactor(agent_core): extract SubagentResult/extract_result (v0.15.121 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

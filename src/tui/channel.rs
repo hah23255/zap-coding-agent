@@ -71,6 +71,15 @@ pub fn set_perm_request(req: PermissionPromptRequest) -> bool {
     false
 }
 
+/// Outcome of a finished background agent (`/bg`), reported by the detached
+/// tokio task back to the TUI event loop. `Killed` isn't represented here —
+/// `/agents kill` sets that status synchronously without going through this event.
+#[derive(Debug, Clone)]
+pub enum BgOutcome {
+    Done { summary: String, files_changed: Vec<String>, turns: usize, tool_calls: usize },
+    Failed(String),
+}
+
 #[derive(Debug, Clone)]
 pub enum TuiEvent {
     LlmChunk(String),
@@ -93,6 +102,9 @@ pub enum TuiEvent {
     /// A scheduled job fired — submit `goal` as the next user turn.
     /// `name` is used for display only (shown as the bubble label).
     ScheduledFire { name: String, goal: String },
+    /// A `/bg` background agent finished (or failed). `elapsed_secs` is
+    /// wall-clock time since it was spawned.
+    BackgroundAgentDone { id: String, goal: String, model: String, elapsed_secs: u64, outcome: BgOutcome },
 }
 
 static TUI_TX: OnceLock<mpsc::UnboundedSender<TuiEvent>> = OnceLock::new();
