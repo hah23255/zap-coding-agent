@@ -7,6 +7,19 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): App.background_agents registry + completion notice (v0.15.125 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). `App` now
+tracks spawned `/bg` agents (mirrors the existing `scheduled_jobs`
+pattern); when one finishes, `apply_event` updates its status and appends
+a one-line `✓`/`✗` completion notice to the transcript. Not yet reachable
+from any command — `/bg`/`/agents` themselves land in later tasks.
+
+**Files:** `src/tui/app.rs`
+
+---
+
 ### feat(session): background_agent::spawn (v0.15.124 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

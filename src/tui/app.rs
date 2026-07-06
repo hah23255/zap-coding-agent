@@ -403,6 +403,12 @@ pub struct App {
     /// Goals queued by the scheduler while a turn was in progress.
     /// Drained one-at-a-time after each turn completes.
     pub scheduled_queue: std::collections::VecDeque<(String, String)>,
+    /// Active `/bg` background agents this TUI process has spawned. Each holds
+    /// a Tokio JoinHandle; abort to cancel (`/agents kill`). Scoped to this
+    /// process's lifetime — the underlying transcript still persists to SQLite.
+    pub background_agents: Vec<crate::session::background_agent::BackgroundAgent>,
+    /// Monotonic counter for background-agent IDs ("1", "2", ...).
+    pub next_bg_id: u32,
 }
 
 /// Holds all state needed to complete a provider switch once the user types their API key.
@@ -492,6 +498,8 @@ impl App {
             queued_input: None,
             scheduled_jobs:  Vec::new(),
             scheduled_queue: std::collections::VecDeque::new(),
+            background_agents: Vec::new(),
+            next_bg_id: 0,
         }
     }
 
@@ -630,12 +638,25 @@ impl App {
                 }
                 super::schedule_handler::persist_jobs(self);
             }
-            // TODO(next task): replace this placeholder with real handling —
-            // update the matching BackgroundAgent's status in
-            // App.background_agents and push a completion/failure notice to
-            // the transcript. Exists here only so the match stays exhaustive
-            // after adding the BackgroundAgentDone variant in this commit.
-            TuiEvent::BackgroundAgentDone { .. } => {}
+            TuiEvent::BackgroundAgentDone { id, goal, model, elapsed_secs, outcome } => {
+                let failed = matches!(&outcome, crate::tui::channel::BgOutcome::Failed(_));
+                if let Some(agent) = self.background_agents.iter_mut().find(|a| a.id == id) {
+                    agent.status = outcome.into();
+                }
+                let elapsed = {
+                    let s = crate::session::scheduler::format_interval_secs(elapsed_secs);
+                    if s.is_empty() { "0s".to_string() } else { s }
+                };
+                let mark = if failed { "✗" } else { "✓" };
+                let verb = if failed { "failed" } else { "finished" };
+                self.messages.push(UiMessage {
+                    role: MsgRole::Assistant,
+                    blocks: vec![UiBlock::Text(format!(
+                        "{mark} Background agent {id} {verb}: \"{goal}\" ({model}, {elapsed})\n   /agents view {id} for details"
+                    ))],
+                });
+                self.auto_scroll = true;
+            }
         }
     }
 
@@ -687,6 +708,72 @@ impl App {
         }
         self.scroll = self.scroll.saturating_sub(n);
         self.auto_scroll = false;
+    }
+}
+
+#[cfg(test)]
+mod background_agent_tests {
+    use super::*;
+    use crate::session::background_agent::{BackgroundAgent, BgStatus};
+    use crate::tui::channel::{BgOutcome, TuiEvent};
+
+    fn dummy_agent(id: &str) -> BackgroundAgent {
+        BackgroundAgent {
+            id: id.to_string(),
+            goal: "refactor auth".to_string(),
+            model: "codex/gpt-5.5".to_string(),
+            status: BgStatus::Running,
+            started_at: chrono::Local::now(),
+            handle: tokio::spawn(async {}),
+        }
+    }
+
+    #[tokio::test]
+    async fn background_agent_done_updates_status_and_pushes_notice() {
+        let mut app = App::new("test-model", "main");
+        app.background_agents.push(dummy_agent("1"));
+
+        app.apply_event(TuiEvent::BackgroundAgentDone {
+            id: "1".to_string(),
+            goal: "refactor auth".to_string(),
+            model: "codex/gpt-5.5".to_string(),
+            elapsed_secs: 42,
+            outcome: BgOutcome::Done {
+                summary: "done".to_string(),
+                files_changed: vec!["src/auth.rs".to_string()],
+                turns: 3,
+                tool_calls: 5,
+            },
+        });
+
+        let agent = app.background_agents.iter().find(|a| a.id == "1").expect("agent still present");
+        assert!(matches!(agent.status, BgStatus::Done { turns: 3, tool_calls: 5, .. }));
+
+        let last = app.messages.last().expect("a notice was pushed");
+        let UiBlock::Text(text) = &last.blocks[0] else { panic!("expected text block") };
+        assert!(text.contains('✓'), "success notice should use a checkmark: {text}");
+        assert!(text.contains("refactor auth"));
+    }
+
+    #[tokio::test]
+    async fn background_agent_failed_pushes_failure_notice() {
+        let mut app = App::new("test-model", "main");
+        app.background_agents.push(dummy_agent("2"));
+
+        app.apply_event(TuiEvent::BackgroundAgentDone {
+            id: "2".to_string(),
+            goal: "write tests".to_string(),
+            model: "claude-sonnet-5".to_string(),
+            elapsed_secs: 5,
+            outcome: BgOutcome::Failed("provider timeout".to_string()),
+        });
+
+        let agent = app.background_agents.iter().find(|a| a.id == "2").expect("agent still present");
+        assert!(matches!(&agent.status, BgStatus::Failed(e) if e == "provider timeout"));
+
+        let last = app.messages.last().expect("a notice was pushed");
+        let UiBlock::Text(text) = &last.blocks[0] else { panic!("expected text block") };
+        assert!(text.contains('✗'), "failure notice should use a cross mark: {text}");
     }
 }
 
