@@ -4,7 +4,7 @@ printf '  \033[38;5;220m━━━━━━━━━━━━━━━━━━�
 printf '\n'
 printf '  \033[1m⚡ zap\033[0m  ·  \033[1mNever get walled off mid-task\033[0m\n'
 printf '\n'
-printf '  Claude Max and ChatGPT Codex both meter you on a rolling\n'
+printf '  Claude Pro and ChatGPT Codex both meter you on a rolling\n'
 printf '  5-hour window. You find out it ran out when your session\n'
 printf '  just... stops answering.\n'
 printf '\n'
