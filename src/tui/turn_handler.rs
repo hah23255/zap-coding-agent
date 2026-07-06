@@ -15,17 +15,6 @@ use super::render;
 use crate::config::Config;
 use crate::session::Session;
 
-/// "Coming soon" notice for /bg and /agents — see the dispatch gate below.
-fn coming_soon_notice(app: &mut App, cmd: &str) {
-    app.messages.push(UiMessage {
-        role: MsgRole::Assistant,
-        blocks: vec![UiBlock::Text(format!(
-            "🚧 {cmd} is coming soon — temporarily disabled pending a UI-isolation fix (see FEATURES.md)."
-        ))],
-    });
-    app.auto_scroll = true;
-}
-
 /// Handle a slash command in TUI mode. Returns `true` if the session should exit.
 pub(super) async fn handle_tui_slash(
     app: &mut App,
@@ -151,16 +140,15 @@ pub(super) async fn handle_tui_slash(
         return super::schedule_handler::handle_unschedule(app, cmd);
     }
 
-    // /bg and /agents: disabled at dispatch (UI-isolation bug, see FEATURES.md) —
-    // still visible in the picker/help; handle_bg/handle_agents and their tests
-    // are untouched, re-enable by re-wiring these two calls.
+    // /bg and /agents — detached background sub-agents (independent session, own
+    // model). Known issue: a running agent's own turn briefly affects the main
+    // session's UI while streaming (see FEATURES.md) — surfaced via a caveat in
+    // the picker/help text and the /bg ack notice rather than blocking usage.
     if cmd == "/bg" || cmd.starts_with("/bg ") {
-        coming_soon_notice(app, "/bg");
-        return Ok(false);
+        return super::background_handler::handle_bg(app, cmd, config);
     }
     if cmd == "/agents" || cmd.starts_with("/agents ") {
-        coming_soon_notice(app, "/agents");
-        return Ok(false);
+        return super::background_handler::handle_agents(app, cmd);
     }
 
     // 1. Try native inline handler (output rendered in a popup).

@@ -52,8 +52,8 @@ pub const SLASH_COMMANDS: &[(&str, &str)] = &[
     ("/remote stop",       "stop the remote control server"),
     ("/schedule",          "schedule a goal in the TUI"),
     ("/unschedule",        "cancel a scheduled TUI job"),
-    ("/bg",                "run a goal in the background (optional --model)"),
-    ("/agents",            "list background agents"),
+    ("/bg",                "run a goal in the background, optional --model (has known bugs)"),
+    ("/agents",            "list background agents (has known bugs)"),
     // ── View ────────────────────────────────────────────────────────────────
     ("\x00 View",            "\x00"),
     ("/help",              "show help"),

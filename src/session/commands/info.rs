@@ -69,7 +69,7 @@ impl Session {
                 ("/schedule list",              "show active scheduled jobs"),
                 ("/unschedule <name>",          "cancel a scheduled job"),
             ]),
-            ("background agents (TUI only)", &[
+            ("background agents (TUI only, has known bugs)", &[
                 ("/bg <goal> [--model <slug>]", "run a goal in the background, optionally on a specific model"),
                 ("/agents",                     "list background agents and their status"),
                 ("/agents view <id>",           "show a background agent's progress or result"),

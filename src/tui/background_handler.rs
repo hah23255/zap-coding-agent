@@ -6,19 +6,11 @@ use super::app::{App, MsgRole, UiBlock, UiMessage};
 use crate::config::Config;
 use crate::session::background_agent::{self, BgStatus};
 
-// NOTE: handle_bg/handle_agents (and the two helpers below) are temporarily
-// unreachable from the TUI — turn_handler.rs's dispatch site short-circuits
-// /bg and /agents to a "coming soon" notice instead of calling into these,
-// pending a fix for a known UI-isolation issue (see FEATURES.md). The logic
-// and its tests are otherwise untouched and ready to go once dispatch is
-// restored, so these are only dead from the compiler's point of view.
-#[allow(dead_code)]
 fn notice(app: &mut App, text: String) {
     app.messages.push(UiMessage { role: MsgRole::Assistant, blocks: vec![UiBlock::Text(text)] });
     app.auto_scroll = true;
 }
 
-#[allow(dead_code)]
 fn elapsed_label(started_at: chrono::DateTime<chrono::Local>) -> String {
     let secs = (chrono::Local::now() - started_at).num_seconds().max(0) as u64;
     if secs == 0 {
@@ -29,7 +21,6 @@ fn elapsed_label(started_at: chrono::DateTime<chrono::Local>) -> String {
 }
 
 /// Handle `/bg <goal> [--model <slug>]`. Returns `Ok(false)` always (no exit needed).
-#[allow(dead_code)]
 pub(super) fn handle_bg(app: &mut App, cmd: &str, config: &Config) -> Result<bool> {
     let arg = cmd.strip_prefix("/bg").unwrap_or("").trim();
     if arg.is_empty() {
@@ -60,12 +51,15 @@ pub(super) fn handle_bg(app: &mut App, cmd: &str, config: &Config) -> Result<boo
     let model = agent.model.clone();
     app.background_agents.push(agent);
 
-    notice(app, format!("Started agent {id} ({model}) — /agents to check."));
+    notice(app, format!(
+        "Started agent {id} ({model}) — /agents to check. \
+         ⚠ has known bugs: while it's actively streaming, it may briefly affect this \
+         session's display (see FEATURES.md)."
+    ));
     Ok(false)
 }
 
 /// Handle `/agents`, `/agents view <id>`, `/agents kill <id>`. Returns `Ok(false)` always.
-#[allow(dead_code)]
 pub(super) fn handle_agents(app: &mut App, cmd: &str) -> Result<bool> {
     let arg = cmd.strip_prefix("/agents").unwrap_or("").trim();
 

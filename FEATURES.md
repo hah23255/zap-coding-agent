@@ -7,14 +7,14 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
-### feat(session/tui): background agents — `/bg`, `/agents` (list/view/kill) (v0.15.129 patch)
+### feat(session/tui): background agents — `/bg`, `/agents` (list/view/kill) (v0.15.130 patch)
 
-> 🚧 **Temporarily disabled at dispatch.** `/bg` and `/agents` still appear
-> in the command picker and `/help` (discoverable), but running either one
-> shows a "coming soon" notice instead of doing anything, pending a fix for
-> the UI-isolation issue below. `background_handler::handle_bg`/`handle_agents`
-> and their tests are untouched — re-enabling is restoring two calls in
-> `turn_handler.rs`'s dispatch, once the isolation fix lands.
+> ⚠ **Has known bugs — enabled with a caveat, not fully fixed.** The picker,
+> `/help`, and `/bg`'s own ack notice all say "has known bugs": while a
+> background agent is actively streaming, it can briefly affect the main
+> session's display (see "Known issue" below). Functionally it works
+> end-to-end (verified live against a real provider) — this is a UI-polish
+> gap, not data loss or a hang.
 
 Lets a user fire off independent tasks that run in the background inside the
 current TUI session, each optionally on its own model, and monitor them
