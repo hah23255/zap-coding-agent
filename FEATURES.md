@@ -7,6 +7,24 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(config,session): project-local `.agent.toml`, broader coding-task keywords, `/new` routes through `StartNewSession` (v0.15.131 patch)
+
+`config_path()` now checks `./.agent.toml` (current directory) before the
+XDG (`~/.config/zap/agent.toml`) and legacy (`~/.agent.toml`) paths, so a
+project can carry its own config without touching global settings.
+`task_classifier::is_coding` recognizes more everyday phrasing ("fix ",
+"update ", "change ", "edit ", "modify ", "patch ") so more requests route
+to a coding-capable model instead of falling through to a general one.
+`/new` now goes through the same `StartNewSession` action as other
+session-reset paths instead of a separate inline history-clear handler,
+keeping the "does /new clear the window" behavior consistent with fork/switch.
+
+**Files:** `src/config/mod.rs`, `src/config/tests.rs`,
+`src/session/task_classifier.rs`, `src/tui/commands/mod.rs`,
+`src/tui/turn_handler.rs`
+
+---
+
 ### feat(session/tui): background agents — `/bg`, `/agents` (list/view/kill) (v0.15.130 patch)
 
 > ⚠ **Has known bugs — enabled with a caveat, not fully fixed.** The picker,

@@ -63,6 +63,11 @@ pub(super) async fn handle_tui_slash(
         return Ok(false);
     }
 
+    if cmd == "/new" {
+        super::actions::handle_action(super::input::InputAction::StartNewSession, app, session, terminal, config).await?;
+        return Ok(false);
+    }
+
     if cmd == "/goal" || cmd.starts_with("/goal ") {
         let arg = cmd.strip_prefix("/goal").unwrap_or("").trim().to_string();
         super::goal::handle_goal_command(app, &arg);

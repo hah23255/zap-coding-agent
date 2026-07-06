@@ -3,17 +3,17 @@
 <!-- auto-written by zap at session end — edit freely -->
 
 ## Last updated
-2026-07-02 17:02 — Session #522
+2026-07-04 06:50 — Session #551
 
 ## What was being worked on
-fix , getting remote cntrol url giving 502
+can you implement a feature to set coding model for task , ther eis issue in git
 
 ## Files touched
-  - src/remote.rs
-  - FEATURES.md
-  - Cargo.toml
+  - src/session/task_classifier.rs
+  - src/config/tests.rs
+  - src/config/mod.rs
 
 ## What's next
-- Verify the `/remote` user-facing failure path in `src/remote.rs`: ensure the command now returns a clear actionable error when ngrok is missing or unauthenticated, and add/adjust tests covering those cases.
-- Audit `src/remote.rs` for any remaining assumptions from the removed `localhost.run` fallback, especially in the tunnel selection/setup functions, and simplify or rename code/comments to reflect “ngrok-only” behavior.
-- Add or update release/user docs for the `/remote` feature to state that ngrok is now required, including install/auth steps and expected error behavior after `0.15.103`.
+- Add a `web-search` subcommand to the `zap` CLI and wire it to the existing search/news-fetch tool so `zap web-search --query "latest news"` works instead of returning `unrecognized subcommand 'web-search'`.
+- Implement a resilient news-fetch path in the web search integration: keep the Google News RSS fallback for blocked DuckDuckGo requests, and expose topic filtering like `India`, `AI`, `world`, and `markets` through the CLI/API.
+- Verify provider capability handling for DeepSeek in the repo’s model integration layer: add an explicit “vision/image-input supported or not” check per model/provider and surface a clear error or capability flag when DeepSeek vision is not confirmed.

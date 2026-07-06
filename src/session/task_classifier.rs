@@ -33,7 +33,8 @@ pub fn classify(input: &str) -> TaskType {
 
 fn is_coding(s: &str) -> bool {
     ["implement", "write a function", "write the", "add a ", "fix the bug",
-     "refactor", "create a ", "build ", "write code", "make it work",
+     "fix ", "refactor", "create a ", "build ", "write code", "make it work",
+     "update ", "change ", "edit ", "modify ", "patch ",
      "add feature", "add support", "add test", "add tests"]
         .iter().any(|k| s.contains(k))
 }
@@ -66,6 +67,9 @@ mod tests {
         assert_eq!(classify("implement the login function"), TaskType::Coding);
         assert_eq!(classify("write a function to sort users"), TaskType::Coding);
         assert_eq!(classify("fix the bug in auth.rs"), TaskType::Coding);
+        assert_eq!(classify("fix auth tests"), TaskType::Coding);
+        assert_eq!(classify("update this function to handle retries"), TaskType::Coding);
+        assert_eq!(classify("change the parser to accept empty input"), TaskType::Coding);
         assert_eq!(classify("add tests for the parser"), TaskType::Coding);
     }
 

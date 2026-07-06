@@ -209,14 +209,16 @@ pub struct Config {
 /// Resolve the config file path.
 ///
 /// Priority (first that exists wins):
-///   1. `~/.config/zap/agent.toml`  (XDG — preferred for new installs)
-///   2. `~/.agent.toml`             (legacy — kept for existing users)
+///   1. `./.agent.toml`              (project-local override)
+///   2. `~/.config/zap/agent.toml`   (XDG — preferred for user-global config)
+///   3. `~/.agent.toml`              (legacy — kept for existing users)
 ///
-/// If neither exists, returns the XDG path (used when saving for the first time).
+/// If none exist, returns the XDG path (used when saving for the first time).
 pub fn config_path() -> Option<std::path::PathBuf> {
-    let xdg  = dirs::config_dir().map(|d| d.join("zap").join("agent.toml"));
-    let home = dirs::home_dir().map(|h| h.join(".agent.toml"));
-    [xdg.clone(), home]
+    let local = std::env::current_dir().ok().map(|d| d.join(".agent.toml"));
+    let xdg   = dirs::config_dir().map(|d| d.join("zap").join("agent.toml"));
+    let home  = dirs::home_dir().map(|h| h.join(".agent.toml"));
+    [local, xdg.clone(), home]
         .into_iter()
         .flatten()
         .find(|p| p.exists())

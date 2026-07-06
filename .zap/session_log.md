@@ -1,3 +1,33 @@
+## Session #551 — 2026-07-04
+Goal: can you implement a feature to set coding model for task , ther eis issue in git
+Files: src/session/task_classifier.rs, src/config/tests.rs, src/config/mod.rs
+
+## Session #443 — 2026-07-04
+Goal: fetch latst news from internet
+Files: (no files modified)
+
+## Session #550 — 2026-07-04
+Goal: when doing a new session , should it not clear window , also on fork. what is th
+Files: src/tui/turn_handler.rs, src/tui/commands/mod.rs, src/session/scheduler.rs, src/tui/schedule_handler.rs, src/tui/mod.rs, src/tui/app.rs, FEATURES.md, Cargo.toml
+
+## Session #548 — 2026-07-03
+Goal: hi
+Files: (no files modified)
+Next: Inspect `src/trust.rs:23` and verify the implementation of `pub fn project_trusted() -> bool`; document or refine its trust-check logic if callers need clearer behavior. | Review the call sites in `src/hooks.rs:95` and `src/mcp.rs:196` to ensure `project_trusted()` is being used consistently and that untrusted-project handling is correct. | Expand or update the existing test around `project_trusted()` in `src/trust.rs:77` to cover expected trusted vs. untrusted scenarios.
+
+## Session #541 — 2026-07-03
+Goal: how can I view content of context.md
+Files: src/tui/render/mod.rs, src/tui/render/messages.rs, tests/e2e/test_tui_render_evidence.sh, tests/e2e/test_tui_real_provider.sh, src/session/preview.rs, src/session/tools.rs, FEATURES.md, Cargo.toml
+
+## Session #540 — 2026-07-03
+Goal: deploy
+Files: src/tui/provider_picker.rs, FEATURES.md, Cargo.toml, src/context_manager.rs, src/llm_client/mod.rs, src/llm_client/url_utils.rs, src/tui/actions.rs, Cargo.lock
+Next: Add a follow-up regression test for the `b` topic-shift behavior that reproduces “fork branch and immediately send prompt” so the `fix(tui): send prompt after branch fork` path is covered by `cargo test`. | Review the implementation behind the TUI topic-shift `b` action and harden any branch-fork/prompt-send sequencing code to prevent similar timing/order bugs; document the behavior in the relevant TUI feature docs if needed. | Prepare the next release from `0.15.113` by keeping version metadata in sync across `Cargo.toml`, `Cargo.lock`, and `FEATURES.md`, since those files were manually aligned during this release.
+
+## Session #530 — 2026-07-03
+Goal: hi
+Files: (no files modified)
+
 ## Session #522 — 2026-07-02
 Goal: fix , getting remote cntrol url giving 502
 Files: src/remote.rs, FEATURES.md, Cargo.toml
@@ -251,58 +281,4 @@ Goal: last sesion shows session name only , should show hisotry as well ?
 Files: /Users/sanjeevgulati/personal-repos/ideas/src/project.rs, /Users/sanjeevgulati/personal-repos/ideas/src/session/commands.rs, /Users/sanjeevgulati/personal-repos/ideas/src/session/mod.rs, /Users/sanjeevgulati/personal-repos/ideas/Cargo.toml, /Users/sanjeevgulati/personal-repos/ideas/FEATURES.md, /Users/sanjeevgulati/personal-repos/ideas/src/tui/render.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/mod.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/channel.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/app.rs, /Users/sanjeevgulati/personal-repos/ideas/src/permission_manager.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/input.rs, /Users/sanjeevgulati/personal-repos/ideas/src/default_skills/deploy.md, /Users/sanjeevgulati/personal-repos/ideas/src/skill_manager.rs
 
 ## Session #117 — 2026-05-24
-Goal: it shows lat session , but should show entire hisoty content as well with sessio
-Files: (no files modified)
-
-## Session #116 — 2026-05-24
-Goal: analyste this screesnhot
-Files: (no files modified)
-
-## Session #114 — 2026-05-24
-Goal: hi
-Files: (no files modified)
-
-## Session #113 — 2026-05-24
-Goal: hi
-Files: (no files modified)
-
-## Session #112 — 2026-05-24
-Goal: hi
-Files: (no files modified)
-
-## Session #111 — 2026-05-24
-Goal: hi
-Files: (no files modified)
-
-## Session #109 — 2026-05-24
-Goal: summarize repo
-Files: (no files modified)
-
-## Session #108 — 2026-05-24
-Goal: summaize repo
-Files: (no files modified)
-
-## Session #107 — 2026-05-24
-Goal: summarise repo
-Files: (no files modified)
-
-## Session #106 — 2026-05-24
-Goal: summarize repo
-Files: (no files modified)
-
-## Session #104 — 2026-05-24
-Goal: what are next steps
-Files: (no files modified)
-
-## Session #83 — 2026-05-23
-Goal: Command output popup + sidebar ghost text on resize
-Files: src/tui/app.rs, src/tui/input.rs, src/tui/mod.rs, src/tui/render.rs
-
-## Session #82 — 2026-05-23
-Goal: check where we left
-Files: (no files modified)
-
-## Session #79 — 2026-05-23
-Goal: ideas
-Files: (no files modified)
-
+Goal: it shows lat session , but should 

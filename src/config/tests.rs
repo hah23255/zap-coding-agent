@@ -420,3 +420,18 @@ impl Default for Config {
         }
     }
 }
+
+#[test]
+fn config_path_prefers_project_local_agent_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let prev = std::env::current_dir().unwrap();
+    let local = dir.path().join(".agent.toml");
+    std::env::set_current_dir(dir.path()).unwrap();
+    std::fs::write(&local, "model = \"local\"\n").unwrap();
+
+    let resolved = config_path().and_then(|p| std::fs::canonicalize(p).ok());
+    let expected = std::fs::canonicalize(&local).ok();
+
+    std::env::set_current_dir(prev).unwrap();
+    assert_eq!(resolved, expected);
+}
