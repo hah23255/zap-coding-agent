@@ -7,6 +7,20 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): /bg and /agents command handlers (v0.15.126 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). New
+`tui::background_handler` module: `/bg <goal> [--model <slug>]` spawns a
+background agent (rejecting at `max_background_agents` concurrent
+running), `/agents` lists them, `/agents view <id>` shows progress/result,
+`/agents kill <id>` aborts a running one. Not yet wired to slash-command
+dispatch — that lands in the next task.
+
+**Files:** `src/tui/background_handler.rs`, `src/tui/mod.rs`
+
+---
+
 ### feat(tui): App.background_agents registry + completion notice (v0.15.125 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

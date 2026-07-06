@@ -12,6 +12,7 @@ pub mod syntax;
 pub mod file_browser;
 
 mod actions;
+mod background_handler;
 mod git_info;
 mod goal;
 mod lifecycle;
