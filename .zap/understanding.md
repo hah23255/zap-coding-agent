@@ -3,11 +3,11 @@
 
 <!-- zap:auto-stats:begin -->
 ## Project
-ideas v0.15.115 · 322 files · 4980 symbols
+ideas v0.15.130 · 329 files · 5097 symbols
 
 ### Languages
   - python: 3193 symbols
-  - rust: 1777 symbols
+  - rust: 1894 symbols
   - javascript: 10 symbols
 
 ### Source modules
@@ -59,6 +59,7 @@ ideas v0.15.115 · 322 files · 4980 symbols
 - MCP, remote, hooks, and HTTP/provider integrations are edge adapters that should normalize external capabilities/events before they reach agent orchestration.
 - Safety modules are intentionally cross-cutting and should be invoked before side effects reach shell, filesystem, network, subprocess, MCP, or remote boundaries.
 <!-- zap:domain-map:end -->
+
 
 
 

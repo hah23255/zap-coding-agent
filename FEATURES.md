@@ -7,6 +7,53 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(llm_client/claude_code): lean system prompt, honest permission-mode mapping, proactive 5h/weekly usage warnings for Codex + Claude (v0.15.132 patch)
+
+Root cause of `claude_code` provider output feeling worse than the bare
+`claude` CLI: `ClaudeCodeClient::send` never forwarded zap's tool schemas to
+the subprocess (the `_tools` param was unused — Claude Code always uses its
+own built-in tools), yet it reused the exact same system prompt built for
+API-driven providers, full of zap's own tool vocabulary (`code_map`,
+`edit_file`, `batch_edit`, `find_references`, `spawn_agent`, `todo_write`)
+that doesn't exist in that process. Fixed with a new
+`context_manager::build_claude_code_system_prompt` — identity, ZAP.md/
+understanding.md project context, agent memory, non-negotiable safety
+rules, git status — with none of the tool-policy/navigation/sub-agent
+sections written for tools Claude Code doesn't have.
+
+Also fixed a real safety bug found alongside it: zap's `Ask` and `Deny`
+permission modes both silently mapped to Claude Code's `acceptEdits`
+(auto-accept every edit), so choosing either expecting gated/blocked edits
+got silent auto-apply instead. Now `Auto`→`bypassPermissions`,
+`Ask`→`default`, `Deny`→`plan` (read-only). `Ask` is not yet a live
+per-edit approval popup in zap's TUI — that needs the subprocess's stdin
+kept open for the whole turn (currently closed after one write) plus
+bridging Claude Code's own permission-request stream-json events into the
+existing `PermissionPromptRequest`/`take_perm_request` channel. Not started.
+
+New `quota_watch` module warns proactively at 80% usage for both
+subscription-based providers and feeds a live sidebar `quota` section:
+- **Codex**: real response headers (`x-codex-primary-used-percent`,
+  `x-codex-secondary-used-percent`), checked on every response.
+- **Claude**: no official CLI flag/endpoint exists (anthropics/claude-code
+  issues #20399, #38380, #44328 are open feature requests) — uses
+  Anthropic's undocumented `https://api.anthropic.com/api/oauth/usage`
+  endpoint instead (same data Claude Code's own official `statusLine`
+  feature exposes as `rate_limits.five_hour`/`.seven_day`; confirmed
+  working live with a real Claude Code OAuth token read from macOS
+  Keychain / `~/.claude/.credentials.json`). Checked at the top of every
+  `claude_code` turn, throttled to once per 5 minutes; every failure mode
+  is swallowed silently since it's a best-effort side channel that must
+  never block or break a real turn. This endpoint is unofficial and could
+  change without notice.
+
+**Files:** `src/context_manager.rs`, `src/session/mod.rs`,
+`src/llm_client/claude_code.rs`, `src/llm_client/codex.rs`,
+`src/llm_client/mod.rs`, `src/lib.rs`, `src/quota_watch.rs` (new),
+`src/tui/app.rs`, `src/tui/channel.rs`, `src/tui/render/layout.rs`
+
+---
+
 ### fix(config,session): project-local `.agent.toml`, broader coding-task keywords, `/new` routes through `StartNewSession` (v0.15.131 patch)
 
 `config_path()` now checks `./.agent.toml` (current directory) before the

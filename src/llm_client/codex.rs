@@ -302,6 +302,10 @@ impl LlmProvider for CodexClient {
             anyhow::bail!("Codex API returned {} (url: {}): {}", status, CODEX_RESPONSES_URL, text);
         }
 
+        // 5-hour/weekly usage-window headers — warn before the window runs out
+        // rather than after Codex starts rejecting requests.
+        crate::quota_watch::check_codex_usage(resp.headers());
+
         // ── SSE stream parsing ────────────────────────────────────────────────
         let mut stream = resp.bytes_stream();
         let mut buf        = String::new();

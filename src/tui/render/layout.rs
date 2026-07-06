@@ -205,6 +205,41 @@ pub(super) fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!(" {}", ctx_bar), Style::default().fg(bar_color)),
         Span::styled(format!(" {}%", app.context_pct), Style::default().fg(Color::Rgb(155, 150, 185))),
     ]));
+    if let Some(five_hour_pct) = app.quota_five_hour_pct {
+        rows.push(Line::from(""));
+        let header = match app.quota_provider.as_deref() {
+            Some(p) => format!(" quota ({p})"),
+            None => " quota".to_string(),
+        };
+        rows.push(Line::from(Span::styled(header, Style::default().fg(head_c).bold())));
+
+        let pct_color = |p: f32| if p > 80.0 { Color::Rgb(220, 80, 80) }
+            else if p > 60.0 { Color::Rgb(220, 180, 50) }
+            else { Color::Rgb(80, 160, 255) };
+
+        // resets_at is ISO 8601 (from Claude's usage endpoint); Codex's response
+        // headers don't carry a reset timestamp today, so this is absent there.
+        let reset_hint = app.quota_resets_at.as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| {
+                let secs = (dt.with_timezone(&chrono::Utc) - chrono::Utc::now()).num_seconds().max(0);
+                format!("  ⏰{}h{:02}m", secs / 3600, (secs % 3600) / 60)
+            })
+            .unwrap_or_default();
+
+        rows.push(Line::from(vec![
+            Span::styled(" 5h  ", Style::default().fg(label_c)),
+            Span::styled(format!("{:.0}%", five_hour_pct), Style::default().fg(pct_color(five_hour_pct))),
+            Span::styled(reset_hint, Style::default().fg(Color::Rgb(130, 125, 155))),
+        ]));
+        if let Some(seven_day_pct) = app.quota_seven_day_pct {
+            rows.push(Line::from(vec![
+                Span::styled(" 7d  ", Style::default().fg(label_c)),
+                Span::styled(format!("{:.0}%", seven_day_pct), Style::default().fg(pct_color(seven_day_pct))),
+            ]));
+        }
+    }
+
     rows.push(Line::from(""));
     rows.push(Line::from(Span::styled(" status", Style::default().fg(head_c).bold())));
     rows.push(Line::from(vec![

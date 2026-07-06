@@ -96,6 +96,96 @@ pub fn build_slm_system_prompt(config: &Config) -> Result<String> {
     Ok(parts.join("\n\n"))
 }
 
+/// System prompt for the `claude_code` provider, which routes through the local
+/// `claude` CLI subprocess. That subprocess runs its own agent loop with its own
+/// built-in tools (Read, Write, Edit, Bash, Grep, Glob...) — zap's tool-calling
+/// vocabulary (`code_map`, `edit_file`, `batch_edit`, `spawn_agent`, `todo_write`,
+/// etc.) is never registered with it (see `ClaudeCodeClient::send`, which does not
+/// forward zap's tool schemas). Reusing the full API-provider prompt there just
+/// instructs the model to follow a "strict tool order" for tools it doesn't have,
+/// which degrades output. This keeps only what Claude Code doesn't already know —
+/// identity, project context, and non-negotiable safety rules — and leaves tool
+/// strategy to Claude Code's own built-in system prompt.
+pub fn build_claude_code_system_prompt(config: &Config) -> Result<String> {
+    use crate::context_utils::git_status_summary;
+
+    let mut sections: Vec<String> = Vec::new();
+
+    let lang_hint = crate::project::load_project_meta()
+        .and_then(|m| if m.language.is_empty() { None } else { Some(m.language.join(", ")) })
+        .map(|l| format!(" ({l})"))
+        .unwrap_or_default();
+    sections.push(format!(
+        "You are running inside zap, a terminal AI coding agent{lang_hint} (model: {}). \
+         Use your own built-in tools to accomplish tasks.",
+        config.model
+    ));
+
+    if !config.additional_dirs.is_empty() {
+        let mut env_section = "## Additional Directories (full read/write access)".to_string();
+        for dir in &config.additional_dirs {
+            env_section.push_str(&format!("\n- {}", dir));
+        }
+        sections.push(env_section);
+    }
+
+    if let Ok(store) = crate::persistence::init() {
+        if let Ok(entries) = store.all_memory() {
+            if !entries.is_empty() {
+                let facts = entries
+                    .iter()
+                    .map(|(k, v)| format!("- {}: {}", k, v))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                sections.push(format!(
+                    "## Agent Memory\nFacts saved in previous zap sessions:\n{facts}"
+                ));
+            }
+        }
+    }
+
+    if let Some(mut zap_md) = load_zap_md(&config.context_paths) {
+        let hits = crate::secret_scanner::scan(&zap_md);
+        if !hits.is_empty() {
+            crate::secret_scanner::redact(&mut zap_md, &hits);
+        }
+        sections.push(format!("## Project Context\n{}", zap_md));
+    }
+
+    let understanding = crate::project::load_understanding(4000);
+    let has_real_analysis = understanding.as_deref().map(|u| {
+        !u.contains("Run `/init`")
+            && (u.contains("## Analysis") || u.contains("## Architecture") || u.contains("## Overview"))
+    }).unwrap_or(false);
+    if has_real_analysis {
+        sections.push(format!(
+            "## Project Reference\n{}",
+            understanding.expect("analysis present")
+        ));
+    }
+
+    sections.push(
+        "## Security Rules (non-negotiable)\n\
+         \n\
+         1. Never force-push to main or master (`git push --force origin main`).\n\
+         2. Never skip pre-commit hooks (`--no-verify`).\n\
+         3. Never delete files or directories without explicit user instruction.\n\
+         4. Never write secrets, API keys, or passwords into files.\n\
+         5. Never execute a command that could affect systems outside the \
+            current repository without asking first.\n\
+         6. When in doubt about a destructive action, stop and ask the user."
+            .to_string(),
+    );
+
+    if std::path::Path::new(".git").exists() {
+        if let Some(status) = git_status_summary() {
+            sections.push(format!("## Current Git Status\n```\n{}\n```", status));
+        }
+    }
+
+    Ok(sections.join("\n\n"))
+}
+
 /// Build the system prompt, optionally injecting pre-matched skill content.
 pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Result<String> {
 

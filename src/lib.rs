@@ -17,6 +17,7 @@ pub mod permission_manager;
 pub mod domain_map;
 pub mod persistence;
 pub mod project;
+pub mod quota_watch;
 pub mod secret_scanner;
 pub mod session;
 pub mod shell_runner;

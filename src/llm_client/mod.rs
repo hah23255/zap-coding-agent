@@ -214,8 +214,7 @@ pub fn create_client(config: &Config) -> Box<dyn LlmProvider> {
 
     // Claude Code: route through the local `claude` CLI subprocess.
     if config.provider_slug == "claude_code" {
-        let zap_auto = matches!(config.permission_mode, crate::config::PermissionMode::Auto);
-        return Box::new(ClaudeCodeClient::new(config.model.clone(), suppress, zap_auto));
+        return Box::new(ClaudeCodeClient::new(config.model.clone(), suppress, config.permission_mode.clone()));
     }
 
     // Codex: uses OpenAI Responses API with ChatGPT OAuth credentials.

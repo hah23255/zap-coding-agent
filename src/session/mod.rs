@@ -252,6 +252,8 @@ impl Session {
         let config = &config;
         let mut system = if slm_mode {
             context_manager::build_slm_system_prompt(config)?
+        } else if config.provider_slug == "claude_code" {
+            context_manager::build_claude_code_system_prompt(config)?
         } else {
             context_manager::build_system_prompt(config)?
         };

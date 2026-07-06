@@ -89,6 +89,15 @@ pub enum TuiEvent {
     ToolDone  { id: String, elapsed_ms: u64, success: bool, preview: String },
     CostUpdate { total_usd: f64, input: u32, output: u32, cache_read: u32 },
     ContextUpdate { pct: u8, turn: usize },
+    /// 5-hour/weekly subscription usage window, pushed on every `quota_watch`
+    /// check (not just when crossing the warn threshold) so the sidebar can
+    /// show a live number. `provider` is a short label ("codex" / "claude").
+    QuotaUpdate {
+        provider: String,
+        five_hour_pct: Option<f32>,
+        seven_day_pct: Option<f32>,
+        resets_at: Option<String>,
+    },
     /// Active skill injected this turn — shown in sidebar, cleared at turn end.
     ActiveSkill(String),
     /// Undelivered btw messages that weren't injected mid-turn (turn ended before next tool call).

@@ -10,7 +10,15 @@ pub struct ClaudeCodeClient {
     model: String,
     suppress_stream: bool,
     /// Claude Code permission mode passed as `--permission-mode`.
-    /// Mapped from zap's own mode: auto → bypassPermissions, ask/deny → acceptEdits.
+    /// Mapped from zap's own mode:
+    ///   Auto → bypassPermissions (run everything, matches zap's own auto mode)
+    ///   Ask  → default (Claude Code's own per-action permission gate; this process
+    ///          is non-interactive — stdin is closed after the first write, see
+    ///          `send()` below — so there is no live prompt round-trip yet. `default`
+    ///          is still the honest choice: it makes Claude Code stop and explain
+    ///          rather than silently apply edits, unlike the old `acceptEdits` mapping.)
+    ///   Deny → plan (read-only: Claude Code may explore but cannot edit files or
+    ///          run mutating commands, matching zap's own Deny semantics)
     permission_mode: &'static str,
     /// claude CLI session id captured from the init event. When present,
     /// subsequent turns are sent with `--resume <id>` and only the new user
@@ -21,13 +29,45 @@ pub struct ClaudeCodeClient {
 }
 
 impl ClaudeCodeClient {
-    pub fn new(model: String, suppress_stream: bool, zap_auto: bool) -> Self {
+    pub fn new(model: String, suppress_stream: bool, permission_mode: crate::config::PermissionMode) -> Self {
+        use crate::config::PermissionMode;
+        let permission_mode = match permission_mode {
+            PermissionMode::Auto => "bypassPermissions",
+            PermissionMode::Ask  => "default",
+            PermissionMode::Deny => "plan",
+        };
         Self {
             model,
             suppress_stream,
-            permission_mode: if zap_auto { "bypassPermissions" } else { "acceptEdits" },
+            permission_mode,
             session_id: Mutex::new(None),
         }
+    }
+}
+
+/// Claude Code's `--print`/stream-json protocol has no structured field for the
+/// 5-hour/weekly usage window (unlike Codex's `x-codex-*-used-percent` response
+/// headers — see `quota_watch`). Anthropic doesn't expose a headless usage query
+/// either (open feature requests: anthropics/claude-code#20399, #38380), so the
+/// only signal available here is the wording of the error Claude Code gives back
+/// once the window is already exhausted. This turns that into an explicit,
+/// actionable warning instead of a bare error string.
+fn warn_if_usage_limit(text: &str) {
+    let lower = text.to_lowercase();
+    let looks_like_quota = lower.contains("usage limit")
+        || lower.contains("session limit")
+        || (lower.contains("limit") && lower.contains("reset"));
+    if !looks_like_quota {
+        return;
+    }
+    let msg = format!(
+        "⚠ Claude usage limit reached for this window — switch providers \
+         (`/provider codex` or another) until it resets. ({})",
+        text.trim()
+    );
+    crate::zap_warn!("{}", msg);
+    if crate::tui::channel::is_tui_mode() {
+        crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Warning(msg));
     }
 }
 
@@ -136,6 +176,11 @@ impl LlmProvider for ClaudeCodeClient {
         before_output: Option<BeforeOutput>,
         _thinking_budget: u32,
     ) -> Result<ApiResponse> {
+        // Best-effort 5-hour/weekly usage check — no-ops past the first call
+        // in a session until the 5-minute recheck window elapses. See
+        // `quota_watch` module docs for why this can't come from the CLI itself.
+        crate::quota_watch::check_claude_usage_if_stale().await;
+
         let mut before_output = before_output;
         let mut highlighter = crate::stream_highlighter::StreamHighlighter::new();
         highlighter.suppress_print = crate::tui::channel::is_tui_mode();
@@ -286,6 +331,7 @@ impl LlmProvider for ClaudeCodeClient {
 
                 "system" if ev["subtype"].as_str() == Some("error") => {
                     let msg = ev["error"]["message"].as_str().unwrap_or("unknown error");
+                    warn_if_usage_limit(msg);
                     anyhow::bail!("Claude Code error: {msg}");
                 }
 
@@ -304,10 +350,9 @@ impl LlmProvider for ClaudeCodeClient {
             if resume_id.is_some() {
                 if let Ok(mut g) = self.session_id.lock() { *g = None; }
             }
-            anyhow::bail!(
-                "Claude Code reported an error: {}",
-                if full_text.is_empty() { stderr_text.trim().to_string() } else { full_text }
-            );
+            let detail = if full_text.is_empty() { stderr_text.trim().to_string() } else { full_text };
+            warn_if_usage_limit(&detail);
+            anyhow::bail!("Claude Code reported an error: {detail}");
         }
 
         if full_text.is_empty() {

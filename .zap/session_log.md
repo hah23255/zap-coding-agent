@@ -1,3 +1,13 @@
+## Session #559 — 2026-07-06
+Goal: claude sub output not great vs codex — fix it, then add 5-hour/weekly usage-window warnings for both Codex and Claude
+Files: src/context_manager.rs, src/session/mod.rs, src/llm_client/claude_code.rs, src/llm_client/mod.rs, src/llm_client/codex.rs, src/lib.rs, src/quota_watch.rs
+Next: Verify claude_code output quality live now that it gets a lean provider-specific system prompt instead of zap's API-tool-calling prompt (root cause: `_tools` was never forwarded to the `claude` subprocess, so the model was told to follow a tool policy for tools it didn't have). Also fixed Ask/Deny both silently mapping to Claude Code's acceptEdits. | Both providers now warn proactively at 80% usage: Codex via its documented-by-precedent `x-codex-*-used-percent` response headers, Claude via Anthropic's undocumented `api.anthropic.com/api/oauth/usage` endpoint (same data as Claude Code's own official statusLine `rate_limits.*` fields) — tested live this session with the user's real Keychain-stored OAuth token, HTTP 200, real percentages returned. Risk (unofficial/could change) was flagged and accepted. | Build live per-edit permission prompting for claude_code's Ask mode if wanted — needs the subprocess stdin kept open all turn plus bridging Claude Code's permission-request stream-json events into zap's existing PermissionPromptRequest/take_perm_request channel.
+
+## Session #558 — 2026-07-06
+Goal: I was thhinking if we should show potential toekn save or number of tool calls s
+Files: src/session/mod.rs, src/session/tools.rs
+Next: Verify the revert is complete by checking `src/session/tools.rs` and `src/session/mod.rs` for any leftover `nav_stats`, `SessionNavStats`, or `record_nav_tool` references, and run the test/build suite to confirm no regressions. | If you still want a low-risk trust improvement, update the preview wording path only—e.g. adjust `smart_tool_preview()` in `src/session/tools.rs` to surface labels like `index hit`, `grep fallback`, or `index map` without changing execution flow. | Add a short backlog/decision note in the repo documenting that runtime navigation counters were deferred because the current parallel `join_all` / `exec_one` design makes post-hoc instrumentation safer than in-closure mutation.
+
 ## Session #551 — 2026-07-04
 Goal: can you implement a feature to set coding model for task , ther eis issue in git
 Files: src/session/task_classifier.rs, src/config/tests.rs, src/config/mod.rs
@@ -277,8 +287,4 @@ Goal: hi
 Files: (no files modified)
 
 ## Session #118 — 2026-05-24
-Goal: last sesion shows session name only , should show hisotry as well ?
-Files: /Users/sanjeevgulati/personal-repos/ideas/src/project.rs, /Users/sanjeevgulati/personal-repos/ideas/src/session/commands.rs, /Users/sanjeevgulati/personal-repos/ideas/src/session/mod.rs, /Users/sanjeevgulati/personal-repos/ideas/Cargo.toml, /Users/sanjeevgulati/personal-repos/ideas/FEATURES.md, /Users/sanjeevgulati/personal-repos/ideas/src/tui/render.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/mod.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/channel.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/app.rs, /Users/sanjeevgulati/personal-repos/ideas/src/permission_manager.rs, /Users/sanjeevgulati/personal-repos/ideas/src/tui/input.rs, /Users/sanjeevgulati/personal-repos/ideas/src/default_skills/deploy.md, /Users/sanjeevgulati/personal-repos/ideas/src/skill_manager.rs
-
-## Session #117 — 2026-05-24
-Goal: it shows lat session , but should 
+Goal: last sesion shows session name only , should show hisotry as well 
