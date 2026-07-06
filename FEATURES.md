@@ -7,6 +7,63 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(session/tui): background agents — `/bg`, `/agents` (list/view/kill) (v0.15.128 patch)
+
+> ⚠ **Known limitation:** while a background agent is actively streaming a
+> reply, it temporarily hijacks the main session's UI state (see "Known
+> issue" below) — the "without blocking" design intent below doesn't yet
+> hold for that window.
+
+Lets a user fire off independent tasks that run in the background inside the
+current TUI session, each optionally on its own model, and monitor them
+without blocking the main conversation. `/bg <goal> [--model <slug>]` spawns
+a detached tokio task running its own `Session` (fresh history, not shared
+with the main conversation); model selection falls back to the existing
+`task_classifier` + `model_routes` lookup when `--model` is omitted.
+`/agents` lists active agents (id, model, status, elapsed, goal); `/agents
+view <id>` shows a running agent's elapsed time or a finished agent's
+summary/files-changed/turn-count; `/agents kill <id>` aborts one in flight.
+Capped by `max_background_agents` (default 5). Transcripts persist to the
+normal `sessions`/`session_messages` tables (findable later via
+`/sessions`), even though the live `/agents` registry is scoped to the TUI
+process that spawned them.
+
+Also fixes a latent bug found while building this: destructive shell
+commands (`rm -rf`, `git push --force`, `DROP TABLE`, ...) under
+`is_subagent = true` previously queued an interactive approval prompt that
+could never be answered (no controlling terminal), hanging the turn
+forever. They now auto-deny with a clear reason instead — this also fixes
+the existing model-invoked `spawn_agent` tool, not just `/bg`.
+
+**Files:** `src/session/background_agent.rs`, `src/agent_core.rs`,
+`src/session/tools.rs`, `src/session/mod.rs`, `src/config/mod.rs`,
+`src/tui/app.rs`, `src/tui/background_handler.rs`, `src/tui/turn_handler.rs`,
+`src/tui/channel.rs`, `src/tui/commands/mod.rs`,
+`src/session/commands/info.rs`, `tests/e2e/test_background_agents.sh`
+
+Design spec: `docs/specs/2026-07-05-background-agents-design.md`
+Implementation plan: `docs/superpowers/plans/2026-07-05-background-agents.md`
+
+**Known issue found during manual live-provider verification (2026-07-06):**
+a running background agent's own `Session::handle_user_turn()` streams its
+LLM response chunks, cost/context updates, and turn-start events through the
+same process-global `tui_send` channel the main foreground session uses.
+Those intermediate per-turn `TuiEvent`s (`LlmChunk`, `CostUpdate`,
+`ContextUpdate`) aren't tagged with the background agent's id and aren't
+filtered — they get applied directly to the main `App`, so a `/bg` task's
+reply text appears as a phantom chat bubble in the main transcript, the
+main sidebar's turn/cost/context stats get overwritten with the background
+agent's numbers, and — most importantly — the main `AppState` flips to
+`Thinking` while a background agent streams, which queues any command the
+user types at the main prompt until the background agent's stream ends.
+This defeats "monitor without blocking the main conversation" for the
+duration of the background agent's own turn (only the final
+`BackgroundAgentDone` notice is correctly attributed/isolated). Needs a
+follow-up fix — likely tagging or routing per-session `TuiEvent`s so only
+the spawning/main session's events reach the live `App`.
+
+---
+
 ### feat(tui): /bg and /agents reachable from the TUI (v0.15.127 patch)
 
 Part of the in-progress `/bg` background-agents feature (see
