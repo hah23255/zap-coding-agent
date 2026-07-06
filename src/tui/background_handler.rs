@@ -21,8 +21,6 @@ fn elapsed_label(started_at: chrono::DateTime<chrono::Local>) -> String {
 }
 
 /// Handle `/bg <goal> [--model <slug>]`. Returns `Ok(false)` always (no exit needed).
-// Not yet called from slash-command dispatch — wired in the next task.
-#[allow(dead_code)]
 pub(super) fn handle_bg(app: &mut App, cmd: &str, config: &Config) -> Result<bool> {
     let arg = cmd.strip_prefix("/bg").unwrap_or("").trim();
     if arg.is_empty() {
@@ -58,8 +56,6 @@ pub(super) fn handle_bg(app: &mut App, cmd: &str, config: &Config) -> Result<boo
 }
 
 /// Handle `/agents`, `/agents view <id>`, `/agents kill <id>`. Returns `Ok(false)` always.
-// Not yet called from slash-command dispatch — wired in the next task.
-#[allow(dead_code)]
 pub(super) fn handle_agents(app: &mut App, cmd: &str) -> Result<bool> {
     let arg = cmd.strip_prefix("/agents").unwrap_or("").trim();
 

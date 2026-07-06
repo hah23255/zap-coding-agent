@@ -140,6 +140,14 @@ pub(super) async fn handle_tui_slash(
         return super::schedule_handler::handle_unschedule(app, cmd);
     }
 
+    // /bg and /agents — detached background sub-agents (independent session, own model).
+    if cmd == "/bg" || cmd.starts_with("/bg ") {
+        return super::background_handler::handle_bg(app, cmd, config);
+    }
+    if cmd == "/agents" || cmd.starts_with("/agents ") {
+        return super::background_handler::handle_agents(app, cmd);
+    }
+
     // 1. Try native inline handler (output rendered in a popup).
     if let Some(text) = super::commands::handle_inline(session, input, config) {
         if !text.is_empty() {

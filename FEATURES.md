@@ -7,6 +7,20 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): /bg and /agents reachable from the TUI (v0.15.127 patch)
+
+Part of the in-progress `/bg` background-agents feature (see
+`docs/superpowers/plans/2026-07-05-background-agents.md`). `/bg <goal>
+[--model <slug>]` and `/agents` (list/`view <id>`/`kill <id>`) are now
+wired into slash-command dispatch, the command picker, and `/help` — the
+feature built across the last several commits is now actually usable from
+a running `zap` TUI session.
+
+**Files:** `src/tui/turn_handler.rs`, `src/tui/commands/mod.rs`,
+`src/session/commands/info.rs`, `src/tui/background_handler.rs`
+
+---
+
 ### feat(tui): /bg and /agents command handlers (v0.15.126 patch)
 
 Part of the in-progress `/bg` background-agents feature (see

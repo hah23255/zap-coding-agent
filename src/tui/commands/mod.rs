@@ -52,6 +52,8 @@ pub const SLASH_COMMANDS: &[(&str, &str)] = &[
     ("/remote stop",       "stop the remote control server"),
     ("/schedule",          "schedule a goal in the TUI"),
     ("/unschedule",        "cancel a scheduled TUI job"),
+    ("/bg",                "run a goal in the background (optional --model)"),
+    ("/agents",            "list background agents"),
     // ── View ────────────────────────────────────────────────────────────────
     ("\x00 View",            "\x00"),
     ("/help",              "show help"),
@@ -399,6 +401,15 @@ mod tests {
     fn slash_alone_returns_all_commands() {
         let cmds = filter_commands("/", &[]);
         assert_eq!(cmds.len(), SLASH_COMMANDS.len());
+    }
+
+    #[test]
+    fn background_agent_commands_are_listed() {
+        let cmds = filter_commands("/bg", &[]);
+        assert!(cmds.iter().any(|(c, _)| c == "/bg"));
+
+        let cmds = filter_commands("/age", &[]);
+        assert!(cmds.iter().any(|(c, _)| c == "/agents"));
     }
 
     #[test]

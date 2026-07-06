@@ -69,6 +69,12 @@ impl Session {
                 ("/schedule list",              "show active scheduled jobs"),
                 ("/unschedule <name>",          "cancel a scheduled job"),
             ]),
+            ("background agents (TUI only)", &[
+                ("/bg <goal> [--model <slug>]", "run a goal in the background, optionally on a specific model"),
+                ("/agents",                     "list background agents and their status"),
+                ("/agents view <id>",           "show a background agent's progress or result"),
+                ("/agents kill <id>",           "cancel a running background agent"),
+            ]),
         ];
         for (group, cmds) in groups {
             println!();
