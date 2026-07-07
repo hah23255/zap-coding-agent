@@ -7,6 +7,18 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui/quota): show all providers simultaneously, pre-populate Claude at startup (v0.15.134)
+
+Quota sidebar now displays every provider that has reported usage independently
+(HashMap keyed by provider name) instead of overwriting a single slot. Both
+`quota (claude)` and `quota (codex)` appear at the same time when both have
+data. Claude quota is pre-fetched at TUI startup via a background task so the
+sidebar is populated immediately without waiting for the first turn.
+
+**Files:** `src/tui/app.rs`, `src/tui/mod.rs`, `src/tui/render/layout.rs`
+
+---
+
 ### fix(llm_client/claude_code): Ask mode falls back to Auto instead of stalling (v0.15.133 patch)
 
 Verified directly against the installed `claude` CLI (2.1.177) that the

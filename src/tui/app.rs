@@ -84,6 +84,15 @@ pub struct DiffViewerState {
     pub title: String,
 }
 
+// ── Quota entry ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct QuotaEntry {
+    pub five_hour_pct: Option<f32>,
+    pub seven_day_pct: Option<f32>,
+    pub resets_at: Option<String>,
+}
+
 // ── Goal mode ─────────────────────────────────────────────────────────────────
 
 pub struct GoalState {
@@ -283,13 +292,10 @@ pub struct App {
     pub tokens_output: u32,
     pub tokens_cache_read: u32,
 
-    /// Subscription usage window (5h/7d), from `quota_watch` — None until the
-    /// active provider has reported at least once (Codex: every response;
-    /// Claude: every ~5 min). Shown in the sidebar when present.
-    pub quota_provider: Option<String>,
-    pub quota_five_hour_pct: Option<f32>,
-    pub quota_seven_day_pct: Option<f32>,
-    pub quota_resets_at: Option<String>,
+    /// Per-provider subscription usage windows (5h/7d). Keyed by provider name
+    /// (e.g. "claude", "codex"). Entries are upserted on QuotaUpdate so both
+    /// can be shown simultaneously in the sidebar.
+    pub quotas: std::collections::HashMap<String, QuotaEntry>,
 
     pub error: Option<String>,
 
@@ -463,10 +469,7 @@ impl App {
             tokens_input: 0,
             tokens_output: 0,
             tokens_cache_read: 0,
-            quota_provider: None,
-            quota_five_hour_pct: None,
-            quota_seven_day_pct: None,
-            quota_resets_at: None,
+            quotas: std::collections::HashMap::new(),
             error: None,
             picker_sel: 0,
             cwd: std::env::current_dir()
@@ -581,10 +584,7 @@ impl App {
                 self.tokens_cache_read = cache_read;
             }
             TuiEvent::QuotaUpdate { provider, five_hour_pct, seven_day_pct, resets_at } => {
-                self.quota_provider = Some(provider);
-                self.quota_five_hour_pct = five_hour_pct;
-                self.quota_seven_day_pct = seven_day_pct;
-                self.quota_resets_at = resets_at;
+                self.quotas.insert(provider, QuotaEntry { five_hour_pct, seven_day_pct, resets_at });
             }
             TuiEvent::ContextUpdate { pct, turn } => {
                 self.context_pct = pct;

@@ -56,6 +56,10 @@ pub async fn run_tui(config: &Config) -> Result<()> {
     channel::init_perm_channel();
     channel::init_btw_queue();
 
+    // Pre-populate Claude quota at startup so the sidebar shows something
+    // immediately without waiting for the first turn.
+    tokio::spawn(crate::quota_watch::check_claude_usage_if_stale());
+
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     // Mouse reporting starts OFF so click-drag text selection works out of the
