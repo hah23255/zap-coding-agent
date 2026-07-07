@@ -29,7 +29,7 @@ pub(super) fn models_for_current_provider(config: &Config) -> Vec<String> {
     // Static fallback keyed by slug
     let mut m: Vec<String> = match slug.as_str() {
         "anthropic"    => vec!["claude-fable-5", "claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
-        "claude_code"  => vec!["claude-fable-5", "claude-sonnet-4-6", "claude-opus-4-8"],
+        "claude_code"  => vec!["auto", "claude-fable-5", "claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
         "openai"       => vec!["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
         "codex"        => vec!["gpt-5.5", "gpt-5.4", "gpt-5", "gpt-4.1", "o4-mini", "o3", "gpt-4o"],
         "gemini"       => vec!["gemini-2.0-flash", "gemini-2.5-pro", "gemini-2.5-flash"],

@@ -7,6 +7,16 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(provider): expand Claude/Claude Code model lists; add `auto` option (v0.15.136)
+
+Provider picker and REPL `/provider` command now show a complete, consistent
+model list for both Anthropic and Claude Code providers:
+- `claude_code` gains `auto` as the first option (lets the `claude` CLI pick
+  the best model for your plan) plus `claude-haiku-4-5-20251001`
+- Session/REPL `provider.rs` was stale (opus-4-7, no fable-5) — synced to
+  match the TUI lists (fable-5, sonnet-4-6, opus-4-8, haiku)
+- All three definition sites (startup, picker, REPL) are now consistent
+
 ### fix(context_manager): inject domain map content, counter Claude Code's built-in terseness (v0.15.135 patch)
 
 Two fixes prompted by "claude_code output feels basic/terse compared to
