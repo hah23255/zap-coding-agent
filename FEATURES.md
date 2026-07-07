@@ -7,6 +7,28 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(llm_client/claude_code): Ask mode falls back to Auto instead of stalling (v0.15.133 patch)
+
+Verified directly against the installed `claude` CLI (2.1.177) that the
+"live per-edit approval" idea scoped in v0.15.132's entry is a dead end for
+a subprocess-driven integration: running with `--permission-mode default`
+just silently denies the tool (visible in the `result` event's
+`permission_denials`) and has the model say "please approve the permission
+prompt" in plain text — there is no prompt to approve. The `control_request`/
+`can_use_tool` protocol described in some Agent-SDK docs/blog posts requires
+a `--permission-prompt-tool` flag that doesn't exist on this CLI at all
+(`claude --help` confirms it) — that protocol belongs to the embedded
+Python/TypeScript Agent SDK, not the standalone binary zap shells out to.
+
+So `Ask` mode for `claude_code` now falls back to `Auto` (`bypassPermissions`)
+with a one-time notice explaining why, instead of guaranteed-stalling on
+`default`. `Deny` is unaffected — it maps to `plan` (read-only), which
+doesn't need any interactive channel and works as intended.
+
+**Files:** `src/llm_client/claude_code.rs`
+
+---
+
 ### fix(llm_client/claude_code): lean system prompt, honest permission-mode mapping, proactive 5h/weekly usage warnings for Codex + Claude (v0.15.132 patch)
 
 Root cause of `claude_code` provider output feeling worse than the bare

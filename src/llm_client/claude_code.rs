@@ -12,13 +12,20 @@ pub struct ClaudeCodeClient {
     /// Claude Code permission mode passed as `--permission-mode`.
     /// Mapped from zap's own mode:
     ///   Auto → bypassPermissions (run everything, matches zap's own auto mode)
-    ///   Ask  → default (Claude Code's own per-action permission gate; this process
-    ///          is non-interactive — stdin is closed after the first write, see
-    ///          `send()` below — so there is no live prompt round-trip yet. `default`
-    ///          is still the honest choice: it makes Claude Code stop and explain
-    ///          rather than silently apply edits, unlike the old `acceptEdits` mapping.)
+    ///   Ask  → bypassPermissions too. Verified directly (2026-07): running the
+    ///          `claude` CLI with `--permission-mode default` just silently denies
+    ///          the tool (shows up in the `result` event's `permission_denials`)
+    ///          and has the model say "please approve the permission prompt" in
+    ///          plain text — there is no prompt to approve. The `control_request`/
+    ///          `can_use_tool` protocol some blog posts describe belongs to the
+    ///          Agent SDK (an embedded Python/TS library) — `claude --help` on the
+    ///          installed CLI has no `--permission-prompt-tool` flag at all, so
+    ///          that protocol isn't reachable from a subprocess-driven integration
+    ///          like this one. Ask mode is a guaranteed dead end here, so it falls
+    ///          back to Auto with a one-time notice instead of silently stalling.
     ///   Deny → plan (read-only: Claude Code may explore but cannot edit files or
-    ///          run mutating commands, matching zap's own Deny semantics)
+    ///          run mutating commands, matching zap's own Deny semantics — this one
+    ///          doesn't need interactivity, so it works as intended)
     permission_mode: &'static str,
     /// claude CLI session id captured from the init event. When present,
     /// subsequent turns are sent with `--resume <id>` and only the new user
@@ -31,9 +38,18 @@ pub struct ClaudeCodeClient {
 impl ClaudeCodeClient {
     pub fn new(model: String, suppress_stream: bool, permission_mode: crate::config::PermissionMode) -> Self {
         use crate::config::PermissionMode;
+        if matches!(permission_mode, PermissionMode::Ask) {
+            let msg = "Claude Code can't prompt for per-edit approval when driven \
+                       headlessly by zap — there's no channel to answer it on, so it \
+                       would only stall. Using Auto (bypassPermissions) for this \
+                       session instead. Use Deny for a read-only session.".to_string();
+            crate::zap_warn!("{}", msg);
+            if crate::tui::channel::is_tui_mode() {
+                crate::tui::channel::tui_send(crate::tui::channel::TuiEvent::Notice(msg));
+            }
+        }
         let permission_mode = match permission_mode {
-            PermissionMode::Auto => "bypassPermissions",
-            PermissionMode::Ask  => "default",
+            PermissionMode::Auto | PermissionMode::Ask => "bypassPermissions",
             PermissionMode::Deny => "plan",
         };
         Self {
