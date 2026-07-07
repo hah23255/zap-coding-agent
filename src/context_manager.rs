@@ -164,6 +164,10 @@ pub fn build_claude_code_system_prompt(config: &Config) -> Result<String> {
         ));
     }
 
+    if let Some(domain_map) = crate::project::load_domain_map() {
+        sections.push(format!("## Codebase Domain Map\n{domain_map}"));
+    }
+
     sections.push(
         "## Security Rules (non-negotiable)\n\
          \n\
@@ -182,6 +186,22 @@ pub fn build_claude_code_system_prompt(config: &Config) -> Result<String> {
             sections.push(format!("## Current Git Status\n```\n{}\n```", status));
         }
     }
+
+    // Claude Code's own built-in system prompt has a strong, deliberate bias
+    // toward terse output ("a concise response is generally less than 4
+    // lines", lead with the answer over reasoning — this is what makes it
+    // terser than plain Claude, in every context, not something zap can turn
+    // off). zap's use case is a rich TUI where the user wants full
+    // explanations, not compressed CLI-script output, so this explicitly
+    // asks for more than Claude Code's own default.
+    sections.push(
+        "## Response Depth\n\
+         Give full, thorough explanations here — this is a rich TUI session, not a \
+         scripted CI pipe. Don't compress to the shortest possible answer the way you \
+         would in a bare terminal; explain your reasoning, what you found, and why it \
+         matters. Still avoid padding or filler — depth, not length for its own sake."
+            .to_string(),
+    );
 
     Ok(sections.join("\n\n"))
 }
@@ -659,8 +679,14 @@ pub fn build_system_prompt_with_skills(config: &Config, skill_block: &str) -> Re
         );
     }
 
-    // ── Domain map staleness nudge ───────────────────────────────────────────
-    if db_exists && crate::project::domain_map_is_stale() && !crate::project::has_domain_map() {
+    // ── Domain map ────────────────────────────────────────────────────────────
+    // When one exists, inject its actual content (business domains, dependency
+    // direction, cross-cutting concerns) — previously only a "you're missing
+    // one" nudge fired here, never the content itself, even when a real map
+    // already existed on disk.
+    if let Some(domain_map) = crate::project::load_domain_map() {
+        sections.push(format!("## Codebase Domain Map\n{domain_map}"));
+    } else if db_exists && crate::project::domain_map_is_stale() {
         sections.push(
             "## Domain Map\n\
              No business-domain map exists for this project yet. \

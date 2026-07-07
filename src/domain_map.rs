@@ -48,6 +48,24 @@ pub fn has_domain_map() -> bool {
         .unwrap_or(false)
 }
 
+/// Load the domain map's content (business domains, dependency direction,
+/// cross-cutting concerns) from between its sentinel comments, if present.
+/// This is real, already-computed architecture knowledge — distinct from the
+/// `/init`-only "## Analysis" section — and previously wasn't surfaced in any
+/// system prompt at all (only a "you should run /understand" nudge fired when
+/// it was *missing*; the content itself was never injected when it existed).
+pub fn load_domain_map() -> Option<String> {
+    load_domain_map_from(&crate::project::zap_dir().join("understanding.md"))
+}
+
+pub(crate) fn load_domain_map_from(path: &std::path::Path) -> Option<String> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    let start = raw.find(DOMAIN_BEGIN)? + DOMAIN_BEGIN.len();
+    let end = raw[start..].find(DOMAIN_END)? + start;
+    let content = raw[start..end].trim();
+    if content.is_empty() { None } else { Some(content.to_string()) }
+}
+
 /// Merge the LLM-generated domain section into `.zap/understanding.md`.
 /// If the file already has a domain section (sentinel pair), it is replaced.
 /// Otherwise the section is appended.
@@ -198,6 +216,25 @@ mod tests {
         assert!(result.contains("kept"), "trailing content lost");
         assert!(result.contains("new"), "new domain content missing");
         assert!(!result.contains("old\n"), "old content not replaced");
+    }
+
+    #[test]
+    fn load_domain_map_extracts_content_between_sentinels() {
+        let existing = format!(
+            "# Understanding\n\n{}\n## Domain Map\n\n### Business Domains\nauth: src/auth.rs\n{}\n",
+            DOMAIN_BEGIN, DOMAIN_END
+        );
+        let f = tmp_understanding(&existing);
+        let content = load_domain_map_from(f.path()).expect("domain map should be found");
+        assert!(content.contains("Business Domains"));
+        assert!(content.contains("auth: src/auth.rs"));
+        assert!(!content.contains(DOMAIN_BEGIN), "sentinel should be stripped");
+    }
+
+    #[test]
+    fn load_domain_map_absent_returns_none() {
+        let f = tmp_understanding("# Understanding\n\nno domain map here\n");
+        assert!(load_domain_map_from(f.path()).is_none());
     }
 
     #[test]

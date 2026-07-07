@@ -61,6 +61,7 @@ pub use crate::domain_map::{
     build_domain_extraction_prompt,
     domain_map_is_stale,
     has_domain_map,
+    load_domain_map,
     mark_domain_map_current,
     save_domain_section,
     source_module_count,

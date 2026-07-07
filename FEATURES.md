@@ -7,6 +7,29 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(context_manager): inject domain map content, counter Claude Code's built-in terseness (v0.15.135 patch)
+
+Two fixes prompted by "claude_code output feels basic/terse compared to
+direct claude" — investigated and found the root cause is *not* a zap bug:
+Claude Code's own built-in system prompt has an explicit "Output and tone"
+section biasing toward terse replies ("a concise response is generally less
+than 4 lines") — this is why Claude Code is terser than plain Claude in any
+context, zap or bare terminal. Since zap can only append to that baked-in
+prompt, not remove it, `build_claude_code_system_prompt` now explicitly asks
+for fuller explanations to counteract it (new "Response Depth" section).
+
+Also fixed a real, separate gap found while investigating: `.zap/understanding.md`'s
+Domain Map section (business domains, dependency direction, cross-cutting
+concerns from `/understand`) was never actually injected into *any* system
+prompt — only a "you're missing one, run /understand" nudge fired, and only
+when the map didn't exist. When one does exist, its content is now injected
+as "## Codebase Domain Map" in both the claude_code prompt and the regular
+API-provider prompt.
+
+**Files:** `src/context_manager.rs`, `src/domain_map.rs`, `src/project.rs`
+
+---
+
 ### feat(tui/quota): show all providers simultaneously, pre-populate Claude at startup (v0.15.134)
 
 Quota sidebar now displays every provider that has reported usage independently
