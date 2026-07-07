@@ -87,6 +87,27 @@ fn warn_if_usage_limit(text: &str) {
     }
 }
 
+/// Extracts complete text blocks from an "assistant" event's `content` array.
+/// Without `--include-partial-messages`, each block Claude Code emits is
+/// already whole — never a growing delta of one in-progress block, confirmed
+/// directly against the CLI (a single 881-char answer arrived as one event,
+/// not split across chunks). Two blocks in the same event, or across separate
+/// events sharing a message id, are independent complete units, not partial
+/// pieces of a running total — the caller must not diff them by length.
+fn text_blocks(content: &serde_json::Value) -> Vec<String> {
+    content
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter(|b| b["type"].as_str() == Some("text"))
+                .filter_map(|b| b["text"].as_str())
+                .filter(|t| !t.is_empty())
+                .map(|t| t.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Finds the claude binary from PATH or common brew/system install locations.
 /// Cached — probing costs a `claude --version` subprocess (~0.5s), which must
 /// not be paid on every turn.
@@ -257,7 +278,6 @@ impl LlmProvider for ClaudeCodeClient {
         });
 
         let mut full_text = String::new();
-        let mut prev_len = 0usize;
         let mut stop_reason = "end_turn".to_string();
         let mut usage = Usage::default();
         let mut result_is_error = false;
@@ -273,41 +293,40 @@ impl LlmProvider for ClaudeCodeClient {
                 }
 
                 "assistant" => {
-                    // Collect text from all content blocks in this event.
-                    let text: String = ev["message"]["content"]
-                        .as_array()
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|b| {
-                                    if b["type"].as_str() == Some("text") {
-                                        b["text"].as_str().map(|s| s.to_string())
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .join("")
-                        })
-                        .unwrap_or_default();
-
-                    // Each assistant event carries that message's full text so far;
-                    // across messages the text restarts. Append only what's new,
-                    // treating a shorter text as the start of a new message.
-                    if text.len() < prev_len {
-                        prev_len = 0;
+                    // Without --include-partial-messages (not passed — see cmd
+                    // construction above), Claude Code does not stream text as
+                    // growing deltas: each "assistant" event carries exactly one
+                    // new, already-complete content block (thinking, text, or
+                    // tool_use), even when several events share the same
+                    // message.id across a multi-step turn. Verified directly
+                    // against the real CLI (2026-07): a single 881-char answer
+                    // arrived as one event with the full text, never split
+                    // across growing chunks.
+                    //
+                    // The previous logic here diffed against a running
+                    // "previous length" as if blocks were cumulative deltas of
+                    // one message. That assumption is wrong for this protocol —
+                    // two independent, complete text blocks (e.g. two separate
+                    // "Let me check X" narration lines with no tool call
+                    // between them) could end up with the second block's
+                    // *length* coincidentally not shorter than the first's,
+                    // so the "new message" reset never fired and the code
+                    // sliced off part of the second block's own text instead of
+                    // treating it as new content — producing glued-together,
+                    // missing-space output like "…defined.Let me check…".
+                    //
+                    // Fix: treat every text block as a complete, standalone
+                    // unit and just separate consecutive ones with a blank line.
+                    for text in text_blocks(&ev["message"]["content"]) {
                         if !full_text.is_empty() && !full_text.ends_with('\n') {
                             full_text.push_str("\n\n");
                         }
-                    }
-                    if text.len() > prev_len {
-                        let chunk = text[prev_len..].to_string();
-                        crate::remote_channel::send_chunk(&chunk);
+                        crate::remote_channel::send_chunk(&text);
                         if !self.suppress_stream {
                             if let Some(cb) = before_output.take() { cb(); }
-                            highlighter.push(&chunk);
+                            highlighter.push(&text);
                         }
-                        full_text.push_str(&chunk);
-                        prev_len = text.len();
+                        full_text.push_str(&text);
                     }
 
                     if let Some(u) = ev["message"]["usage"].as_object() {
@@ -404,6 +423,71 @@ mod tests {
     }
     fn assistant(text: &str) -> Message {
         Message { role: "assistant".into(), content: vec![ContentBlock::Text { text: text.into() }] }
+    }
+
+    /// Mirrors the accumulation loop in `send()`'s "assistant" branch, minus
+    /// the streaming side effects, so the joining behavior is testable.
+    fn accumulate(events: &[serde_json::Value]) -> String {
+        let mut full_text = String::new();
+        for ev in events {
+            for text in text_blocks(&ev["message"]["content"]) {
+                if !full_text.is_empty() && !full_text.ends_with('\n') {
+                    full_text.push_str("\n\n");
+                }
+                full_text.push_str(&text);
+            }
+        }
+        full_text
+    }
+
+    #[test]
+    fn text_blocks_extracts_only_text_type_and_skips_empty() {
+        let content = serde_json::json!([
+            {"type": "thinking", "thinking": "pondering"},
+            {"type": "text", "text": "hello"},
+            {"type": "tool_use", "name": "Read", "input": {}},
+            {"type": "text", "text": ""},
+        ]);
+        assert_eq!(text_blocks(&content), vec!["hello".to_string()]);
+    }
+
+    #[test]
+    fn two_independent_text_blocks_get_a_blank_line_not_glued_together() {
+        // Regression test: this exact pair (shorter block followed by a
+        // longer, entirely unrelated one, no tool call in between) is what
+        // corrupted output in production. The old length-diffing logic
+        // treated the second block as a continuation of the first whenever
+        // its length wasn't shorter, silently slicing off however many
+        // characters matched the first block's length and gluing the
+        // remainder straight on with no separator — e.g. dropping "Let me "
+        // and producing "…defined.check how the model is passed…".
+        let events = [
+            serde_json::json!({"message": {"content": [
+                {"type": "text", "text": "Let me find where Claude models are defined."}
+            ]}}),
+            serde_json::json!({"message": {"content": [
+                {"type": "text", "text": "Let me check how the model is passed to the claude CLI and what auto means there."}
+            ]}}),
+        ];
+        let result = accumulate(&events);
+        assert_eq!(
+            result,
+            "Let me find where Claude models are defined.\n\n\
+             Let me check how the model is passed to the claude CLI and what auto means there."
+        );
+        assert!(!result.contains("defined.Let"), "blocks must not be glued together");
+    }
+
+    #[test]
+    fn thinking_and_tool_use_blocks_produce_no_text_and_no_stray_separators() {
+        let events = [
+            serde_json::json!({"message": {"content": [{"type": "text", "text": "Reading both files."}]}}),
+            serde_json::json!({"message": {"content": [{"type": "tool_use", "name": "Read", "input": {}}]}}),
+            serde_json::json!({"message": {"content": [{"type": "tool_use", "name": "Read", "input": {}}]}}),
+            serde_json::json!({"message": {"content": [{"type": "text", "text": "Cargo.toml is the package manifest."}]}}),
+        ];
+        let result = accumulate(&events);
+        assert_eq!(result, "Reading both files.\n\nCargo.toml is the package manifest.");
     }
 
     #[test]

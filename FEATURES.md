@@ -7,6 +7,32 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(llm_client/claude_code): stop corrupting output when two text blocks arrive with no tool call between them (v0.15.137 patch)
+
+Real bug, not a depth/style issue: `send()`'s "assistant" event handler treated
+each event's text as a cumulative delta of one growing message, diffing
+against a running `prev_len` and resetting only when the new text was
+*shorter* than the last. Verified directly against the CLI (no
+`--include-partial-messages` passed) that this assumption is wrong — every
+block arrives already complete, never as a partial delta, even across
+several events sharing the same `message.id` in one turn. When two
+independent, complete text blocks happened to *not* satisfy the
+`len() < prev_len` shortening check (e.g. a short "Let me check X" line
+followed by a longer, unrelated one, no tool call between them), the old
+code silently sliced off however many characters matched the first block's
+length from the *second* block's own text and glued the remainder onto the
+first with zero separator — producing exactly the glued-together,
+missing-space output reported ("…defined.Let me check…").
+
+Fixed by extracting a pure `text_blocks()` helper and treating every block
+as a complete, standalone unit, separated by a blank line — no length
+diffing at all. Added regression tests reproducing the exact corruption
+(confirmed the old logic would have failed them).
+
+**Files:** `src/llm_client/claude_code.rs`
+
+---
+
 ### feat(provider): expand Claude/Claude Code model lists; add `auto` option (v0.15.136)
 
 Provider picker and REPL `/provider` command now show a complete, consistent
