@@ -7,6 +7,27 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(provider): add OpenCode Zen (Go plan) as a built-in OpenAI-compatible provider (v0.15.138 patch)
+
+New preset entry `opencode_zen` alongside DeepSeek/Groq/Fireworks/etc. — same
+`chat/completions`-shaped OpenAI-compatible transport, no new code path
+needed. Endpoint `https://opencode.ai/zen/go/v1/chat/completions`, ten
+models (`grok-4.5`, `glm-5.2`, `glm-5.1`, `kimi-k3`, `kimi-k2.7-code`,
+`kimi-k2.6`, `deepseek-v4-pro`, `deepseek-v4-flash`, `mimo-v2.5`,
+`mimo-v2.5-pro`), `needs_key: true`. Added to all three provider-list
+definition sites (`tui/provider_picker.rs`, `tui/startup.rs`,
+`session/commands/provider.rs`) to keep the picker, onboarding flow, and
+`/provider` REPL command consistent — same three-site sync pattern as
+v0.15.136.
+
+The Zen "Go" plan's Anthropic-compatible models (MiniMax, Qwen) use a
+different `/v1/messages` request/response shape that zap's `OpenAiClient`
+doesn't parse — not added; would need a second client code path.
+
+**Files:** `src/tui/provider_picker.rs`, `src/tui/startup.rs`, `src/session/commands/provider.rs`, `tests/provider_e2e.rs`
+
+---
+
 ### fix(llm_client/claude_code): stop corrupting output when two text blocks arrive with no tool call between them (v0.15.137 patch)
 
 Real bug, not a depth/style issue: `send()`'s "assistant" event handler treated

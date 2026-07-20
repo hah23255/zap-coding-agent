@@ -72,10 +72,11 @@ fn all_expected_providers_present() {
     for expected in &["lm_studio", "ollama", "anthropic", "claude_code", "codex",
                       "openai", "gemini", "deepseek", "groq", "mistral",
                       "xai", "together", "perplexity", "cohere",
-                      "openrouter", "kimi", "zhipu", "qwen", "fireworks", "cerebras", "custom"] {
+                      "openrouter", "kimi", "zhipu", "qwen", "fireworks", "cerebras",
+                      "opencode_zen", "custom"] {
         assert!(slugs.contains(expected), "provider '{}' missing from list", expected);
     }
-    assert_eq!(slugs.len(), 21, "expected 21 providers, got {}", slugs.len());
+    assert_eq!(slugs.len(), 22, "expected 22 providers, got {}", slugs.len());
 }
 
 // Both scenarios live in one test (rather than two `#[test]` fns) because
