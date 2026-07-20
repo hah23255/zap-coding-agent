@@ -7,6 +7,24 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(tui): pasting into the API key input box did nothing (v0.15.139 patch)
+
+`InputAction::PasteText` only ever inserted pasted text into the main chat
+input box, gated on `AppState::Idle` — it had no idea `app.api_key_input`
+(the provider-switch key-entry overlay) exists, since that overlay isn't
+tracked via `AppState` at all. Result: pasting a key while the overlay was
+open (`app.state` is still `Idle` underneath it) silently landed in the
+hidden chat input instead of the visible key field, so Cmd+V appeared to
+do nothing.
+
+Fixed by checking `app.api_key_input` first and appending the pasted text
+(trimmed) to `pending.input` when the overlay is open, falling back to the
+existing main-input behavior otherwise.
+
+**Files:** `src/tui/actions.rs`
+
+---
+
 ### feat(provider): add OpenCode Zen (Go plan) as a built-in OpenAI-compatible provider (v0.15.138 patch)
 
 New preset entry `opencode_zen` alongside DeepSeek/Groq/Fireworks/etc. — same

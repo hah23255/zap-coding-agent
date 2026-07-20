@@ -238,7 +238,9 @@ pub(super) async fn handle_action(
         }
 
         InputAction::PasteText(text) => {
-            if matches!(app.state, AppState::Idle) {
+            if let Some(ref mut pending) = app.api_key_input {
+                pending.input.push_str(text.trim());
+            } else if matches!(app.state, AppState::Idle) {
                 input::insert_text_at_cursor(app, &text);
             }
         }
