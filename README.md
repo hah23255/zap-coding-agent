@@ -27,6 +27,8 @@
 
 [![Context Visibility in zap](https://img.youtube.com/vi/-wa1t2YiHDg/maxresdefault.jpg)](https://youtu.be/-wa1t2YiHDg?si=5XKkgaMx8H1LZtF4)
 
+> 📺 **Featured:** [_"I Found a Better AI Coding Agent (ZAP)"_](https://youtu.be/O1u6YtuuGLQ) — a video walkthrough by [**The Curious Guy** (@dhanushnehru)](https://www.youtube.com/@dhanushnehru).
+
 ---
 
 ## Eradicating Prompt Bloat in AI Coding Agents
