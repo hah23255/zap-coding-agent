@@ -438,8 +438,12 @@ pub struct PendingProviderSwitch {
     pub input: String,
     /// Whether a key is already saved for this provider (Enter with empty input keeps it).
     pub has_existing_key: bool,
+    /// Step: entering the endpoint URL (Custom provider only, comes before the key step).
+    pub picking_base_url: bool,
     /// Step: false = entering API key, true = picking model.
     pub picking_model: bool,
+    /// Step: typing a free-text model name (chosen "Other…" or endpoint had no model list).
+    pub typing_model: bool,
     /// Selected model index (used in model-picking step).
     pub model_sel: usize,
     /// Resolved API key (carried from key step to model step).

@@ -7,6 +7,35 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(provider): Custom (OpenAI-compatible) flow + Linux arm64 release (v0.15.140 patch)
+
+Two reported issues.
+
+**#9 — Custom provider `Other…` did nothing.** Selecting *Custom
+(OpenAI-compatible)* jumped straight to a model list whose only entry was
+`Other…`; pressing Enter on it filtered `Other…` out and fell back to the
+first item — which was `Other…` again — so it "switched" to a provider with
+model `"Other…"` and **no endpoint URL ever collected**. There was no way to
+type a URL or a model name.
+
+Fixed by giving `PendingProviderSwitch` two new steps — `picking_base_url`
+and `typing_model` — so the Custom flow is: **endpoint URL** (normalized via
+`normalize_openai_url`) → **API key** (Enter to skip for local servers like
+Ollama/LM Studio) → live model list fetched from the endpoint's `/models`, or
+a **free-text model name** when the endpoint lists none. `Other…` now opens
+free-text model entry everywhere (including `/model`) instead of resolving to
+the literal string. Existing-entry base_url is now updated on re-config too.
+
+**#8 — no Linux arm64 build; install.sh looked silent.** Added a native
+`aarch64-unknown-linux-gnu` matrix leg on GitHub's free `ubuntu-24.04-arm`
+runner, publishing `zap-linux-arm64.tar.gz`. `install.sh` already had the
+`aarch64|arm64` case and a "no asset → clear error" fallback, so once the
+asset ships the one-liner install just works.
+
+**Files:** `src/tui/actions.rs`, `src/tui/app.rs`, `src/tui/lifecycle.rs`, `src/tui/render/overlays.rs`, `src/tui/turn_handler.rs`, `.github/workflows/build.yml`, `README.md`
+
+---
+
 ### fix(tui): pasting into the API key input box did nothing (v0.15.139 patch)
 
 `InputAction::PasteText` only ever inserted pasted text into the main chat

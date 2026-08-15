@@ -458,11 +458,104 @@ pub(super) fn draw_api_key_input(frame: &mut Frame, app: &App, area: Rect) {
         None    => return,
     };
 
-    if pending.picking_model {
+    if pending.picking_base_url {
+        draw_url_entry(frame, pending, area);
+    } else if pending.typing_model {
+        draw_model_name_entry(frame, pending, area);
+    } else if pending.picking_model {
         draw_model_picker(frame, pending, area);
     } else {
         draw_key_entry(frame, pending, area);
     }
+}
+
+/// Simple (unmasked) single-line text-entry overlay, shared by the endpoint-URL
+/// and model-name steps of the Custom provider flow.
+fn draw_text_entry(
+    frame: &mut Frame,
+    area: Rect,
+    title: String,
+    label: &str,
+    value: &str,
+    helper: Vec<Line>,
+) {
+    let w = 66u16.min(area.width);
+    let h = (helper.len() as u16 + 6).min(area.height);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let overlay = Rect { x, y, width: w, height: h };
+
+    frame.render_widget(Clear, overlay);
+
+    let border_c = Color::Rgb(255, 200, 80);
+    let accent   = Color::Rgb(255, 200, 80);
+    let muted    = Color::Rgb(140, 135, 165);
+    let dim      = Color::Rgb(80, 75, 100);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_c))
+        .title(Span::styled(title, Style::default().fg(border_c).add_modifier(Modifier::BOLD)));
+
+    let inner = block.inner(overlay);
+    frame.render_widget(block, overlay);
+
+    let hint_area    = Rect { y: inner.y + inner.height.saturating_sub(1), height: 1, ..inner };
+    let content_area = Rect { height: inner.height.saturating_sub(1), ..inner };
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "  Enter = next   Backspace = delete   Esc = cancel",
+            Style::default().fg(dim),
+        )),
+        hint_area,
+    );
+
+    let field_text = if value.is_empty() { "_".to_string() } else { value.to_string() };
+    let mut rows = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(format!("  {label}: "), Style::default().fg(muted)),
+            Span::styled(field_text, Style::default().fg(Color::White).bold()),
+            Span::styled("▎", Style::default().fg(accent)),
+        ]),
+        Line::from(""),
+    ];
+    rows.extend(helper);
+    frame.render_widget(Paragraph::new(rows), content_area);
+}
+
+fn draw_url_entry(frame: &mut Frame, pending: &crate::tui::app::PendingProviderSwitch, area: Rect) {
+    let muted  = Color::Rgb(140, 135, 165);
+    let accent = Color::Rgb(255, 200, 80);
+    let helper = vec![
+        Line::from(vec![
+            Span::styled("  Your OpenAI-compatible endpoint, e.g. ", Style::default().fg(muted)),
+        ]),
+        Line::from(vec![
+            Span::styled("    http://192.168.1.99:11434/v1", Style::default().fg(accent)),
+        ]),
+    ];
+    draw_text_entry(
+        frame, area,
+        format!(" {} — endpoint URL ", pending.name),
+        "URL", &pending.input, helper,
+    );
+}
+
+fn draw_model_name_entry(frame: &mut Frame, pending: &crate::tui::app::PendingProviderSwitch, area: Rect) {
+    let muted = Color::Rgb(140, 135, 165);
+    let helper = vec![
+        Line::from(vec![
+            Span::styled("  Exact model id served by this endpoint.", Style::default().fg(muted)),
+        ]),
+    ];
+    draw_text_entry(
+        frame, area,
+        format!(" {} — model name ", pending.name),
+        "Model", &pending.input, helper,
+    );
 }
 
 fn draw_key_entry(frame: &mut Frame, pending: &crate::tui::app::PendingProviderSwitch, area: Rect) {
@@ -524,6 +617,12 @@ fn draw_key_entry(frame: &mut Frame, pending: &crate::tui::app::PendingProviderS
             Span::styled("  Don't have one? Get it at ", Style::default().fg(muted)),
             Span::styled("aistudio.google.com/apikey", Style::default().fg(accent)),
             Span::styled(" — includes credits.", Style::default().fg(muted)),
+        ]));
+    } else if pending.slug == "custom" {
+        rows.push(Line::from(vec![
+            Span::styled("  Press ", Style::default().fg(muted)),
+            Span::styled("Enter", Style::default().fg(accent)),
+            Span::styled(" to skip for local servers (Ollama, LM Studio…).", Style::default().fg(muted)),
         ]));
     } else {
         rows.push(Line::from(vec![

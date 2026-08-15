@@ -33,6 +33,12 @@ jobs:
             binary_ext: ""
             upload_file: zap-linux-x86_64.tar.gz
 
+          - os: ubuntu-24.04-arm     # native ARM64 Linux runner (free for public repos)
+            target: aarch64-unknown-linux-gnu
+            artifact: zap-linux-arm64
+            binary_ext: ""
+            upload_file: zap-linux-arm64.tar.gz
+
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: zap-windows-x86_64
@@ -136,6 +142,7 @@ jobs:
             | macOS Apple Silicon (ARM) | `zap-macos-arm64.tar.gz` | `zap` + `install.sh` + README.md + FEATURES.md |
             | macOS Intel (x86_64) | `zap-macos-x86_64.tar.gz` | `zap` + `install.sh` + README.md + FEATURES.md |
             | Linux x86_64 | `zap-linux-x86_64.tar.gz` | `zap` + `install.sh` + README.md + FEATURES.md |
+            | Linux ARM64 (aarch64) | `zap-linux-arm64.tar.gz` | `zap` + `install.sh` + README.md + FEATURES.md |
             | Windows x86_64 | `zap-windows-x86_64.zip` | `zap.exe` + `install.ps1` + README.md + FEATURES.md |
 
             **Commit:** `${{ github.sha }}`
@@ -160,4 +167,5 @@ jobs:
             artifacts/zap-macos-arm64/zap-macos-arm64.tar.gz
             artifacts/zap-macos-x86_64/zap-macos-x86_64.tar.gz
             artifacts/zap-linux-x86_64/zap-linux-x86_64.tar.gz
+            artifacts/zap-linux-arm64/zap-linux-arm64.tar.gz
             artifacts/zap-windows-x86_64/zap-windows-x86_64.zip

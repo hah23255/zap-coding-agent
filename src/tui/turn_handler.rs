@@ -130,7 +130,9 @@ pub(super) async fn handle_tui_slash(
             auth_header:      None,
             input:            String::new(),
             has_existing_key: !session.config.api_key.is_empty(),
+            picking_base_url: false,
             picking_model:    true,
+            typing_model:     false,
             model_sel,
             resolved_key:     Some(session.config.api_key.clone()),
         });

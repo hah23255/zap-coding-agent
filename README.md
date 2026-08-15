@@ -680,6 +680,7 @@ The script detects your OS and architecture, downloads the latest release, insta
 | macOS Apple Silicon (ARM64) | `zap-macos-arm64.tar.gz` |
 | macOS Intel (x86_64) | `zap-macos-x86_64.tar.gz` |
 | Linux x86_64 | `zap-linux-x86_64.tar.gz` |
+| Linux ARM64 (aarch64) | `zap-linux-arm64.tar.gz` |
 
 ### Windows x86_64
 

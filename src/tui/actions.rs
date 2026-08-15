@@ -647,22 +647,55 @@ pub(super) async fn handle_action(
         }
 
         InputAction::ApiKeySubmit => {
-            if let Some(ref mut pending) = app.api_key_input {
-                if pending.picking_model {
-                    let chosen = pending.models.get(pending.model_sel)
-                        .filter(|m| m.as_str() != "Other…")
+            // Provider-switch overlay step machine:
+            //   [Custom only] picking_base_url → API key entry → picking_model / typing_model
+            if let Some(pending) = app.api_key_input.as_mut() {
+                if pending.picking_base_url {
+                    // Endpoint URL entry (Custom provider). Ignore an empty submit.
+                    let typed = pending.input.trim();
+                    if !typed.is_empty() {
+                        pending.base_url = Some(
+                            crate::llm_client::normalize_openai_url(Some(typed))
+                        );
+                        pending.input.clear();
+                        pending.picking_base_url = false;
+                        // Falls through to the API key entry step next.
+                    }
+                } else if pending.typing_model {
+                    // Free-text model name (chose "Other…" or endpoint listed no models).
+                    let typed = pending.input.trim().to_string();
+                    if !typed.is_empty() {
+                        let pending = app.api_key_input.take().unwrap();
+                        let current_config = session.config.clone();
+                        lifecycle::apply_provider_switch(
+                            session, app, &current_config,
+                            pending.slug, pending.name, typed,
+                            pending.kind_str, pending.provider,
+                            pending.base_url, pending.auth_header,
+                            pending.resolved_key,
+                        );
+                    }
+                } else if pending.picking_model {
+                    let selected = pending.models.get(pending.model_sel)
                         .cloned()
-                        .unwrap_or_else(|| pending.models.first().cloned().unwrap_or_default());
-                    let pending = app.api_key_input.take().unwrap();
-                    let current_config = session.config.clone();
-                    lifecycle::apply_provider_switch(
-                        session, app, &current_config,
-                        pending.slug, pending.name, chosen,
-                        pending.kind_str, pending.provider,
-                        pending.base_url, pending.auth_header,
-                        pending.resolved_key,
-                    );
+                        .unwrap_or_default();
+                    if selected == "Other…" {
+                        // Switch to free-text model entry instead of selecting the literal.
+                        pending.typing_model = true;
+                        pending.input.clear();
+                    } else {
+                        let pending = app.api_key_input.take().unwrap();
+                        let current_config = session.config.clone();
+                        lifecycle::apply_provider_switch(
+                            session, app, &current_config,
+                            pending.slug, pending.name, selected,
+                            pending.kind_str, pending.provider,
+                            pending.base_url, pending.auth_header,
+                            pending.resolved_key,
+                        );
+                    }
                 } else {
+                    // API key entry step.
                     let typed = pending.input.trim().to_string();
                     let api_key = if typed.is_empty() {
                         if pending.has_existing_key {
@@ -676,8 +709,27 @@ pub(super) async fn handle_action(
                         Some(typed)
                     };
                     pending.resolved_key = api_key;
-                    pending.picking_model = true;
+                    pending.input.clear();
                     pending.model_sel = 0;
+                    // For the Custom provider, ask the endpoint what models it serves
+                    // now that we have the URL (+ optional key). Fall back to typing a
+                    // model name if the endpoint has no /models list.
+                    if pending.slug == "custom" {
+                        let fetched = pending.base_url.as_deref()
+                            .map(|u| crate::llm_client::fetch_openai_compatible_models_with_auth(
+                                u, pending.resolved_key.as_deref(), &Default::default()))
+                            .unwrap_or_default();
+                        if fetched.is_empty() {
+                            pending.typing_model = true;
+                        } else {
+                            let mut m = fetched;
+                            m.push("Other…".into());
+                            pending.models = m;
+                            pending.picking_model = true;
+                        }
+                    } else {
+                        pending.picking_model = true;
+                    }
                 }
             }
         }

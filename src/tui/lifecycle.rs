@@ -307,11 +307,16 @@ pub(super) fn handle_select_provider(
                 let models = entry.models.clone();
                 let auth_header = entry.auth_header.map(|h| h.to_string());
                 let base_url = entry.base_url.clone();
+                // The Custom provider has no fixed endpoint — start by asking for the
+                // base URL, then the (optional) key, then the model.
+                let is_custom = slug == "custom" && base_url.is_none();
                 app.api_key_input = Some(PendingProviderSwitch {
                     slug, name, models, kind_str, provider, base_url, auth_header,
                     input: String::new(),
                     has_existing_key: existing_key.is_some(),
-                    picking_model: !needs_key,
+                    picking_base_url: is_custom,
+                    picking_model: !needs_key && !is_custom,
+                    typing_model: false,
                     model_sel: 0,
                     resolved_key: None,
                 });
@@ -451,6 +456,10 @@ pub(super) fn apply_provider_switch(
     let provider_entry = if let Some(existing) = base_config.all_providers.get(&slug) {
         let mut e = existing.clone();
         e.model = Some(model.clone());
+        // A freshly entered endpoint URL (e.g. re-pointing the Custom provider) wins.
+        if base_url.is_some() {
+            e.base_url = base_url.clone();
+        }
         if let Some(ref key) = api_key {
             if !key.is_empty() {
                 e.api_key = api_key.clone();
