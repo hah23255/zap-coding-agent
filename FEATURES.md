@@ -7,6 +7,20 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### fix(deps): bump h2 to 0.4.16 for RUSTSEC-2026-0258 (v0.15.142 patch)
+
+CI security audit (`cargo audit`) started failing after RustSec published
+[RUSTSEC-2026-0258](https://rustsec.org/advisories/RUSTSEC-2026-0258) on
+2026-08-17 — *"h2 unbounded empty DATA frames"* — against `h2 0.4.14`, a
+transitive dependency pulled in via `hyper` (through `axum` and `reqwest`).
+Fixed with a lockfile-only bump `h2 0.4.14 → 0.4.16` (`cargo update -p h2`);
+semver-compatible, no code changes. The other audit lines (bincode/paste/lru)
+are allow-listed unmaintained/unsound warnings and don't fail the build.
+
+**Files:** `Cargo.lock`
+
+---
+
 ### feat(tui): queue a follow-up request while a turn is running (v0.15.141 patch)
 
 Requested in #10. While the agent is busy (waiting on the LLM or running tools),
