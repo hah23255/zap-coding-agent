@@ -625,6 +625,24 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
     }
 }
 
+/// While a turn is running, forward only plain editing/submit keys to
+/// `handle_key` so the user can type a follow-up into the input box and queue it
+/// (Enter-while-busy routes into `app.queued_input`, issue #10). Ctrl shortcuts,
+/// navigation, and heavier actions (pickers, paste, diff) keep their existing
+/// mid-turn behavior and are intentionally not run inside the turn loop.
+pub(super) fn forward_in_turn_edit_key(app: &mut App, key: KeyEvent) {
+    let is_ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let editing = matches!(
+        key.code,
+        KeyCode::Backspace | KeyCode::Left | KeyCode::Right
+            | KeyCode::Home | KeyCode::End | KeyCode::Enter | KeyCode::Esc
+    );
+    let typing = matches!(key.code, KeyCode::Char(_)) && !is_ctrl;
+    if editing || typing {
+        let _ = handle_key(app, key);
+    }
+}
+
 pub(super) fn insert_text_at_cursor(app: &mut App, text: &str) {
     let byte_idx = char_to_byte_idx(&app.input, app.cursor);
     app.input.insert_str(byte_idx, text);
@@ -1136,5 +1154,68 @@ mod command_text_tests {
     #[test]
     fn leaves_skill_names_alone() {
         assert_eq!(command_text("/my-skill"), "/my-skill");
+    }
+}
+
+#[cfg(test)]
+mod queue_input_tests {
+    use super::{handle_key, InputAction};
+    use crate::tui::app::{App, AppState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn enter_while_busy_queues_input_and_clears_draft() {
+        let mut app = App::new("test-model", "main");
+        app.state = AppState::Thinking;
+        app.input = "run the tests next".to_string();
+        app.cursor = app.input.chars().count();
+
+        let action = handle_key(&mut app, key(KeyCode::Enter));
+
+        // Busy Enter does not submit — it queues for after the turn.
+        assert!(matches!(action, InputAction::None));
+        assert_eq!(app.queued_input.as_deref(), Some("run the tests next"));
+        assert!(app.input.is_empty());
+        assert_eq!(app.cursor, 0);
+    }
+
+    #[test]
+    fn typing_while_busy_builds_the_draft() {
+        let mut app = App::new("test-model", "main");
+        app.state = AppState::Thinking;
+
+        handle_key(&mut app, key(KeyCode::Char('h')));
+        handle_key(&mut app, key(KeyCode::Char('i')));
+
+        assert_eq!(app.input, "hi");
+        assert!(app.queued_input.is_none());
+    }
+
+    #[test]
+    fn esc_while_busy_cancels_queued_input() {
+        let mut app = App::new("test-model", "main");
+        app.state = AppState::Thinking;
+        app.queued_input = Some("cancel me".to_string());
+
+        handle_key(&mut app, key(KeyCode::Esc));
+
+        assert!(app.queued_input.is_none());
+    }
+
+    #[test]
+    fn enter_while_idle_still_submits() {
+        let mut app = App::new("test-model", "main");
+        app.state = AppState::Idle;
+        app.input = "hello".to_string();
+        app.cursor = app.input.chars().count();
+
+        let action = handle_key(&mut app, key(KeyCode::Enter));
+
+        assert!(matches!(action, InputAction::Submit(ref t) if t == "hello"));
+        assert!(app.queued_input.is_none());
     }
 }

@@ -299,6 +299,10 @@ pub(super) async fn run_normal_turn(
                                     app.auto_scroll = true;
                                     channel::push_btw(text);
                                 }
+                            } else {
+                                // Let the user type a follow-up into the input box and queue
+                                // it for after this turn ends (issue #10).
+                                super::input::forward_in_turn_edit_key(app, k);
                             }
                         }
                     }

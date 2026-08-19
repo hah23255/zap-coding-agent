@@ -401,6 +401,23 @@ pub(super) fn draw_input(frame: &mut Frame, app: &App, area: Rect) -> Option<(u1
             );
             return None;
         }
+        // Busy and nothing typed yet: hint that typing queues a follow-up.
+        // Once the user starts typing, fall through to render the live draft.
+        if app.input.is_empty() {
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Rgb(60, 60, 60)))
+                .title(Span::styled(" busy ", Style::default().fg(Color::Rgb(120, 120, 120))));
+            frame.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    "  type to queue a follow-up — runs after this turn",
+                    Style::default().fg(Color::Rgb(110, 110, 110)),
+                )))
+                .block(block),
+                area,
+            );
+            return None;
+        }
     }
 
     // Hard-wrap once and reuse the exact same rows for both the cursor

@@ -7,6 +7,30 @@ Update this file whenever a feature ships or a plan changes — no code scanning
 
 ## Implemented ✅
 
+### feat(tui): queue a follow-up request while a turn is running (v0.15.141 patch)
+
+Requested in #10. While the agent is busy (waiting on the LLM or running tools),
+you can now **type into the input box and press Enter to queue** a follow-up —
+it fires automatically when the current turn ends, ahead of scheduler jobs.
+
+The queue infrastructure already existed end-to-end — `App.queued_input`, the
+Enter-while-busy branch in `handle_key`, the post-turn drain in the main loop,
+the "⏎ queued — Esc to cancel" render, and Esc-to-cancel. The only missing wire
+was that `run_normal_turn`'s in-turn event loop swallowed every keystroke except
+Ctrl+C, permission-popup keys, and btw/Ctrl+B, so plain typing never reached
+`handle_key`. Added an `else` branch that forwards **only** editing/submit keys
+(Char without Ctrl, Backspace, Left/Right, Home/End, Enter, Esc) to `handle_key`;
+Ctrl shortcuts, navigation, and heavier actions (pickers, paste, diff) keep their
+existing mid-turn behavior and are intentionally not run inside the turn loop.
+Added a faint "type to queue a follow-up" hint in the input box while busy so the
+capability is discoverable. Single-slot for now (a second queued message
+overwrites the first); this is distinct from **btw (Ctrl+B)**, which injects into
+the *current* turn rather than queuing for the next.
+
+**Files:** `src/tui/turn_handler.rs`, `src/tui/render/layout.rs`, `src/tui/input.rs` (tests)
+
+---
+
 ### fix(provider): Custom (OpenAI-compatible) flow + Linux arm64 release (v0.15.140 patch)
 
 Two reported issues.
